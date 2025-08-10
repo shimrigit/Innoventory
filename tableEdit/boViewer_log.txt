@@ -1,0 +1,142 @@
+[2024-12-16 10:17:39] Saved Revised File:
+../downloads/Ays_03.12.2024_Ays 08-12-24_OCRsanity_161224_101625_RV1_PL_161224_101705_RV0.xlsx
+[2024-12-16 10:18:38] Saved Revised File:
+../downloads/Ays_03.12.2024_Ays 08-12-24_OCRsanity_161224_101625_RV1_PL_161224_101705_RV1.xlsx
+[2024-12-16 10:37:37] Saved Revised File:
+../downloads/Ays_03.12.2024_Ays 08-12-24_OCRsanity_161224_103704_RV1_PL_161224_103714_RV0.xlsx
+[2024-12-22 13:13:00] Saved Revised File:
+../downloads/Globrands_01.12.2024_Globrands 22-12-24 A_OCRsanity_221224_125517_RV3_PL_221224_125736_RV0.xlsx
+[2024-12-22 13:14:27] Saved Revised File:
+../downloads/Globrands_01.12.2024_Globrands 22-12-24 A_OCRsanity_221224_125517_RV3_PL_221224_125736_RV1.xlsx
+[2024-12-22 14:22:18] Saved Revised File:
+../downloads/Globrands_15.12.2024_Globrands 22-12-24 B_OCRsanity_221224_142048_RV1_PL_221224_142125_RV0.xlsx
+[2024-12-22 14:28:07] Saved Revised File:
+../downloads/Globrands_15.12.2024_Globrands 22-12-24 B_OCRsanity_221224_142048_RV1_PL_221224_142125_RV1.xlsx
+[2024-12-22 14:32:55] Saved Revised File:
+../downloads/PhilipMorris_12.12.2024_PhilipMorris 22-12-24 A_OCRsanity_221224_142841_RV7_PL_221224_143113_RV0.xlsx
+[2024-12-22 14:36:59] Saved Revised File:
+../downloads/PhilipMorris_19.12.2024_PhilipMorris 22-12-24 B_OCRsanity_221224_143401_RV3_PL_221224_143546_RV0.xlsx
+[2024-12-22 14:47:00] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_221224_143716_RV1_PL_221224_143736_RV0.xlsx
+[2024-12-23 11:03:03] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_231224_110213_RV1_PL_231224_110224_RV0.xlsx
+[2024-12-29 23:20:43] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_291224_231941_RV1_PL_291224_231956_RV0.xlsx
+[2024-12-31 15:58:20] Saved Revised File:
+../downloads/Angel_23.12.2024_Angel 31-12-24 B_OCRsanity_311224_155525_RV1_PL_311224_155553_RV0.xlsx
+[2024-12-31 16:09:57] Saved Revised File:
+../downloads/Angel_24.12.2024_Angel 31-12-24 E_OCRsanity_311224_160823_RV3_PL_311224_160921_RV0.xlsx
+[2024-12-31 16:23:33] Saved Revised File:
+../downloads/Mashani_24.12.2024_Mashani 31-12-24 A_OCRsanity_311224_161906_RV3_PL_311224_162033_RV0.xlsx
+[2025-01-05 07:39:03] Saved Revised File:
+../downloads/Globrands_29.12.2024_Globrands 31-12-24 A_OCRsanity_050125_072440_RV3_PL_050125_072544_RV0.xlsx
+[2025-01-05 07:54:47] Saved Revised File:
+../downloads/Dubek_24.12.2024_Dubek 31-12-24 A_OCRsanity_050125_074636_RV3_PL_050125_074908_RV0.xlsx
+[2025-01-05 13:46:37] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_050125_134415_RV1_PL_050125_134517_RV0.xlsx
+[2025-01-05 15:46:53] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_050125_154601_RV1_PL_050125_154612_RV0.xlsx
+[2025-01-05 17:24:28] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_050125_172346_RV1_PL_050125_172355_RV0.xlsx
+[2025-01-06 09:28:06] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_060125_092701_RV1_PL_060125_092710_RV0.xlsx
+[2025-01-06 15:34:23] Saved Revised File:
+../downloads/FarmaDeal_19.12.2024_FarmaDeal 22-12-24_OCRsanity_060125_153324_RV1_PL_060125_153338_RV0.xlsx
+[2025-01-07 16:34:07] Saved Revised File:
+../downloads/PhilipMorris_02.01.2025_PhilipMorris 07-01-25 A_OCRsanity_070125_163135_RV3_PL_070125_163247_RV0.xlsx
+[2025-01-08 14:48:21] Saved Revised File:
+../downloads/Ewi_07.01.2025_Ewi 08-01-25_OCRsanity_080125_144000_RV5_PL_080125_144225_RV0.xlsx
+[2025-01-13 10:23:18] Saved Revised File:
+../downloads/Shufersal_30.12.2024_Shufersal 31-12-24 B_OCRsanity_130125_102202_RV1_PL_130125_102223_RV0.xlsx
+[2025-01-13 11:50:01] Saved Revised File:
+../downloads/Tnuva_13.01.2025_Tnuva 13-01-25 B_OCRsanity_130125_113919_RV3_PL_130125_114218_RV0.xlsx
+[2025-01-21 06:29:00] Saved Revised File:
+../downloads/Tnuva_20.01.2025_Tnuva 20-01-25 C_OCRsanity_210125_062514_RV1_PL_210125_062554_RV0.xlsx
+[2025-01-21 06:30:12] Saved Revised File:
+../downloads/Tnuva_20.01.2025_Tnuva 20-01-25 C_OCRsanity_210125_062514_RV1_PL_210125_062554_RV1.xlsx
+[2025-01-21 10:48:42] Saved Revised File:
+../downloads/Tnuva_20.01.2025_Tnuva 20-01-25 B_OCRsanity_210125_104732_RV1_PL_210125_104741_RV0.xlsx
+[2025-01-21 11:04:09] Saved Revised File:
+../downloads/Tnuva_20.01.2025_Tnuva 20-01-25 B_OCRsanity_210125_110323_RV1_PL_210125_110332_RV0.xlsx
+[2025-01-23 22:04:44] Saved Revised File:
+../downloads/AllMeat_08.01.2025_Globrands 23-01-25_OCRsanity_230125_220313_RV1_PL_230125_220332_RV0.xlsx
+[2025-01-23 22:10:18] Saved Revised File:
+../downloads/Tnuva_23.10.2025_Dansell 23-01-25_OCRsanity_230125_220826_RV3_PL_230125_220913_RV0.xlsx
+[2025-01-23 22:10:54] Saved Revised File:
+../downloads/Tnuva_23.10.2025_Dansell 23-01-25_OCRsanity_230125_220826_RV3_PL_230125_220913_RV1.xlsx
+[2025-01-26 10:09:04] Saved Revised File:
+../downloads/Tara_26.01.2025_Tara 26-01-25 A_OCRsanity_260125_100156_RV7_PL_260125_100527_RV0.xlsx
+[2025-01-27 14:46:54] Saved Revised File:
+../downloads/Soglowek_27.01.2026_Soglowek 27-01-25_OCRsanity_270125_144426_RV5_PL_270125_144628_RV0.xlsx
+[2025-01-30 10:28:00] Saved Revised File:
+../downloads/Osem_28.01.2025_Osem 30-01-25 C_OCRsanity_300125_102554_RV3_PL_300125_102610_RV0.xlsx
+[2025-01-30 10:29:58] Saved Revised File:
+../downloads/Osem_30.01.2025_Osem 30-01-25 B_OCRsanity_300125_102828_RV5_PL_300125_102915_RV0.xlsx
+[2025-01-30 10:30:50] Saved Revised File:
+../downloads/Berman_30.01.2025_Berman 30-01-25_OCRsanity_300125_103016_RV1_PL_300125_103027_RV0.xlsx
+[2025-01-30 10:36:07] Saved Revised File:
+../downloads/Tnuva_30.01.2025_Tnuva 30-01-25_OCRsanity_300125_103429_RV3_PL_300125_103518_RV0.xlsx
+[2025-02-03 15:36:16] Saved Revised File:
+../downloads/StraussCool_03.02.2025_StraussCool 03-02-25 B_OCRsanity_030225_153516_RV1_PL_030225_153542_RV0.xlsx
+[2025-02-03 15:41:43] Saved Revised File:
+../downloads/BJ_02.02.2025_BJ 03-02-25_OCRsanity_030225_153634_RV7_PL_030225_154048_RV0.xlsx
+[2025-02-03 15:45:56] Saved Revised File:
+../downloads/StraussCool_02.02.2025_StraussCool 03-02-25_OCRsanity_030225_154359_RV3_PL_030225_154502_RV0.xlsx
+[2025-02-03 15:49:18] Saved Revised File:
+../downloads/Tnuva_02.02.2025_Tnuva 03-02-25_OCRsanity_030225_154742_RV3_PL_030225_154827_RV0.xlsx
+[2025-02-04 15:41:26] Saved Revised File:
+../downloads/Sano_04.02.2025_Sano 04-02-25 A_OCRsanity_040225_153721_RV3_PL_040225_153804_RV0.xlsx
+[2025-02-04 15:44:20] Saved Revised File:
+../downloads/StraussCool_04.02.2025_StraussCool 04-02-25 A_OCRsanity_040225_154147_RV1_PL_040225_154322_RV0.xlsx
+[2025-02-05 19:05:10] Saved Revised File:
+../downloads/Neto_05.02.2025_Neto 05-02-25_OCRsanity_050225_190340_RV1_PL_050225_190351_RV0.xlsx
+[2025-02-06 11:28:26] Saved Revised File:
+../downloads/Tnuva_06.02.2025_Tnuva 06-02-25_OCRsanity_060225_112021_RV1_PL_060225_112113_RV0.xlsx
+[2025-02-06 11:38:48] Saved Revised File:
+../downloads/Tnuva_06.02.2025_Tnuva 06-02-25_OCRsanity_060225_113542_RV1_PL_060225_113631_RV0.xlsx
+[2025-02-09 18:38:43] Saved Revised File:
+../downloads/StraussCool_09.02.2025_StraussCool 09-02-25 C_OCRsanity_090225_183534_RV1_PL_090225_183747_RV0.xlsx
+[2025-02-09 18:42:37] Saved Revised File:
+../downloads/StraussCool_09.02.2025_StraussCool 09-02-25 B_OCRsanity_090225_183933_RV5_PL_090225_184206_RV0.xlsx
+[2025-02-09 18:45:47] Saved Revised File:
+../downloads/StraussCool_07.02.2025_StraussCool 09-02-25 A_OCRsanity_090225_184259_RV5_PL_090225_184430_RV0.xlsx
+[2025-02-11 12:12:11] Saved Revised File:
+../downloads/Tayari_16.01.2025_Tayari 11-02-25 A_OCRsanity_110225_120105_RV5_PL_110225_120337_RV0.xlsx
+[2025-02-12 12:45:25] Saved Revised File:
+../downloads/Tnuva_12.02.2025_Tnuva 12-02-25 A_OCRsanity_120225_124444_RV1_PL_120225_124503_RV0.xlsx
+[2025-02-12 12:49:51] Saved Revised File:
+../downloads/Tara_11.02.2025_Tara 12-02-25 A_OCRsanity_120225_124634_RV3_PL_120225_124803_RV0.xlsx
+[2025-02-12 12:55:13] Saved Revised File:
+../downloads/LS_11.02.2025_LS 12-02-25 A_OCRsanity_120225_125211_RV3_PL_120225_125439_RV0.xlsx
+[2025-02-12 13:25:48] Saved Revised File:
+../downloads/Gad_12.02.2020_Gad 12-02-25 A_OCRsanity_120225_131828_RV3_PL_120225_131904_RV0.xlsx
+[2025-02-13 13:02:32] Saved Revised File:
+../downloads/Berman_13.02.2025_Berman 13-02-25_OCRsanity_130225_130107_RV1_PL_130225_130117_RV0.xlsx
+[2025-02-13 13:06:09] Saved Revised File:
+../downloads/Tnuva_13.02.2025_Tnuva 13-02-25 A_OCRsanity_130225_130253_RV3_PL_130225_130525_RV0.xlsx
+[2025-02-13 18:15:55] Saved Revised File:
+../downloads/Avikam_10.02.2025_Avikam 13-02-25_OCRsanity_130225_181001_RV5_PL_130225_181231_RV0.xlsx
+[2025-02-14 23:34:00] Saved Revised File:
+../downloads/Osem_11.02.2025_Osem 14-02-25 B_OCRsanity_140225_233221_RV1_PL_140225_233236_RV0.xlsx
+[2025-02-14 23:34:17] Saved Revised File:
+../downloads/Osem_11.02.2025_Osem 14-02-25 B_OCRsanity_140225_233221_RV1_PL_140225_233236_RV1.xlsx
+[2025-02-14 23:42:08] Saved Revised File:
+../downloads/BetterChoice_12.02.2025_NASL 14-02-25 A_OCRsanity_140225_233744_RV1_PL_140225_233803_RV0.xlsx
+[2025-02-16 15:00:52] Saved Revised File:
+../downloads/Tnuva_16.02.2025_Tnuva 16-02-25 A_OCRsanity_160225_150000_RV1_PL_160225_150022_RV0.xlsx
+[2025-02-17 23:17:54] Saved Revised File:
+../downloads/StraussCool_17.02.2025_StraussCool 17-02-25 A_OCRsanity_170225_231704_RV1_PL_170225_231728_RV0.xlsx
+[2025-02-17 23:19:48] Saved Revised File:
+../downloads/Soglowek_17.02.2025_Soglowek 17-02-25_OCRsanity_170225_231822_RV3_PL_170225_231920_RV0.xlsx
+[2025-02-19 13:27:58] Saved Revised File:
+../downloads/Tnuva_19.02.2025_Tnuva 19-02-25 A_OCRsanity_190225_132651_RV3_PL_190225_132714_RV0.xlsx
+[2025-02-27 17:18:01] Saved Revised File:
+../downloads/Tnuva_24.02.2025_Tnuva 27-02-25 B_OCRsanity_270225_171629_RV3_PL_270225_171726_RV0.xlsx
+[2025-03-12 15:31:16] Saved Revised File:
+../downloads/Globrands_05.03.2025_Globrands 12-03-25_OCRsanity_120325_152734_RV3_PL_120325_152818_RV0.xlsx
+[2025-03-19 19:01:09] Saved Revised File:
+../downloads/Tnuva_19.03.2025_Tnuva 19-03-25_OCRsanity_190325_190024_RV1_PL_190325_190036_RV0.xlsx
+[2025-04-19 13:35:22] Saved Revised File:
+../downloads/Tnuva_14.04.2025_Tnuva 18-04-25 C_OCRsanity_190425_133431_RV3_PL_190425_133456_RV0.xlsx
+[2025-05-07 12:40:36] Saved Revised File:
+../downloads/Tavili_26.03.2025_Tavili 27-03-25_OCRsanity_070525_123837_RV1_PL_070525_123852_RV0.xlsx

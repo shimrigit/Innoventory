@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Excel File</title>
+    <style>
+        .container {
+            display: flex;
+            height: 600px;
+        }
+        .excel-editor, .pdf-viewer {
+            flex: 1;
+            padding: 10px;
+            overflow: auto;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px; /* Adjust as needed */
+        }
+        .row input[type="text"] {
+            margin-right: 5px; /* Adjust as needed */
+        }
+        .row-number {
+            width: 30px; /* Adjust as needed */
+            text-align: center;
+            font-weight: bold;
+            background-color: #f0f0f0; /* Adjust as needed */
+            padding: 5px;
+            margin-right: 5px;
+        }
+        .info {
+            font-size: larger; /* Adjust this value as needed */
+            font-weight: bold; /* Make the text bold */
+        }
+        .exact-values {
+            background-color: lightgreen;
+        }
+        .diff-smaller-5 {
+            background-color: orange;
+        }
+        .diff-bigger-5 {
+            background-color: lightcoral;
+        }
+    </style>
+</head>
+<body>
+    <h1>Edit Excel File</h1>
+    <p class="info" id="info"></p>
+    <p class="info" id="counts"></p>
+    <div class="container">
+        <div id="fileContent" class="excel-editor"></div>
+        <div class="pdf-viewer">
+            <iframe id="pdfViewer" width="100%" height="100%"></iframe>
+        </div>
+    </div>
+    <button onclick="saveFile('recheckOCRsanity.php')">Recheck OCR Sanity</button>
+    <button onclick="saveFile('compareToItemsPriceList.php')">Compare to items Price List Sheet</button>
+
+    <script>
+        function getQueryParam(param) {
+            let urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        function applyStyles(input, cellColor, fontColor, borders) {
+            if (cellColor !== 'FFFFFFFF') { // Ignore default white background
+                input.style.backgroundColor = `#${cellColor.substring(2)}`;
+            }
+            if (fontColor !== 'FF000000') { // Ignore default black font
+                input.style.color = `#${fontColor.substring(2)}`;
+            }
+            applyBorders(input, borders);
+        }
+
+        function applyBorders(input, borders) {
+            if (borders) {
+                const borderWidth = '5px'; // Change this value to adjust the border thickness
+                input.style.borderTop = borders.top ? `${borderWidth} solid #000` : '';
+                input.style.borderRight = borders.right ? `${borderWidth} solid #000` : '';
+                input.style.borderBottom = borders.bottom ? `${borderWidth} solid #000` : '';
+                input.style.borderLeft = borders.left ? `${borderWidth} solid #000` : '';
+            }
+        }
+
+        function loadFile() {
+            const xlsxFile = getQueryParam('xlsx') || 'data.xlsx';
+            fetch(`load_file.php?file=${xlsxFile}`)
+                .then(response => response.json())
+                .then(data => {
+                    const fileContent = document.getElementById('fileContent');
+                    fileContent.innerHTML = '';
+
+                    data.forEach((row, rowIndex) => {
+                        const rowElement = document.createElement('div');
+                        rowElement.classList.add('row');
+                        
+                        if (rowIndex >= 6) {
+                            const rowNumberElement = document.createElement('div');
+                            rowNumberElement.classList.add('row-number');
+                            rowNumberElement.textContent = rowIndex - 5; // Adjust to start from 1
+                            rowElement.appendChild(rowNumberElement);
+                        }
+
+                        row.forEach((cell, colIndex) => {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.id = `cell-${rowIndex}-${colIndex}`;
+                            input.value = cell.value === null ? '' : cell.value;
+                            applyStyles(input, cell.cellColor, cell.fontColor, cell.borders);
+                            rowElement.appendChild(input);
+                        });
+                        fileContent.appendChild(rowElement);
+                    });
+
+                    // Load PDF file
+                    const invoiceFile = getQueryParam('pdf') || 'invoice.pdf';
+                    document.getElementById('pdfViewer').src = invoiceFile;
+
+                    // Display counts with default values
+                    //const countsElement = document.getElementById('counts');
+                    //const purpleCount = data.purpleCount; //!== undefined ? data.purpleCount : 0;
+                    //const yellowCount = data.yellowCount; //!== undefined ? data.yellowCount : 0;
+                    //const borderCount = data.borderCount; //!== undefined ? data.borderCount : 0;
+                    //countsElement.innerText = `Purple cells - ${purpleCount} Yellow cells - ${yellowCount} Different borders - ${borderCount}`;
+
+                    // Check for the optional LineTotalNotMatch parameter and display the new message if present
+                    const lineTotalNotMatch = getQueryParam('LineTotalNotMatch');
+                    if (lineTotalNotMatch === 'true') {
+                        const countsElement = document.getElementById('counts');
+                        countsElement.innerText = "Note: line total will not necessarily match Qty*Price for this supplier";
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function saveFile(action) {
+            const rowsHtml = document.getElementById('fileContent').children;
+            const content = [];
+
+            for (let i = 0; i < rowsHtml.length; i++) {
+                if (rowsHtml[i].classList.contains('row')) {
+                    const inputs = rowsHtml[i].querySelectorAll('input[type="text"]');
+                    const rowValues = Array.from(inputs).map(input => input.value);
+                    if (rowValues.some(value => value !== '')) { // Only push rows with non-empty values
+                        content.push(rowValues);
+                    }
+                }
+            }
+
+            // Debugging: Show the content array in the console
+            console.log("Content to send to server:", content);
+
+            // Send the content array to the PHP script
+            const xlsxFile = getQueryParam('xlsx') || 'data.xlsx';
+            console.log("File to save:", xlsxFile); // Debugging log
+
+            fetch('save_file.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content: content, xlsxFile: xlsxFile })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error from server:', data.error);
+                    alert(data.error);
+                } else {
+                    console.log(data.message);
+                    alert(data.message);
+
+                    // Redirect based on the chosen action
+                    console.log("Redirecting to:", action + '?file=' + encodeURIComponent(xlsxFile));
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = action;
+
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'file_name';
+                    input.value = xlsxFile;
+
+                    form.appendChild(input);
+                    document.body.appendChild(form);
+                    console.log("Submitting form with action:", action);
+                    form.submit();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Call the loadFile function immediately
+        window.onload = function() {
+            const invsum = parseFloat(getQueryParam('invsum'));
+            const calcsum = parseFloat(getQueryParam('calcsum'));
+            let message = `Invoice sum = ${invsum}   Calculated sum = ${calcsum} `;
+            const infoElement = document.getElementById('info');
+
+            if (invsum === calcsum) {
+                message += "Exact values";
+                infoElement.className = 'info exact-values';
+            } else if (Math.abs(invsum - calcsum) < 5) {
+                message += "Diff smaller than 5 - OK";
+                infoElement.className = 'info diff-smaller-5';
+            } else {
+                message += "Diff bigger than 5 - NOT OK";
+                infoElement.className = 'info diff-bigger-5';
+            }
+
+            infoElement.innerText = message;
+
+            loadFile();
+        };
+    </script>
+</body>
+</html>

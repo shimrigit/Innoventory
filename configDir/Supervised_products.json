@@ -1,0 +1,200 @@
+[
+    {
+        "Barcode": 7290000048185,
+        "ItemName": "גבינה לבנה 5%, 250 גרם",
+        "Manufacturer": "תנובה",
+        "Category": "גבינה לבנה 5%"
+    },
+    {
+        "Barcode": 7290000474502,
+        "ItemName": "גבינה לבנה 5%, 250 גרם",
+        "Manufacturer": "טרה",
+        "Category": "גבינה לבנה 5%"
+    },
+    {
+        "Barcode": 7290000047621,
+        "ItemName": "גבינה לבנה 5%, 250 גרם",
+        "Manufacturer": "תנובה",
+        "Category": "גבינה לבנה 5%"
+    },
+    {
+        "Barcode": 7290114310901,
+        "ItemName": "גבינה לבנה 5%, כשרות מהדרין, 250 גרם",
+        "Manufacturer": "טרה",
+        "Category": "גבינה לבנה 5%"
+    },
+    {
+        "Barcode": 7290000522326,
+        "ItemName": "חלב טרי מהגולן 1%, 1 ליטר",
+        "Manufacturer": "מחלבות רמת הגולן",
+        "Category": "חלב טרי 1%"
+    },
+    {
+        "Barcode": 7290000042435,
+        "ItemName": "חלב 1% קרטון, 1 ליטר",
+        "Manufacturer": "תנובה",
+        "Category": "חלב טרי 1%"
+    },
+    {
+        "Barcode": 7290000522319,
+        "ItemName": "חלב טרי מהגולן 3%, 1 ליטר",
+        "Manufacturer": "מחלבות רמת הגולן",
+        "Category": "חלב טרי 3%"
+    },
+    {
+        "Barcode": 7290004131074,
+        "ItemName": "חלב תנובה טרי 3% בקרטון, כשרות מהדרין, 1 ליטר",
+        "Manufacturer": "תנובה",
+        "Category": "חלב טרי 3%"
+    },
+    {
+        "Barcode": 7290004125400,
+        "ItemName": "אשל לבן 4.5%, 200 מ\"ל",
+        "Manufacturer": "תנובה",
+        "Category": "אשל"
+    },
+    {
+        "Barcode": 7290004125417,
+        "ItemName": "גיל לבן 3%, 200 מ\"ל",
+        "Manufacturer": "תנובה",
+        "Category": "גיל"
+    },
+    {
+        "Barcode": 72961223,
+        "ItemName": "גיל לבן 3%, 200 מ\"ל",
+        "Manufacturer": "תנובה",
+        "Category": "גיל"
+    },
+    {
+        "Barcode": 7290104728310,
+        "ItemName": "שמנת מתוקה להקצפה 38%, 250 מ\"ל",
+        "Manufacturer": "שטראוס",
+        "Category": "שמנת"
+    },
+    {
+        "Barcode": 7290114310215,
+        "ItemName": "שמנת מתוקה 38% בבקבוק, כשרות בד\"ץ, 250 מ\"ל",
+        "Manufacturer": "טרה",
+        "Category": "שמנת"
+    },
+    {
+        "Barcode": 7290000043814,
+        "ItemName":  "שמנת להקצפה 38%, 250 מל",
+        "Manufacturer": "תנובה",
+        "Category": "שמנת"
+    },
+    {
+        "Barcode": 7290102398508,
+        "ItemName": "שמנת מתוקה עמידה 38% טרה, 250 מ\"ל",
+        "Manufacturer": "טרה",
+        "Category": "שמנת"
+    },
+    {
+        "Barcode": 7290001464977,
+        "ItemName": "ביצים לארג רמי לוי גודל L, 12 יחידות",
+        "Manufacturer": "רמי לוי",
+        "Category": "ביצים L 12"
+    },
+    {
+        "Barcode": 7290001201589,
+        "ItemName": "ביצים L, 12 יחידות",
+        "Manufacturer": "מלסר",
+        "Category": "ביצים L 12"
+    },
+    {
+        "Barcode": 7290005271410,
+        "ItemName": "ביצים L, 12 יחידות",
+        "Manufacturer": "גליקסמן",
+        "Category": "ביצים L 12"
+    },
+    {
+        "Barcode": 7290011778118,
+        "ItemName": "ביצים טריות גדול, 12 יחידות",
+        "Manufacturer": "מן הטבע",
+        "Category": "ביצים L 12"
+    },
+    {
+        "Barcode": 7296082000134,
+        "ItemName": "ביצים גדולות, 12 יחידות",
+        "Manufacturer": "ביצי רמות השבים",
+        "Category": "ביצים L 12"
+    },
+    {
+        "Barcode": 7290011219093,
+        "ItemName": "ביצים L, 12 יחידות",
+        "Manufacturer": "עשת",
+        "Category": "ביצים L 12"
+    },
+    {
+        "Barcode": 7290014996007,
+        "ItemName": "ביצים L, 12 יחידות",
+        "Manufacturer": "ביצי הגליל",
+        "Category": "ביצים L גדולות, 12 יחידות"
+    },
+    {
+        "Barcode": 7290000497112,
+        "ItemName": "לחם אחיד פרוס ברמן, 750 גרם",
+        "Manufacturer": "ברמן",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7290000574035,
+        "ItemName": "לחם אחיד פרוס, 750 גרם",
+        "Manufacturer": "דגנית עין הבר",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7296073415855,
+        "ItemName": "לחם אחיד פרוס, 750 גרם",
+        "Manufacturer": "יש חסד",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7296073219347,
+        "ItemName": "לחם אחיד פרוס שופרסל, 750 גרם",
+        "Manufacturer": "ברמן",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7290002079477,
+        "ItemName": "לחם אחיד פרוס כהה, 750 גרם",
+        "Manufacturer": "מאפיית דוידוביץ",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7290002661184,
+        "ItemName": "לחם אחיד פרוס, 750 גרם",
+        "Manufacturer": "אושר עד",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7296073218920,
+        "ItemName": "לחם אחיד פרוס שופרסל, 750 גרם",
+        "Manufacturer": "מאפיית אורנים",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7290002037163,
+        "ItemName": "לחם חום אחיד פרוס, 750 גרם",
+        "Manufacturer": "מאפיית ודש",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7290002994329,
+        "ItemName": "לחם אחיד פרוס, 750 גרם",
+        "Manufacturer": "מאפיית אגמי",
+        "Category": "לחם אחיד ארוז"
+    },
+    {
+        "Barcode": 7290004125738,
+        "ItemName":  "שמנת להקצפה השף הלבן 32% 250 מל",
+        "Manufacturer": "תנובה",
+        "Category": "שמנת"
+    },
+    {
+        "Barcode": 72961209,
+        "ItemName":  "שמנת חמוצה 15% 200 מל בדצ" ,
+        "Manufacturer": "תנובה",
+        "Category": "שמנת"
+    }
+]

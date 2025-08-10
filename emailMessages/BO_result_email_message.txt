@@ -1,0 +1,10 @@
+הי AdminName,
+
+מצ"ב קבצי תוצאות סריקת החשבוניות שהתקבלו היום
+כמות חשבוניות בדו"ח: invoicesNum
+כמות מוצרים חדשים: newProductsNum
+כמות המלצות לשינוי מחירים: priceChangesNum
+
+המשך יום נפלא! 😊
+
+שמרי

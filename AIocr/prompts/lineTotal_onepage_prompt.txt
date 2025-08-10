@@ -1,0 +1,3 @@
+for Date, Invoice number, total before VAT return content based on file name suffix.
+for files with "table" suffix get the raw ocr output from the columns and index every item. if thre is a space between the items index it too  
+them combine the columns to one table by the order: Barcode (table), quantity (table2) , unit price (table3), total per item (table4)

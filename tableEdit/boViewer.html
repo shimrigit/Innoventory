@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Back Office file</title>
+    <style>
+        .container {
+            display: flex;
+            height: 600px;
+        }
+        .excel-editor, .pdf-viewer {
+            flex: 1;
+            padding: 10px;
+            overflow: auto;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .row input[type="text"] {
+            margin-left: 5px;
+        }
+        .row-number {
+            width: 30px;
+            text-align: center;
+            font-weight: bold;
+            background-color: #f0f0f0;
+            padding: 5px;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Back Office file</h1>
+    <div class="container">
+        <div id="fileContent" class="excel-editor"></div>
+        <div class="pdf-viewer">
+            <iframe id="pdfViewer" width="100%" height="100%"></iframe>
+        </div>
+    </div>
+    <button onclick="saveFile()">Save and generate new products file</button>
+    <button onclick="recheckBackOfficeSheet()">Re-check Back Office Sheet</button>
+
+    <script>
+        function getQueryParam(param) {
+            let urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        function applyStyles(input, cellColor, fontColor, borders) {
+            if (cellColor !== 'FFFFFFFF') {
+                input.style.backgroundColor = `#${cellColor.substring(2)}`;
+            }
+            if (fontColor !== 'FF000000') {
+                input.style.color = `#${fontColor.substring(2)}`;
+            }
+            applyBorders(input, borders);
+        }
+
+        function applyBorders(input, borders) {
+            if (borders) {
+                const borderWidth = '5px';
+                input.style.borderTop = borders.top ? `${borderWidth} solid #000` : '';
+                input.style.borderRight = borders.right ? `${borderWidth} solid #000` : '';
+                input.style.borderBottom = borders.bottom ? `${borderWidth} solid #000` : '';
+                input.style.borderLeft = borders.left ? `${borderWidth} solid #000` : '';
+            }
+        }
+
+        function loadFile() {
+            const xlsxFile = getQueryParam('xlsx');
+            fetch(`load_file_bo.php?file=${xlsxFile}`)
+                .then(response => response.json())
+                .then(data => {
+                    const fileContent = document.getElementById('fileContent');
+                    fileContent.innerHTML = '';
+                    data.forEach((row, rowIndex) => {
+                        const rowElement = document.createElement('div');
+                        rowElement.classList.add('row');
+                        row.forEach((cell, colIndex) => {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.value = cell.value === null ? '' : cell.value;
+                            applyStyles(input, cell.cellColor, cell.fontColor, cell.borders);
+                            rowElement.appendChild(input);
+                        });
+                        fileContent.appendChild(rowElement);
+                    });
+                    const pdfFile = getQueryParam('pdf');
+                    document.getElementById('pdfViewer').src = pdfFile;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function saveFile() {
+        const rowsHtml = document.getElementById('fileContent').children;
+        const content = [];
+        for (let i = 0; i < rowsHtml.length; i++) {
+            const inputs = rowsHtml[i].querySelectorAll('input[type="text"]');
+            const rowValues = Array.from(inputs).map(input => {
+                return {
+                    value: input.value,
+                    backgroundColor: input.style.backgroundColor || null
+                };
+            });
+            content.push(rowValues);
+        }
+
+        const xlsxFile = getQueryParam('xlsx');
+        const newFileName = xlsxFile.replace(/(\.xlsx)$/, '_RV$1');
+
+        fetch('save_file_bo.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content: content, xlsxFile: newFileName })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error from server:', data.error);
+                alert(data.error);
+            } else {
+                alert(data.message);
+                // Redirect to concludeProductsPrices.php as per the original flow
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'concludeProductsPrices.php';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'file_name';
+                input.value = newFileName;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+        }
+
+        function recheckBackOfficeSheet() {
+            const rowsHtml = document.getElementById('fileContent').children;
+            const content = [];
+
+            for (let i = 0; i < rowsHtml.length; i++) {
+                const inputs = rowsHtml[i].querySelectorAll('input[type="text"]');
+                const rowValues = Array.from(inputs).map(input => {
+                    return {
+                        value: input.value,
+                        backgroundColor: input.style.backgroundColor || null
+                    };
+                });
+                content.push(rowValues);
+            }
+
+            // Get the original file name from the URL
+            const xlsxFile = getQueryParam('xlsx');
+            // Get the PDF file name from the URL
+            const pdfFile = getQueryParam('pdf');
+
+            // Debugging: Show the content array and file name in the console
+            console.log("Content to send to server:", content);
+            console.log("File to send:", xlsxFile);
+            console.log("PDF to send:", pdfFile);
+
+            // Create a new form to open in a new window
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 're-process_priceList_check.php';
+            form.target = '_blank'; // Open in a new window
+
+            // Add content as a hidden input
+            const contentInput = document.createElement('input');
+            contentInput.type = 'hidden';
+            contentInput.name = 'content';
+            contentInput.value = JSON.stringify(content);
+            form.appendChild(contentInput);
+
+            // Add xlsxFile as a hidden input
+            const fileInput = document.createElement('input');
+            fileInput.type = 'hidden';
+            fileInput.name = 'xlsxFile';
+            fileInput.value = xlsxFile;
+            form.appendChild(fileInput);
+
+            // Add pdfFile as a hidden input
+            const pdfInput = document.createElement('input');
+            pdfInput.type = 'hidden';
+            pdfInput.name = 'pdfFile';
+            pdfInput.value = pdfFile;
+            form.appendChild(pdfInput);
+
+            // Append the form to the document and submit it
+            document.body.appendChild(form);
+            console.log("Submitting form to re-process_priceList_check.php in a new window.");
+            form.submit();
+            document.body.removeChild(form); // Clean up
+        }
+
+        window.onload = function() {
+            loadFile();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi-Rectangle Crop Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    #controls {
+      margin-bottom: 10px;
+    }
+
+    #canvas-container {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 30px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border: 1px solid black;
+    }
+
+    #pdf-canvas {
+      z-index: 1;
+    }
+
+    #overlay-canvas {
+      z-index: 2;
+      pointer-events: auto;
+    }
+
+    #result-container {
+      margin-top: 20px;
+    }
+
+    .cropped-block {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      gap: 10px;
+    }
+
+    .cropped-image {
+      border: 1px solid #999;
+      display: block;
+      max-width: 100%;
+    }
+
+    .label-dropdown {
+      font-size: 14px;
+    }
+
+    #save-images {
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Draw Rectangles on PDF and View Crops</h2>
+
+  <div id="controls">
+    <input type="file" id="pdf-file" accept="application/pdf">
+    <button id="show-results" disabled>Save and Show All Selected Rectangles</button>
+  </div>
+
+  <div id="canvas-container">
+    <canvas id="pdf-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <h3 id="crop-label" style="display: none;">Cropped Rectangles:</h3>
+  <div id="result-container"></div>
+
+  <button id="save-images" style="display: none;">Save Cropped Images to Server</button>
+
+  <form id="save-form" method="post" action="save_crops.php">
+    <input type="hidden" name="imagesJson" id="imagesJson">
+    <input type="hidden" name="originalFileName" id="originalFileName">
+  </form>
+
+  <script>
+    const pdfCanvas = document.getElementById('pdf-canvas');
+    const pdfCtx = pdfCanvas.getContext('2d');
+
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+
+    const rectangles = [];
+    let startX, startY, endX, endY, isDrawing = false;
+    let pdfImage;
+
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+
+    document.getElementById('pdf-file').addEventListener('change', function(e) {
+      const pdfFile = e.target.files[0];
+      const baseName = pdfFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
+      document.getElementById("originalFileName").value = baseName;
+
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const typedarray = new Uint8Array(this.result);
+
+        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+          pdf.getPage(1).then(page => {
+            const scale = 1.5;
+            const viewport = page.getViewport({ scale });
+
+            pdfCanvas.width = overlayCanvas.width = viewport.width;
+            pdfCanvas.height = overlayCanvas.height = viewport.height;
+
+            document.getElementById('canvas-container').style.width = viewport.width + 'px';
+            document.getElementById('canvas-container').style.height = viewport.height + 'px';
+
+            const renderContext = {
+              canvasContext: pdfCtx,
+              viewport: viewport
+            };
+
+            page.render(renderContext).promise.then(() => {
+              pdfImage = new Image();
+              pdfImage.src = pdfCanvas.toDataURL("image/png");
+              document.getElementById("show-results").disabled = false;
+            });
+          });
+        });
+      };
+      fileReader.readAsArrayBuffer(pdfFile);
+    });
+
+    overlayCanvas.addEventListener('mousedown', function(e) {
+      const rect = overlayCanvas.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      isDrawing = true;
+    });
+
+    overlayCanvas.addEventListener('mousemove', function(e) {
+      if (!isDrawing) return;
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      const x = Math.min(startX, endX);
+      const y = Math.min(startY, endY);
+      const width = Math.abs(endX - startX);
+      const height = Math.abs(endY - startY);
+
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+      for (const r of rectangles) {
+        overlayCtx.strokeStyle = 'red';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(r.x, r.y, r.width, r.height);
+      }
+
+      overlayCtx.strokeStyle = 'blue';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.strokeRect(x, y, width, height);
+    });
+
+    overlayCanvas.addEventListener('mouseup', function(e) {
+      if (!isDrawing) return;
+      isDrawing = false;
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      const x = Math.min(startX, endX);
+      const y = Math.min(startY, endY);
+      const width = Math.abs(endX - startX);
+      const height = Math.abs(endY - startY);
+
+      rectangles.push({ x, y, width, height });
+
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      for (const r of rectangles) {
+        overlayCtx.strokeStyle = 'red';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(r.x, r.y, r.width, r.height);
+      }
+    });
+
+    document.getElementById('show-results').addEventListener('click', function() {
+      // Show label and save button
+      document.getElementById("crop-label").style.display = "block";
+      document.getElementById("save-images").style.display = "inline-block";
+
+      const resultContainer = document.getElementById('result-container');
+      resultContainer.innerHTML = '';
+
+      const totalRects = rectangles.length;
+
+      rectangles.forEach((rect, index) => {
+        const { x, y, width, height } = rect;
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(pdfImage, x, y, width, height, 0, 0, width, height);
+
+        const img = new Image();
+        img.src = tempCanvas.toDataURL("image/png");
+        img.className = 'cropped-image';
+
+        const dropdown = document.createElement('select');
+        dropdown.className = 'label-dropdown';
+        const options = ['Date', 'InvoiceNo', 'Table', 'Total'];
+
+        options.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt;
+          option.textContent = opt;
+          dropdown.appendChild(option);
+        });
+
+        if (index === 0) dropdown.value = 'Date';
+        else if (index === 1) dropdown.value = 'InvoiceNo';
+        else if (index === totalRects - 1) dropdown.value = 'Total';
+        else dropdown.value = 'Table';
+
+        const block = document.createElement('div');
+        block.className = 'cropped-block';
+        block.appendChild(img);
+        block.appendChild(dropdown);
+
+        resultContainer.appendChild(block);
+      });
+    });
+
+    document.getElementById("save-images").addEventListener("click", () => {
+      const blocks = document.querySelectorAll(".cropped-block");
+      const baseName = document.getElementById("originalFileName").value;
+
+      const dataToSend = [];
+
+      blocks.forEach(block => {
+        const img = block.querySelector("img");
+        const dropdown = block.querySelector("select");
+
+        dataToSend.push({
+          label: dropdown.value,
+          imageData: img.src
+        });
+      });
+
+      document.getElementById("imagesJson").value = JSON.stringify(dataToSend);
+      document.getElementById("save-form").submit();
+    });
+  </script>
+</body>
+</html>

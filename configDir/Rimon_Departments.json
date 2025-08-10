@@ -1,0 +1,102 @@
+[
+    {
+        "DepartmentNumber": 1,
+        "DepartmentName": "מוצרי חלב",
+        "ExpectedMarginPercentage": 0.25
+    },
+    {
+        "DepartmentNumber": 2,
+        "DepartmentName": "סלטים ונקניקים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 3,
+        "DepartmentName": "קפואים ואוכל מוכן",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 4,
+        "DepartmentName": "לחם ותחליפיו",
+        "ExpectedMarginPercentage": 0.3
+    },
+    {
+        "DepartmentNumber": 5,
+        "DepartmentName": "מוצרי מאפה מתוקים ומלוחים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 6,
+        "DepartmentName": "מכולת",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 7,
+        "DepartmentName": "ירקות/פירות",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 8,
+        "DepartmentName": "דגנים ודגנים מיוחדים",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 9,
+        "DepartmentName": "שוקולד וממתקים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 10,
+        "DepartmentName": "חטיפים מלוחים ופיצוחים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 11,
+        "DepartmentName": "קפה תה ושוקו",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 12,
+        "DepartmentName": "משקאות קלים ומים מינרליים",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 13,
+        "DepartmentName": "יין אלכהול ובירה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 14,
+        "DepartmentName": "סיגריות",
+        "ExpectedMarginPercentage": 0.12
+    },
+    {
+        "DepartmentNumber": 15,
+        "DepartmentName": "גלידות",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 16,
+        "DepartmentName": "מוצרי ניקוי וכלים חד פעמיים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 17,
+        "DepartmentName": "טואלטיקה וטיפוח",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 18,
+        "DepartmentName": "אפייה במקום",
+        "ExpectedMarginPercentage": 0.45
+    },
+    {
+        "DepartmentNumber": 19,
+        "DepartmentName": "בשר טרי",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 20,
+        "DepartmentName": "כללי",
+        "ExpectedMarginPercentage": 0.4
+    }
+]

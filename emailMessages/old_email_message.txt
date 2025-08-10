@@ -1,0 +1,16 @@
+
+הי name, 
+
+אקסל supplierName לתאריך  Date מצ"ב. 
+
+
+סכום סה"כ בחשבונית : invoiceSum ש"ח 
+
+סכום סה"כ באקסל: calculatedSum ש"ח  
+
+
+
+המשך יום נפלא! 😊
+
+
+שמרי

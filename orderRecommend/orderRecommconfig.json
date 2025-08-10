@@ -1,0 +1,18 @@
+{
+    "jxset_directory_path": "jxset",
+    "purchase_filename": "table4_purchase.csv",
+    "sales_filename": "table4_sale.csv",
+    "inventory_filename": "table4_summary.csv",
+    "products_filename": "table3.csv",
+    "suppliers_filename": "table2.csv",
+    "holidays": [["23-04-2024","פסח"],["29-04-2024","פסח שני"],["14-05-2024","יום העצמאות"]],
+    "rowsNames": ["רכש","מכר","מלאי","ערך מלאי"],
+    "purchaseFileColumn": [6,13,7,5],
+    "//Comment purchaseFileColumn": "[0]-Barcode, [1]-date, [2]-Quantity, [3]-description",
+    "salesFileColumn": [9,10,7,5],
+    "//Comment salesFileColumn": "[0]-Barcode, [1]-date, [2]-Quantity, [3]-description",
+    "suppliersFileColumn": [1,2],
+    "//Comment suppliersFileColumn": "[0]-name, [1]-visit frequancy",
+    "inventoryFileColumn": [7,10,8,9,15,16],
+    "//Comment inventoryFileColumn": "[0]-Barcode, [1]-current stock, [2]-purchase price, [3]-sale price, [4]-units in pack [5]-order parameter"
+}

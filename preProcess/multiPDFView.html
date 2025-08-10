@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi pages PDF Viewer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .pdf-block {
+      border: 1px solid #ccc;
+      margin-bottom: 30px;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    embed {
+      width: 100%;
+      height: 500px;
+      margin-bottom: 10px;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    label {
+      font-weight: bold;
+    }
+    select, input[type="date"], input[list] {
+      padding: 5px;
+    }
+    .submit-btn {
+      margin-top: 30px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Multi pages PDF Viewer</h2>
+
+  <!-- Define the datalist once -->
+  <datalist id="suppliers"></datalist>
+
+  <!-- PDF Block 1 -->
+  <div class="pdf-block">
+    <embed src="../preProcessDir/invoice1.pdf" type="application/pdf">
+
+    <div class="input-row">
+      <div>
+        <label>Supplier:</label><br>
+        <input list="suppliers" name="hebrewName_1">
+      </div>
+
+      <div>
+        <label>Letter (A–J):</label><br>
+        <select name="englishLetter_1">
+          <option>A</option>
+          <option>B</option>
+          <option>C</option>
+          <option>D</option>
+          <option>E</option>
+          <option>F</option>
+          <option>G</option>
+          <option>H</option>
+          <option>I</option>
+          <option>J</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Page Number:</label><br>
+        <select name="pageNumber_1">
+          <script>
+            for (let i = 1; i <= 20; i++) {
+              document.write(`<option${i === 1 ? ' selected' : ''}>${i}</option>`);
+            }
+          </script>
+        </select>
+      </div>
+
+      <div>
+        <label>Date:</label><br>
+        <input type="date" name="date_1" id="date_1">
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF Block 2 -->
+  <div class="pdf-block">
+    <embed src="../preProcessDir/invoice2.pdf" type="application/pdf">
+
+    <div class="input-row">
+      <div>
+        <label>Supplier:</label><br>
+        <input list="suppliers" name="hebrewName_2">
+      </div>
+
+      <div>
+        <label>Letter (A–J):</label><br>
+        <select name="englishLetter_2">
+          <option>A</option>
+          <option>B</option>
+          <option>C</option>
+          <option>D</option>
+          <option>E</option>
+          <option>F</option>
+          <option>G</option>
+          <option>H</option>
+          <option>I</option>
+          <option>J</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Page Number:</label><br>
+        <select name="pageNumber_2">
+          <script>
+            for (let i = 1; i <= 20; i++) {
+              document.write(`<option${i === 1 ? ' selected' : ''}>${i}</option>`);
+            }
+          </script>
+        </select>
+      </div>
+
+      <div>
+        <label>Date:</label><br>
+        <input type="date" name="date_2" id="date_2">
+      </div>
+    </div>
+  </div>
+
+  <button class="submit-btn" onclick="submitForm()">Submit</button>
+
+  <script>
+    // Set today's date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date_1').value = today;
+    document.getElementById('date_2').value = today;
+
+    // Load suppliers.json and fill the datalist
+    fetch('../suppliers.json')
+      .then(response => response.json())
+      .then(suppliers => {
+        const datalist = document.getElementById('suppliers');
+        suppliers.forEach(supplier => {
+          const option = document.createElement('option');
+          option.value = supplier.hebrewName;
+          datalist.appendChild(option);
+        });
+      })
+      .catch(error => {
+        console.error('Failed to load suppliers.json:', error);
+      });
+
+    function submitForm() {
+      alert("Submit logic will be added later.");
+    }
+  </script>
+
+</body>
+</html>

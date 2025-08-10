@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Verify Invoice OCRsanity</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.css">
+  <style>
+    #container { display: flex; gap: 20px; }
+    #excelContainer { width: 50%; }
+    #pdfContainer { width: 50%; height: 90vh; overflow: scroll; position: relative; }
+    #fileInputs {
+      margin-bottom: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .word-span {
+      position: absolute;
+      cursor: pointer;
+      padding: 0 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="fileInputs">
+    <form id="uploadForm" enctype="multipart/form-data">
+      <label>XLSX File (OCRsanity): </label><input type="file" name="xlsx" accept=".xlsx" required>
+      <label>PDF File (Invoice): </label><input type="file" name="pdf" accept=".pdf" required>
+      <button type="submit">Upload & Load</button>
+    </form>
+  </div>
+
+  <div id="pdfControls">
+    <button onclick="zoomOut()">&#8722; Zoom Out</button>
+    <button onclick="zoomIn()">+ Zoom In</button>
+    <button onclick="rotatePDF()">&#10227; Rotate</button>
+    <button onclick="toggleOverlay()">&#128374; Toggle Overlay</button>
+  </div>
+
+  <div id="container">
+    <div id="excelContainer">
+      <button onclick="addRow()">Add Row</button>
+      <button onclick="deleteRow()">Delete Row</button> 
+      <button onclick="addColumn()">Add Column</button>
+      <button onclick="deleteColumn()">Delete Column</button>
+      <button onclick="saveExcel()">Save</button>
+      <div id="excel" tabindex="0"></div>
+    </div>
+    <div id="pdfContainer">
+      <canvas id="pdfCanvas"></canvas>
+      <div id="textLayer" style="position:absolute; top:0; left:0;"></div>
+    </div>
+  </div>
+
+  <script>
+    let hot;
+    let selectedCell = null;
+    let currentPDF = null;
+    let currentScale = 1.5;
+    let currentRotation = 0;
+    let overlayVisible = true;
+
+    document.getElementById("uploadForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const response = await fetch("upload_invoice_ocrsanity.php", {
+        method: "POST",
+        body: formData
+      });
+      const { xlsxJson, pdfPath } = await response.json();
+      loadExcel(xlsxJson);
+      loadPDF(pdfPath);
+    });
+
+    function loadExcel(data) {
+      const container = document.getElementById("excel");
+      hot = new Handsontable(container, {
+        data,
+        rowHeaders: true,
+        colHeaders: true,
+        width: '100%',
+        height: '80vh',
+        licenseKey: 'non-commercial-and-evaluation',
+        outsideClickDeselects: false,
+        afterSelection: function(row, col) {
+          selectedCell = { row, col };
+        }
+      });
+    }
+
+    function addRow() {
+      const selection = hot.getSelected();
+      console.log("Selection is:", selection);
+
+      if (selection && selection.length) {
+        const rowIndex = selection[0][0]; // first selected row
+        console.log("Inserting row after row:", rowIndex);
+
+        hot.alter('insert_row_below', rowIndex, 1); // insert below selected
+      } else {
+        console.warn("No row selected.");
+        alert("Please select a row to insert after.");
+      }
+    }
+
+    function deleteRow() {
+      const selection = hot.getSelected();
+      if (selection && selection.length) {
+        const rowIndex = selection[0][0];
+        hot.alter('remove_row', rowIndex, 1);
+      } else {
+        alert("Please select a row to delete.");
+      }
+    }
+
+    function addColumn() {
+      const data = hot.getData();
+      const selection = hot.getSelected();
+
+      if (!selection || !selection.length) {
+        alert("Please select a column first.");
+        return;
+      }
+
+      const colIndex = selection[0][1];
+      console.log("Inserting column after index:", colIndex);
+
+      // Add a new cell to every row at colIndex + 1
+      const updatedData = data.map(row => {
+        const newRow = [...row]; // copy row
+        newRow.splice(colIndex + 1, 0, null); // insert empty cell
+        return newRow;
+      });
+
+      hot.loadData(updatedData);
+
+      // Reselect the newly inserted column
+      const newRow = selection[0][0];
+      hot.selectCell(newRow, colIndex + 1);
+
+      // Optional: update selectedCell tracker if used
+      selectedCell = { row: newRow, col: colIndex + 1 };
+    }
+
+    function deleteColumn() {
+      const selection = hot.getSelected();
+      if (selection && selection.length) {
+        const colIndex = selection[0][1];
+        console.log("Deleting column:", colIndex);
+        hot.alter('remove_col', colIndex, 1);
+      } else {
+        alert("Please select a column to delete.");
+      }
+    }
+
+    async function saveExcel() {
+      const now = new Date();
+      const timestamp = now.toLocaleDateString('en-GB').replace(/\//g, '') + '_' +
+                        now.toTimeString().split(' ')[0].replace(/:/g, '');
+      const fileName = `OCRsanity_${timestamp}.xlsx`;
+      await fetch('save_ocrsanity.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: hot.getData(), fileName })
+      });
+      alert("Saved as " + fileName);
+    }
+
+    async function loadPDF(pdfPath) {
+      currentPDF = await pdfjsLib.getDocument(pdfPath).promise;
+      renderPDFPage(1);
+    }
+
+    async function renderPDFPage(pageNum) {
+      const page = await currentPDF.getPage(pageNum);
+      const viewport = page.getViewport({ scale: currentScale, rotation: currentRotation });
+
+      const canvas = document.getElementById('pdfCanvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const textLayerDiv = document.getElementById("textLayer");
+      textLayerDiv.innerHTML = '';
+      textLayerDiv.style.width = `${viewport.width}px`;
+      textLayerDiv.style.height = `${viewport.height}px`;
+
+      const textContent = await page.getTextContent();
+      textContent.items.forEach(item => {
+        const span = document.createElement("span");
+        const word = item.str.trim();
+        span.textContent = word;
+        span.classList.add("word-span");
+
+        const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const x = transform[4];
+        const y = transform[5];
+        const fontSize = Math.sqrt(transform[0] ** 2 + transform[1] ** 2);
+
+        span.style.left = `${x}px`;
+        span.style.top = `${y - fontSize}px`;
+        span.style.fontSize = `${fontSize}px`;
+
+        const hasDigits = /[\d]/.test(word);
+        if (hasDigits) {
+          span.style.backgroundColor = 'rgba(144, 238, 144, 0.3)';
+        }
+
+        span.onclick = () => {
+          span.style.backgroundColor = "orange";
+          if (selectedCell) {
+            const { row, col } = selectedCell;
+            hot.setDataAtCell(row, col, word);
+            hot.selectCell(row, col);  // Optional, to reselect visually
+
+            console.log(`✔ Inserted word "${word}" into cell at row ${row}, column ${col}`);
+          } else {
+            console.warn("⚠ No cell selected!");
+          }
+
+            /*
+          if (selectedCell) {
+            const { row, col } = selectedCell;
+            hot.setDataAtCell(row, col, word);
+
+            const nextRow = row + 1;
+            const maxRows = hot.countRows();
+            if (nextRow < maxRows) {
+              hot.selectCell(nextRow, col);
+              selectedCell = { row: nextRow, col }; // update tracking
+            } else {
+              hot.selectCell(row, col); // stay in place if at bottom
+            }
+
+            hot.listen(); // optional: reinforce keyboard support
+          }   */
+
+          /*
+          if (selectedCell) {
+            hot.setDataAtCell(selectedCell.row, selectedCell.col, word);
+            hot.selectCell(selectedCell.row, selectedCell.col); 
+            
+                // Force the grid to regain keyboard focus
+            setTimeout(() => {
+              const excelContainer = document.getElementById("excel");
+              excelContainer.focus();       // Focus the container
+              hot.listen();                 // Enable keyboard input again
+            }, 0);
+          } */
+        };
+
+        if (overlayVisible) {
+          textLayerDiv.appendChild(span);
+        }
+      });
+    }
+
+    function zoomIn() {
+      currentScale += 0.25;
+      renderPDFPage(1);
+    }
+
+    function zoomOut() {
+      currentScale = Math.max(0.5, currentScale - 0.25);
+      renderPDFPage(1);
+    }
+
+    function rotatePDF() {
+      currentRotation = (currentRotation + 90) % 360;
+      renderPDFPage(1);
+    }
+
+    function toggleOverlay() {
+      overlayVisible = !overlayVisible;
+      renderPDFPage(1);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+You receive a PDF invoice in Hebrew. Extract:
+1. invoice_date (dd/mm/yyyy at top)
+2. invoice_number (10-digit number one line below date)
+3. total_before_vat (4 lines above the line containing “18.00%”)
+Return only this JSON:
+{
+  "invoice_date": "...",
+  "invoice_number": "...",
+  "total_before_vat": "..."
+}
+
+"אנא הצג את כל שורות המוצרים בלבד מהתמונה, מבלי לכלול שורות סיכום כמו שם הספק או סה״כ כמות. כל שורה צריכה להכיל: שם מוצר, כמות, יחידה, מחיר, סה״כ."

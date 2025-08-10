@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Select PDF and Draw Rectangle</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    #canvas-container {
+      position: relative;
+      display: inline-block;
+      margin-top: 20px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border: 1px solid black;
+    }
+
+    #pdf-canvas {
+      z-index: 1;
+    }
+
+    #overlay-canvas {
+      z-index: 2;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+  <h2>Select PDF and Draw Rectangle</h2>
+
+  <form id="crop-form" method="post" action="upload_and_save.php">
+    <input type="file" id="pdf-file" accept="application/pdf" style="display: inline-block;">
+    <input type="hidden" name="imageData" id="imageData">
+    <input type="hidden" name="originalPdfName" id="originalPdfName">
+    <button type="submit" style="display: inline-block;">Save Selected Rectangle as PNG</button>
+  </form>
+
+  <div id="canvas-container">
+    <canvas id="pdf-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <script>
+    const pdfCanvas = document.getElementById('pdf-canvas');
+    const pdfCtx = pdfCanvas.getContext('2d');
+
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+
+    let startX, startY, endX, endY, isDrawing = false;
+    let pdfFile;
+
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+
+    document.getElementById('pdf-file').addEventListener('change', function(e) {
+      pdfFile = e.target.files[0];
+      document.getElementById('originalPdfName').value = pdfFile.name;
+
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const typedarray = new Uint8Array(this.result);
+
+        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+          pdf.getPage(1).then(page => {
+            const scale = 1.5;
+            const viewport = page.getViewport({ scale });
+
+            // Set canvas sizes
+            pdfCanvas.width = viewport.width;
+            pdfCanvas.height = viewport.height;
+            overlayCanvas.width = viewport.width;
+            overlayCanvas.height = viewport.height;
+
+            // Force container size to match canvas
+            const container = document.getElementById('canvas-container');
+            container.style.width = viewport.width + 'px';
+            container.style.height = viewport.height + 'px';
+
+            // Render PDF page
+            page.render({
+              canvasContext: pdfCtx,
+              viewport: viewport
+            });
+          });
+        });
+      };
+      fileReader.readAsArrayBuffer(pdfFile);
+    });
+
+    overlayCanvas.addEventListener('mousedown', function(e) {
+      const rect = overlayCanvas.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      isDrawing = true;
+    });
+
+    overlayCanvas.addEventListener('mousemove', function(e) {
+      if (!isDrawing) return;
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      let x = Math.min(startX, endX);
+      let y = Math.min(startY, endY);
+      let width = Math.abs(endX - startX);
+      let height = Math.abs(endY - startY);
+
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      overlayCtx.strokeStyle = 'red';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.strokeRect(x, y, width, height);
+    });
+
+    overlayCanvas.addEventListener('mouseup', function(e) {
+      if (!isDrawing) return;
+      isDrawing = false;
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      let x = Math.min(startX, endX);
+      let y = Math.min(startY, endY);
+      let width = Math.abs(endX - startX);
+      let height = Math.abs(endY - startY);
+
+      // Draw final rectangle on PDF canvas
+      pdfCtx.strokeStyle = "red";
+      pdfCtx.lineWidth = 2;
+      pdfCtx.strokeRect(x, y, width, height);
+
+      // Create cropped image
+      const cropped = document.createElement('canvas');
+      cropped.width = width;
+      cropped.height = height;
+      cropped.getContext('2d').drawImage(pdfCanvas, x, y, width, height, 0, 0, width, height);
+
+      document.getElementById('imageData').value = cropped.toDataURL("image/png");
+
+      // Clear overlay
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    });
+  </script>
+</body>
+</html>

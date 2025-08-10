@@ -1,0 +1,362 @@
+[
+    {
+        "supplierName": "Dansell",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "דנסל"
+    },
+    {
+        "supplierName": "Somech",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "אברהם סומך"
+    },
+    {
+        "supplierName": "Yafura",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "יפאורה"
+    },
+    {
+      "supplierName": "Globrands",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "גלוברנדס"
+    },
+    {
+      "supplierName": "Dubek",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "דובק"
+    },
+    {
+      "supplierName": "Caspin",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "כספין"
+    },
+    {
+        "supplierName": "StraussIcecream",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "שטראוס גלידות"
+      },
+    {
+        "supplierName": "Soglowek",
+        "OCRsanityMethod": "Discount1",
+        "hebrewName": "זוגלובק"
+      },
+    {
+        "supplierName": "YLG",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "ילג מוצרי מזון"
+      },
+    {
+        "supplierName": "Gad",
+        "OCRsanityMethod": "Discount1",
+        "hebrewName": "גד"
+      },
+    {
+      "supplierName": "Mayan",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "מעין"
+    },
+    {
+      "supplierName": "Osem",
+      "OCRsanityMethod": "Discount2",
+      "hebrewName": "אסם"
+    },
+    {
+      "supplierName": "Berman",
+      "OCRsanityMethod": "Simple",
+      "hebrewName": "ברמן"
+    },
+    {
+        "supplierName": "StraussSweets",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "שטראוס מתוקים"
+    },
+    {
+        "supplierName": "StraussCool",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "שטראוס חלב"
+    },
+    {
+        "supplierName": "StraussSnacks",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "שטראוס חטיפים"
+    },
+    {
+        "supplierName": "Tnuva",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "תנובה"
+    },
+    {
+        "supplierName": "TnuvaMeat",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "תנובה בשר"
+    },
+    {
+        "supplierName": "Sch",
+        "OCRsanityMethod": "Discount2",
+        "hebrewName": "שסטוביץ"
+    },
+    {
+        "supplierName": "LS",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "ליימן שליסל"
+    },
+    {
+        "supplierName": "Sagi",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "שגיא גרופ"
+    },
+    {
+        "supplierName": "Diplomat",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "דיפלומט"
+    },
+    {
+        "supplierName": "Unilever",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "יוניליור"
+    },
+    {
+          "supplierName": "Wisso",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "ויסוצקי"
+    },
+    {
+          "supplierName": "Shamay",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "שמאי"
+    },
+    {
+          "supplierName": "CarmelWines",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "יינות כרמל"
+    },
+    {
+          "supplierName": "Sugat",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "סוגת"
+    },
+    {
+          "supplierName": "Tara",
+          "OCRsanityMethod": "Discount1",
+          "hebrewName": "טרה"
+    },
+    {
+          "supplierName": "Sides",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "סידס"
+    },
+    {
+          "supplierName": "Tempo",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "טמפו"
+    },
+    {
+          "supplierName": "Willifood",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "ויליפוד"
+    },
+    {
+          "supplierName": "CentralCo",
+          "OCRsanityMethod": "LineTotal",
+          "hebrewName": "החברה מרכזית"
+    },
+    {
+        "supplierName": "AFS",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "AFS"
+    },
+    {
+        "supplierName": "NASL",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "NASL"
+    },
+    {
+      "supplierName": "Elia",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "איליה הפצה ושווק"
+    },
+    {
+      "supplierName": "CountryEggs",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "ביצי הכפר"
+    },
+    {
+      "supplierName": "AbrahamSeeds",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "שיווק אברהם פיצוחים"
+    },
+    {
+      "supplierName": "Neto",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "נטו"
+    },
+    {
+      "supplierName": "AllMeat",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "כל בשר"
+    },
+    {
+      "supplierName": "Sano",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "סנו"
+    },
+    {
+      "supplierName": "BJ",
+      "OCRsanityMethod": "Discount1",
+      "hebrewName": "בן אנד גרי"
+    },
+    {
+      "supplierName": "Atias",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "אטיאס"
+    },
+    {
+      "supplierName": "Ridan",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "רידן"
+    },
+    {
+      "supplierName": "Tayari",
+      "OCRsanityMethod": "Discount1",
+      "hebrewName": "האחים טיירי"
+    },
+    {
+      "supplierName": "Sbh",
+      "OCRsanityMethod": "Discount1",
+      "hebrewName": "שפע בעזרת השם"
+    },
+    {
+      "supplierName": "Avikam",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "אביקם זינגר"
+    },
+    {
+      "supplierName": "Ays",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "א ע ייבוא ושיווק"
+    },
+    {
+      "supplierName": "FarmaDeal",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "פארמה דיל"
+    },
+    {
+      "supplierName": "Hamefitz",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "המפיץ"
+    },
+    {
+      "supplierName": "Hwine",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "היכל היין"
+    },
+    {
+      "supplierName": "Mashkokit",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "משכוכית"
+    },
+    {
+      "supplierName": "Yehiam",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "יחיעם"
+    },
+    {
+      "supplierName": "Shufersal",
+      "OCRsanityMethod": "Simple",
+      "hebrewName": "שופרסל"
+    },
+    {
+      "supplierName": "GoPharm",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "גו פארם"
+    },
+    {
+      "supplierName": "Ewi",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "מזרח ומערב"
+    },
+    {
+      "supplierName": "BNissim",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "ביכורי ניסים"
+    },
+    {
+      "supplierName": "Angel",
+      "OCRsanityMethod": "Simple",
+      "hebrewName": "מאפיית אנגל"
+    },
+    {
+      "supplierName": "Oshri",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "שיווק אושרי"
+    },
+    {
+      "supplierName": "Etran",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "עת-רן"
+    },
+    {
+      "supplierName": "Mashani",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "סלטי משני"
+    },
+    {
+      "supplierName": "GWS",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "גלובל ווין אנד ספיריט"
+    },
+    {
+      "supplierName": "Dubek",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "דובק"
+    },
+    {
+      "supplierName": "PhilipMorris",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "פיליפ מוריס"
+    },
+    {
+      "supplierName": "PastaCasa",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "פסטה דה לה קזה"
+    },
+    {
+      "supplierName": "AHtiv",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "פיצוחי הטיב"
+    },
+    {
+      "supplierName": "BetterChoice",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "בטר צויס"
+    },
+    {
+      "supplierName": "Shipka",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "שפקה"
+    },
+    {
+      "supplierName": "Dantes",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "דנטס"
+    },
+    {
+      "supplierName": "Shamir",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "סלטי שמיר"
+    },
+    {
+      "supplierName": "Akerman",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "אקרמן"
+    },
+    {
+      "supplierName": "Ida",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "עידה"
+    },
+    {
+      "supplierName": "Tavili",
+      "OCRsanityMethod": "LineTotal",
+      "hebrewName": "תביא-לי"
+    }
+  ]

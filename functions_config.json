@@ -1,0 +1,108 @@
+{
+    "Shops": [
+      {
+        "ShopName": "CountryMZ",
+        "Suppliers": [
+          {
+            "SupplierName": "General",
+            "Functionalities": ["PreProcessFiles","DownloadOCRFiles","EditOCRsanity","PackFilesForBackOffice"] 
+          }
+        ]
+      },
+      {
+        "ShopName": "RimonMarket",
+        "Suppliers": [
+          {
+            "SupplierName": "General",
+            "Functionalities": ["PreProcessFiles","DownloadOCRFiles","EditOCRsanity","PackFilesForBackOffice"] 
+          }
+        ]
+      },
+      {
+        "ShopName": "IraqiMarket",
+        "Suppliers": [
+          {
+            "SupplierName": "General",
+            "Functionalities": ["EditOCRsanity","DownloadOCRFiles"] 
+          },
+          {
+            "SupplierName": "Gad",
+            "Functionalities": ["StockProgess","OrderRecommend_Files","OrderRecommend_Directory"] 
+          },
+          {
+            "SupplierName": "c",
+            "Functionalities": ["ConvertToComax"]
+          }
+        ]
+      },
+      {
+        "ShopName": "JR_Topmarket",
+        "Suppliers": [
+          {
+            "SupplierName": "General",
+            "Functionalities": ["EditOCRsanity","CreateOCRsanity","RecheckOCRsanity","SanityToComax"] 
+          },
+          {
+            "SupplierName": "Gad",
+            "Functionalities": ["StockProgess","OrderRecommend_Files","OrderRecommend_Directory"] 
+          },
+          {
+            "SupplierName": "c",
+            "Functionalities": ["ConvertToComax"]
+          }
+        ]
+      },
+      {
+        "ShopName": "Bernard",
+        "Suppliers": [
+          {
+            "SupplierName": "Globrands",
+            "Functionalities": ["ConvertPacketPurchase","ConvertSalesToInnoFormat", "EchoFunc", "convertJsonToExcel"]
+          },
+          {
+            "SupplierName": "Atias",
+            "Functionalities": ["def"]
+          },
+          {
+            "SupplierName": "Osem",
+            "Functionalities": ["ghi"]
+          }
+        ]
+      },
+      {
+        "ShopName": "BS_TopMarket",
+        "Suppliers": [
+          {
+            "SupplierName": "CentralCo",
+            "Functionalities": ["jkl"]
+          },
+          {
+            "SupplierName": "b",
+            "Functionalities": ["mno"]
+          },
+          {
+            "SupplierName": "c",
+            "Functionalities": ["pqr"]
+          }
+        ]
+      },
+      {
+        "ShopName": "Mezaluna",
+        "Suppliers": [
+          {
+            "SupplierName": "MonteCarlo",
+            "Functionalities": ["stu"]
+          },
+          {
+            "SupplierName": "b",
+            "Functionalities": ["vwx"]
+          },
+          {
+            "SupplierName": "c",
+            "Functionalities": ["yz"]
+          }
+        ]
+      }
+    ]
+  }
+  

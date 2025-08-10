@@ -1,0 +1,11 @@
+{
+    "require": {
+        "phpoffice/phpspreadsheet": "^1.29",
+        "google/apiclient": "^2.15",
+        "google/apiclient-services": "^0.366.0",
+        "setasign/fpdi": "^2.5",
+        "mpdf/mpdf": "^8.2",
+        "setasign/fpdf": "1.8.*",
+        "tecnickcom/tcpdf": "^6.9"
+    }
+}
