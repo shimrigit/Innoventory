@@ -7,3 +7,4 @@ preProcessDir/
 tmp/
 toBackOffice/
 uploads/
+gmailAccess/token.json
