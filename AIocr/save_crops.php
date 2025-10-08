@@ -23,7 +23,7 @@ foreach ($images as $item) {
     }
 
     $labelSuffix = $label;
-    if ($labelCounts[$label] > 1) {
+    if ($labelCounts[$label] > 1 || stripos($label, 'table') === 0) { //adding count from table 1
         $labelSuffix .= $labelCounts[$label];
     }
 
