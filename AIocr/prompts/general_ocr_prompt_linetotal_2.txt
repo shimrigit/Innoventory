@@ -1,0 +1,19 @@
+instructions for ChatGPT:
+
+Invoice number: extract invoiceNo png
+
+Invoice Date: extract Date png
+
+Table:
+Extract Tables data:
+Table1=Barcode (text, keep leading zeros), 
+Table2=Qty (decimal), 
+Table3=Unit price (decimal), 
+Table4=Total (decimal). 
+Index every band (including empty)
+Use the horizontal grid lines to define rows. 
+For each band between two lines, capture any text inside it with high zoom OCR (ignore internal spaces). 
+Treat "has any character" = value; otherwise empty. Do not infer empties from whitespace. 
+Thern combine tables to a single table by index in order T1,T2,T3,T4 and display it
+
+Total: extract Total png

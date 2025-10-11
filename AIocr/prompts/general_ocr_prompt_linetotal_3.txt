@@ -1,0 +1,35 @@
+instructions for ChatGPT:
+
+VendorName: The charcters until the first space in the png files attached 
+ProcessDate: The date value after the VendorName in the png files attached. have the day,month,year seperated by "-"
+
+Invoice number: extract invoiceNo png
+
+Invoice Date: extract Date png
+
+Table:
+Extract Tables data:
+Table1=Barcode (text, keep leading zeros), 
+Table2=Qty (decimal), 
+Table3=Unit price (decimal), 
+Table4=Total (decimal). 
+Index every band (including empty)
+Use the horizontal grid lines to define rows. 
+For each band between two lines, capture any text inside it with high zoom OCR (ignore internal spaces). 
+Treat "has any character" = value; otherwise empty. Do not infer empties from whitespace. 
+Thern combine tables to a single table by index in order T1,T2,T3,T4 and display it
+
+Total: extract Total png
+
+Open a nex xlsx file based on "OCRsanity Template" with the name VendorName_ProcessDate_OCRsanity_ddmmyy_hhmmss where XXX is the ddmmyy_hhmmss time stamp format of xlsx creation
+Add to the xlsx sheet as follow:
+Invoice number: cell B1
+VendorName: cell B2
+Invoice Date: cell B3
+Total: cell B4
+From Cell A7 and down: Table3
+From Cell B7 and down: Table2
+From Cell C7 and down: Table1
+From Cell D7 and down: Table4
+
+add a link to download the new modified file

@@ -1,2 +1,3 @@
 get the raw ocr output from the columns and index every item. if thre is a space between the items index it too 
-them combine the columns to one table by the order: Barcode, quantity , unit price, total per item
+them combine the columns to one table by the order: Table1-Barcode, Table2-quantity , Table3-unit price, Table4-total per item
+use the lines between the items in the columns to indicate if there is value in the feild or it is empty

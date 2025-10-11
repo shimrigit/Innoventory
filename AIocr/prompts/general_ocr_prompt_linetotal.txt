@@ -1,0 +1,19 @@
+Extract 4 columns in this order:
+Barcode (text, keep leading zeros)
+Qty (integer)
+Unit Price (decimal)
+Total (decimal)
+Index all bands (including empty), combine the columns in order (Barcode, Qty, Unit Price, Total), then add a check column comparing Qty × Unit Price to Total.
+
+Validation for each row:
+error_pct_threshold = 0.02
+Compute error_pct = |(Qty × UnitPrice) - Total| / max(1, Total)
+if error_pct = 0 then mark the row as OK
+If error_pct ≤ error_pct_threshold, mark the row as OK_T (means OK with threshold).
+If error_pct > error_pct_threshold, rerun OCR on the problematic cell(s) with:
+
+Two OCR passes: grayscale + auto-threshold, and adaptive binarization
+If the two results differ, run a third pass and choose the value by majority vote or minimal error.
+
+Run the validaton again for the original error_pct > error_pct_threshold lines
+If still error_pct > error_pct_thresholdrerun mark the row as MISMATCH
