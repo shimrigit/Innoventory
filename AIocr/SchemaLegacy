@@ -1,0 +1,43 @@
+{
+  "name": "invoice_extraction",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "invoice_number": { "type": "string" },
+      "invoice_date": { "type": "string" },
+      "invoice_total": { "type": "number" },
+      "table": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "row": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Row index starting from 1"
+            }
+          },
+          "required": ["row"],
+          "patternProperties": {
+            "^[1-9][0-9]*$": {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "string", "maxLength": 32 },
+                { "type": "null" }
+              ]
+            }
+          },
+          "propertyNames": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[1-9][0-9]*$" },
+              { "const": "row" }
+            ]
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["invoice_number", "invoice_date", "invoice_total", "table"]
+  }
+}
