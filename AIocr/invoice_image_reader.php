@@ -1,6 +1,15 @@
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['invoice_image'])) {
-    $apiKey = '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'; // 🔐 Replace with your OpenAI API key
+    // Load API key from config file
+    $configFile = __DIR__ . '/config.json';
+    if (!file_exists($configFile)) {
+        die('Error: config.json not found. Please create it with your OpenAI API key.');
+    }
+    $config = json_decode(file_get_contents($configFile), true);
+    $apiKey = $config['openai_api_key'] ?? null;
+    if (empty($apiKey) || $apiKey === 'YOUR_NEW_API_KEY_HERE') {
+        die('Error: Please set your OpenAI API key in config.json');
+    }
 
     // Read image file content
     $imagePath = $_FILES['invoice_image']['tmp_name'];

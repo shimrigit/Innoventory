@@ -1,5 +1,6 @@
 AIocr/crops/
 AIocr/ocr_extracted/
+AIocr/config.json
 downloads/
 ocrDir/
 orderRecommend/jxset/
