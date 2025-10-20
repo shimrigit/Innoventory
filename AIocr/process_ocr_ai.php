@@ -465,6 +465,10 @@ PROMPT;
         button:hover {
             background: #0056b3;
         }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
         .info-box {
             background: #e7f3ff;
             border-left: 4px solid #2196F3;
@@ -476,6 +480,58 @@ PROMPT;
             margin: 5px 0;
             font-size: 14px;
             color: #555;
+        }
+
+        /* Loading overlay styles */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 400px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-content h3 {
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+        .loading-content p {
+            color: #666;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .loading-content .estimate {
+            color: #007bff;
+            font-weight: bold;
+            margin-top: 15px;
         }
     </style>
 </head>
@@ -500,8 +556,56 @@ PROMPT;
                 <small style="display:block; margin-top:10px; color:#666;">Click to browse and select all 4 files at once</small>
             </div>
 
-            <button type="submit">🚀 Process Invoice with AI</button>
+            <button type="submit" id="submitBtn">🚀 Process Invoice with AI</button>
         </form>
     </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3>Processing Invoice...</h3>
+            <p>Analyzing images with OpenAI</p>
+            <p>Extracting invoice data</p>
+            <p class="estimate">Elapsed time: <span id="timeCounter">0</span> seconds</p>
+            <p style="margin-top: 10px; color: #999; font-size: 13px;">Estimated: 20-40 seconds</p>
+            <p style="margin-top: 10px; color: #999; font-size: 12px;">Please do not close this window</p>
+        </div>
+    </div>
+
+    <script>
+        // Show loading overlay when form is submitted
+        document.querySelector('form').addEventListener('submit', function(e) {
+            // Validate that files are selected
+            const fileInput = document.getElementById('invoice_files');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select files before submitting.');
+                e.preventDefault();
+                return false;
+            }
+
+            // Show loading overlay
+            document.getElementById('loadingOverlay').classList.add('active');
+
+            // Disable submit button
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Processing...';
+
+            // Start time counter
+            let seconds = 0;
+            const timeCounter = document.getElementById('timeCounter');
+            const timerInterval = setInterval(function() {
+                seconds++;
+                timeCounter.textContent = seconds;
+            }, 1000);
+
+            // Store interval ID in case we need to clear it (though page will reload anyway)
+            window.processingTimer = timerInterval;
+
+            // Allow form to submit normally
+            return true;
+        });
+    </script>
 </body>
 </html>
