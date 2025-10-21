@@ -619,6 +619,9 @@ PROMPT;
 
         <div class="info-box">
             <p><strong>ℹ️ Instructions:</strong></p>
+            <p style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107; margin-bottom: 10px;">
+                <strong>📁 Files Location:</strong> Navigate to <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">C:\xampp\htdocs\website\AIocr\crops</code> when selecting files
+            </p>
             <p>Please select at least 4 PNG files from your directory. The files must be named with these suffixes:</p>
             <p>1. <strong>InvoiceNo</strong> - The invoice number image (e.g., "invoice123_InvoiceNo.png")</p>
             <p>2. <strong>Date</strong> - The invoice date image (e.g., "invoice123_Date.png")</p>
