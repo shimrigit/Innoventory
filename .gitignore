@@ -1,8 +1,10 @@
 AIocr/crops/
 AIocr/ocr_extracted/
+AIocr/prompts/
 AIocr/config.json
 downloads/
 ocrDir/
+OCRsanity/sanity_files/
 orderRecommend/jxset/
 PDFverification/uploads/
 preProcessDir/

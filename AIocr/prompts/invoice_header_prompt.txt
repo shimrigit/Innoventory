@@ -1,2 +1,0 @@
-Return content based on file name:
-Date, Invoice number, total before VAT
