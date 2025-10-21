@@ -1,6 +1,9 @@
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['invoice_files'])) {
 
+    // Start timing
+    $startTime = microtime(true);
+
     // Load API key from config file
     $configFile = __DIR__ . '/config.json';
     if (!file_exists($configFile)) {
@@ -16,19 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['invoice_files'])) {
     $uploadedFiles = $_FILES['invoice_files'];
     $fileCount = count($uploadedFiles['name']);
 
-    if ($fileCount !== 4) {
-        die("Error: Please select exactly 4 PNG files. You selected {$fileCount} file(s).");
+    if ($fileCount < 4) {
+        die("Error: Please select at least 4 PNG files (InvoiceNo, Date, Table1, Total). You selected {$fileCount} file(s).");
     }
 
     // Map files by their suffix
     $imageData = [];
-    $fileMapping = [
-        'InvoiceNo.png' => 'invoice_no',
-        'Date.png' => 'date',
-        'Table1.png' => 'table1',
-        'Total.png' => 'total'
-    ];
-
+    $tableFiles = []; // Array to store multiple table files in order
     $foundFiles = [];
 
     for ($i = 0; $i < $fileCount; $i++) {
@@ -50,38 +47,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['invoice_files'])) {
 
         // Match file by suffix
         $matched = false;
-        foreach ($fileMapping as $suffix => $key) {
-            if (stripos($fileName, str_replace('.png', '', $suffix)) !== false) {
-                $imageData[$key] = base64_encode(file_get_contents($tmpName));
-                $foundFiles[] = $suffix;
-                $matched = true;
-                break;
-            }
+
+        // Check for InvoiceNo
+        if (stripos($fileName, 'InvoiceNo') !== false) {
+            $imageData['invoice_no'] = base64_encode(file_get_contents($tmpName));
+            $foundFiles[] = 'InvoiceNo';
+            $matched = true;
+        }
+        // Check for Date
+        elseif (stripos($fileName, 'Date') !== false) {
+            $imageData['date'] = base64_encode(file_get_contents($tmpName));
+            $foundFiles[] = 'Date';
+            $matched = true;
+        }
+        // Check for Table1, Table2, Table3, etc.
+        elseif (preg_match('/Table(\d+)/i', $fileName, $matches)) {
+            $tableNumber = (int)$matches[1];
+            $tableFiles[$tableNumber] = base64_encode(file_get_contents($tmpName));
+            $foundFiles[] = "Table{$tableNumber}";
+            $matched = true;
+        }
+        // Check for Total
+        elseif (stripos($fileName, 'Total') !== false) {
+            $imageData['total'] = base64_encode(file_get_contents($tmpName));
+            $foundFiles[] = 'Total';
+            $matched = true;
         }
 
         if (!$matched) {
-            die("Error: File '{$fileName}' does not match expected naming pattern. Files must contain: InvoiceNo, Date, Table1, or Total");
+            die("Error: File '{$fileName}' does not match expected naming pattern. Files must contain: InvoiceNo, Date, Table1 (Table2, Table3...), or Total");
         }
     }
 
+    // Sort table files by number to ensure correct order
+    ksort($tableFiles);
+
     // Verify all required files are present
-    $requiredKeys = ['invoice_no', 'date', 'table1', 'total'];
-    foreach ($requiredKeys as $key) {
-        if (!isset($imageData[$key])) {
-            die("Error: Missing required file. Please ensure you have files with names containing: InvoiceNo, Date, Table1, and Total");
-        }
+    if (!isset($imageData['invoice_no'])) {
+        die("Error: Missing InvoiceNo file.");
+    }
+    if (!isset($imageData['date'])) {
+        die("Error: Missing Date file.");
+    }
+    if (empty($tableFiles) || !isset($tableFiles[1])) {
+        die("Error: Missing Table1 file. At least Table1 is required.");
+    }
+    if (!isset($imageData['total'])) {
+        die("Error: Missing Total file.");
     }
 
     // Build system prompt - clear and specific
-    $systemPrompt = <<<'PROMPT'
+    $tableCount = count($tableFiles);
+    $systemPrompt = <<<PROMPT
 You are an OCR extraction system. Extract ALL data exactly as shown in the images.
 
 IMAGES:
 - Image 1: Invoice number
 - Image 2: Invoice date
-- Image 3: Table with rows and columns
-- Image 4: Invoice total amount
+PROMPT;
 
+    // Dynamically add table image descriptions
+    if ($tableCount > 1) {
+        $systemPrompt .= "\n- Images 3-" . ($tableCount + 2) . ": Table with rows and columns split across {$tableCount} images (Table1, Table2";
+        if ($tableCount > 2) {
+            $systemPrompt .= ", Table3";
+        }
+        if ($tableCount > 3) {
+            for ($t = 4; $t <= $tableCount; $t++) {
+                $systemPrompt .= ", Table{$t}";
+            }
+        }
+        $systemPrompt .= "). These tables are CONTINUATIONS of the same table - combine all rows seamlessly.";
+    } else {
+        $systemPrompt .= "\n- Image 3: Table with rows and columns";
+    }
+
+    $systemPrompt .= "\n- Image " . ($tableCount + 3) . ": Invoice total amount\n\n";
+
+    $systemPrompt .= <<<'PROMPT'
 OUTPUT JSON FORMAT:
 {
   "invoice_number": "extracted text",
@@ -90,11 +133,20 @@ OUTPUT JSON FORMAT:
   "table": [
     {"index": 1, "1": "value", "2": "value", "3": "value", ...},
     {"index": 2, "1": "value", "2": "value", "3": "value", ...},
-    ...continue for EVERY row
+    ...continue for EVERY row from ALL table images
   ]
 }
 
 IMPORTANT: "index" property is YOUR row counter (1,2,3...) - this is separate from any row number columns in the image
+
+CRITICAL - MULTIPLE TABLE IMAGES:
+⚠️ If multiple table images are provided (Table1, Table2, Table3, etc.), they represent CONTINUATION of the SAME table
+⚠️ Table2 rows come IMMEDIATELY AFTER Table1 rows (no gap in index numbers)
+⚠️ Table3 rows come IMMEDIATELY AFTER Table2 rows, etc.
+⚠️ Example: If Table1 ends at index 38, Table2 MUST start at index 39
+⚠️ ALL table images must be combined into ONE "table" array with sequential index values
+⚠️ The column structure is IDENTICAL across all table images (same columns, same order)
+⚠️ Extract EVERY row from EVERY table image in order
 
 CRITICAL RULE: ALWAYS LEFT-TO-RIGHT COLUMN NUMBERING (CONSISTENT FOR ALL INVOICES)
 
@@ -172,6 +224,56 @@ Extract EVERY row. Cell values = exact text/number, no limit.
 PROMPT;
 
     // Build API request
+    // Build user content array with all images
+    $userContent = [
+        [
+            "type" => "text",
+            "text" => "Invoice#:"
+        ],
+        [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . $imageData['invoice_no']
+            ]
+        ],
+        [
+            "type" => "text",
+            "text" => "Date:"
+        ],
+        [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . $imageData['date']
+            ]
+        ]
+    ];
+
+    // Add all table images dynamically
+    foreach ($tableFiles as $tableNum => $tableImageData) {
+        $userContent[] = [
+            "type" => "text",
+            "text" => "Table{$tableNum}:"
+        ];
+        $userContent[] = [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . $tableImageData
+            ]
+        ];
+    }
+
+    // Add total image
+    $userContent[] = [
+        "type" => "text",
+        "text" => "Total:"
+    ];
+    $userContent[] = [
+        "type" => "image_url",
+        "image_url" => [
+            "url" => "data:image/png;base64," . $imageData['total']
+        ]
+    ];
+
     $data = [
         "model" => "gpt-4.1-mini",
         "messages" => [
@@ -181,48 +283,7 @@ PROMPT;
             ],
             [
                 "role" => "user",
-                "content" => [
-                    [
-                        "type" => "text",
-                        "text" => "Invoice#:"
-                    ],
-                    [
-                        "type" => "image_url",
-                        "image_url" => [
-                            "url" => "data:image/png;base64," . $imageData['invoice_no']
-                        ]
-                    ],
-                    [
-                        "type" => "text",
-                        "text" => "Date:"
-                    ],
-                    [
-                        "type" => "image_url",
-                        "image_url" => [
-                            "url" => "data:image/png;base64," . $imageData['date']
-                        ]
-                    ],
-                    [
-                        "type" => "text",
-                        "text" => "Table:"
-                    ],
-                    [
-                        "type" => "image_url",
-                        "image_url" => [
-                            "url" => "data:image/png;base64," . $imageData['table1']
-                        ]
-                    ],
-                    [
-                        "type" => "text",
-                        "text" => "Total:"
-                    ],
-                    [
-                        "type" => "image_url",
-                        "image_url" => [
-                            "url" => "data:image/png;base64," . $imageData['total']
-                        ]
-                    ]
-                ]
+                "content" => $userContent
             ]
         ],
         "max_tokens" => 16000,
@@ -250,6 +311,15 @@ PROMPT;
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    // Calculate elapsed time
+    $endTime = microtime(true);
+    $elapsedTime = round($endTime - $startTime, 2);
+    $elapsedMinutes = floor($elapsedTime / 60);
+    $elapsedSeconds = $elapsedTime - ($elapsedMinutes * 60);
+    $elapsedFormatted = $elapsedMinutes > 0
+        ? sprintf("%d min %.2f sec", $elapsedMinutes, $elapsedSeconds)
+        : sprintf("%.2f seconds", $elapsedTime);
+
     // Display results
     echo "<!DOCTYPE html>
 <html lang='en'>
@@ -266,6 +336,7 @@ PROMPT;
         .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .timing { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
         .back-link { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; }
         .back-link:hover { background: #0056b3; }
     </style>
@@ -274,6 +345,13 @@ PROMPT;
 <div class='container'>";
 
     echo "<h2>📄 OpenAI OCR Processing Results</h2>";
+
+    echo "<div class='section'>";
+    echo "<h3>⏱️ Processing Time</h3>";
+    echo "<div class='status timing'>";
+    echo "Total Processing Time: <strong>{$elapsedFormatted}</strong>";
+    echo "</div>";
+    echo "</div>";
 
     echo "<div class='section'>";
     echo "<h3>📊 HTTP Status Code</h3>";
@@ -541,19 +619,23 @@ PROMPT;
 
         <div class="info-box">
             <p><strong>ℹ️ Instructions:</strong></p>
-            <p>Please select all 4 PNG files at once from your directory. The files must be named with these suffixes:</p>
+            <p>Please select at least 4 PNG files from your directory. The files must be named with these suffixes:</p>
             <p>1. <strong>InvoiceNo</strong> - The invoice number image (e.g., "invoice123_InvoiceNo.png")</p>
             <p>2. <strong>Date</strong> - The invoice date image (e.g., "invoice123_Date.png")</p>
-            <p>3. <strong>Table1</strong> - The items table (e.g., "invoice123_Table1.png")</p>
+            <p>3. <strong>Table1</strong> - The first part of the items table (e.g., "invoice123_Table1.png")</p>
+            <p style="margin-left: 20px; color: #0066cc;">
+                <strong>Optional:</strong> <strong>Table2, Table3, ...</strong> - Additional table continuation images if the table spans multiple pages<br>
+                (e.g., "invoice123_Table2.png", "invoice123_Table3.png"). These will be combined seamlessly with Table1.
+            </p>
             <p>4. <strong>Total</strong> - The invoice total (e.g., "invoice123_Total.png")</p>
             <p><strong>Tip:</strong> Hold Ctrl (Windows/Linux) or Cmd (Mac) to select multiple files from the same folder.</p>
         </div>
 
         <form method="post" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="invoice_files">📁 Select All 4 Invoice PNG Files</label>
+                <label for="invoice_files">📁 Select Invoice PNG Files (Minimum 4, More if Multiple Tables)</label>
                 <input type="file" id="invoice_files" name="invoice_files[]" accept=".png,image/png" multiple required>
-                <small style="display:block; margin-top:10px; color:#666;">Click to browse and select all 4 files at once</small>
+                <small style="display:block; margin-top:10px; color:#666;">Select all required files at once (InvoiceNo, Date, Table1, Total, and optionally Table2, Table3, etc.)</small>
             </div>
 
             <button type="submit" id="submitBtn">🚀 Process Invoice with AI</button>
@@ -568,7 +650,7 @@ PROMPT;
             <p>Analyzing images with OpenAI</p>
             <p>Extracting invoice data</p>
             <p class="estimate">Elapsed time: <span id="timeCounter">0</span> seconds</p>
-            <p style="margin-top: 10px; color: #999; font-size: 13px;">Estimated: 20-40 seconds</p>
+            <p style="margin-top: 10px; color: #999; font-size: 13px;">Estimated: 1-2 minutes</p>
             <p style="margin-top: 10px; color: #999; font-size: 12px;">Please do not close this window</p>
         </div>
     </div>
