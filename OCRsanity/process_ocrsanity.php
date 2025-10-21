@@ -12,14 +12,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     $jsonFile = $_FILES['ocr_json'];
     $pdfFile = $_FILES['invoice_pdf'];
 
-    // Validate JSON file
+    // Validate JSON file upload
     if ($jsonFile['error'] !== UPLOAD_ERR_OK) {
         die('Error uploading JSON file');
     }
 
-    // Validate PDF file
+    // Validate JSON file type
+    $jsonMimeType = mime_content_type($jsonFile['tmp_name']);
+    $jsonExtension = strtolower(pathinfo($jsonFile['name'], PATHINFO_EXTENSION));
+
+    if ($jsonExtension !== 'json' && !in_array($jsonMimeType, ['application/json', 'text/plain'])) {
+        die('Error: The uploaded file is not a valid JSON file. Please upload a .json file.');
+    }
+
+    // Validate PDF file upload
     if ($pdfFile['error'] !== UPLOAD_ERR_OK) {
         die('Error uploading PDF file');
+    }
+
+    // Validate PDF file type
+    $pdfMimeType = mime_content_type($pdfFile['tmp_name']);
+    $pdfExtension = strtolower(pathinfo($pdfFile['name'], PATHINFO_EXTENSION));
+
+    if ($pdfExtension !== 'pdf' || $pdfMimeType !== 'application/pdf') {
+        die('Error: The uploaded file is not a valid PDF file. Please upload a .pdf file.');
     }
 
     // Read JSON file
@@ -27,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     $invoiceData = json_decode($jsonContent, true);
 
     if ($invoiceData === null) {
-        die('Error: Invalid JSON file');
+        die('Error: Invalid JSON file content. The file does not contain valid JSON data.');
     }
 
     // Extract SupplierName and ProcessDate from PDF filename
@@ -39,21 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     // Find first space
     $firstSpace = strpos($nameWithoutExt, ' ');
     if ($firstSpace === false) {
-        die('Error: PDF filename format is invalid. Expected format: "SupplierName dd-mm-yy X.pdf"');
+        die('Error: PDF filename format is invalid. Expected format: "SupplierName dd-mm-yy ..." (must have at least one space)');
     }
 
     // Extract SupplierName (from start to first space)
     $supplierName = substr($nameWithoutExt, 0, $firstSpace);
 
-    // Extract date part (from first space to second space)
+    // Extract date part (after first space, take next 8 characters for dd-mm-yy)
     $afterFirstSpace = substr($nameWithoutExt, $firstSpace + 1);
-    $secondSpace = strpos($afterFirstSpace, ' ');
 
-    if ($secondSpace === false) {
-        die('Error: PDF filename format is invalid. Expected format: "SupplierName dd-mm-yy X.pdf"');
+    // Get first 8 characters as date (dd-mm-yy format)
+    $datePart = substr($afterFirstSpace, 0, 8); // dd-mm-yy format
+
+    // Validate that we have at least 8 characters for the date
+    if (strlen($datePart) < 8) {
+        die('Error: PDF filename format is invalid. Expected format: "SupplierName dd-mm-yy ..." (date part too short)');
     }
-
-    $datePart = substr($afterFirstSpace, 0, $secondSpace); // dd-mm-yy format
 
     // Convert dd-mm-yy to dd-mm-yyyy
     $dateParts = explode('-', $datePart);
@@ -134,6 +151,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
     // B5 - Remark (leave empty)
     $sheet->setCellValue('B5', '');
+
+    // Auto-fit all columns
+    foreach (range('A', 'J') as $columnID) {
+        $sheet->getColumnDimension($columnID)->setAutoSize(true);
+    }
 
     // Generate filename for Excel file
     $timestamp = date('dmY_His'); // ddmmyyyy_hhmmss
