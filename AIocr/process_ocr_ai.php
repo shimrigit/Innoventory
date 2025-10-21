@@ -361,6 +361,42 @@ PROMPT;
         ? sprintf("%d min %.2f sec", $elapsedMinutes, $elapsedSeconds)
         : sprintf("%.2f seconds", $elapsedTime);
 
+    // Save JSON response to file
+    $savedFileName = '';
+    $saveSuccess = false;
+
+    // Parse the response to get the JSON content
+    $result = json_decode($response, true);
+    if (isset($result['choices'][0]['message']['content'])) {
+        // Parse the JSON content from OpenAI response
+        $extractedData = json_decode($result['choices'][0]['message']['content'], true);
+
+        if ($extractedData !== null) {
+            // Re-encode with pretty print formatting (indented, like in the display)
+            $jsonContent = json_encode($extractedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            // Generate filename
+            $supplierPart = ($supplierName !== 'N/A') ? $supplierName : 'NA';
+            $datePart = ($processDate !== 'N/A') ? $processDate : 'NA';
+            $timestamp = date('dmY_His'); // ddmmyyyy_hhmmss format
+
+            $savedFileName = "OCRjson_{$supplierPart}_{$datePart}_{$timestamp}.json";
+            $saveDirectory = __DIR__ . '/ocr_extracted/';
+
+            // Create directory if it doesn't exist
+            if (!file_exists($saveDirectory)) {
+                mkdir($saveDirectory, 0755, true);
+            }
+
+            $fullPath = $saveDirectory . $savedFileName;
+
+            // Save the JSON content with pretty formatting
+            if (file_put_contents($fullPath, $jsonContent) !== false) {
+                $saveSuccess = true;
+            }
+        }
+    }
+
     // Display results
     echo "<!DOCTYPE html>
 <html lang='en'>
@@ -387,6 +423,23 @@ PROMPT;
 <div class='container'>";
 
     echo "<h2>📄 OpenAI OCR Processing Results</h2>";
+
+    // Display file save status
+    if ($saveSuccess && !empty($savedFileName)) {
+        echo "<div class='section'>";
+        echo "<h3>💾 File Saved</h3>";
+        echo "<div class='status success'>";
+        echo "File <strong>" . htmlspecialchars($savedFileName) . "</strong> was saved successfully";
+        echo "</div>";
+        echo "</div>";
+    } elseif (!empty($savedFileName)) {
+        echo "<div class='section'>";
+        echo "<h3>⚠️ File Save Error</h3>";
+        echo "<div class='status error'>";
+        echo "Failed to save file <strong>" . htmlspecialchars($savedFileName) . "</strong>";
+        echo "</div>";
+        echo "</div>";
+    }
 
     echo "<div class='section'>";
     echo "<h3>📋 Processing Information</h3>";
