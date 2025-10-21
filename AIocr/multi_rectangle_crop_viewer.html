@@ -102,28 +102,58 @@
       fileReader.onload = function() {
         const typedarray = new Uint8Array(this.result);
 
-        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-          pdf.getPage(1).then(page => {
-            const scale = 1.5;
-            const viewport = page.getViewport({ scale });
+        pdfjsLib.getDocument(typedarray).promise.then(async pdf => {
+          const numPages = pdf.numPages;
+          const scale = 1.5;
 
-            pdfCanvas.width = overlayCanvas.width = viewport.width;
-            pdfCanvas.height = overlayCanvas.height = viewport.height;
+          // Get all pages and calculate total height
+          const pagePromises = [];
+          for (let i = 1; i <= numPages; i++) {
+            pagePromises.push(pdf.getPage(i));
+          }
 
-            document.getElementById('canvas-container').style.width = viewport.width + 'px';
-            document.getElementById('canvas-container').style.height = viewport.height + 'px';
+          const pages = await Promise.all(pagePromises);
+          const viewports = pages.map(page => page.getViewport({ scale }));
+
+          // Calculate canvas dimensions (same width, sum of heights)
+          const maxWidth = Math.max(...viewports.map(vp => vp.width));
+          const totalHeight = viewports.reduce((sum, vp) => sum + vp.height, 0);
+
+          pdfCanvas.width = overlayCanvas.width = maxWidth;
+          pdfCanvas.height = overlayCanvas.height = totalHeight;
+
+          document.getElementById('canvas-container').style.width = maxWidth + 'px';
+          document.getElementById('canvas-container').style.height = totalHeight + 'px';
+
+          // Render all pages sequentially, stacking them vertically
+          let currentY = 0;
+          for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
+            const viewport = viewports[i];
+
+            // Save canvas state
+            pdfCtx.save();
+
+            // Translate to the correct Y position for this page
+            pdfCtx.translate(0, currentY);
 
             const renderContext = {
               canvasContext: pdfCtx,
               viewport: viewport
             };
 
-            page.render(renderContext).promise.then(() => {
-              pdfImage = new Image();
-              pdfImage.src = pdfCanvas.toDataURL("image/png");
-              document.getElementById("show-results").disabled = false;
-            });
-          });
+            await page.render(renderContext).promise;
+
+            // Restore canvas state
+            pdfCtx.restore();
+
+            currentY += viewport.height;
+          }
+
+          // After all pages are rendered, create the image
+          pdfImage = new Image();
+          pdfImage.src = pdfCanvas.toDataURL("image/png");
+          document.getElementById("show-results").disabled = false;
         });
       };
       fileReader.readAsArrayBuffer(pdfFile);
