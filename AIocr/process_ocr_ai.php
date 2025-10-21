@@ -4,6 +4,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['invoice_files'])) {
     // Start timing
     $startTime = microtime(true);
 
+    // Capture supplier and process date information
+    $processingOption = $_POST['processing_option'] ?? 'simple';
+    $supplierName = 'N/A';
+    $processDate = 'N/A';
+
+    if ($processingOption === 'detailed') {
+        // Get the Hebrew name from form
+        $hebrewName = isset($_POST['supplier_name']) && !empty($_POST['supplier_name'])
+            ? $_POST['supplier_name']
+            : '';
+
+        // Map Hebrew name to English supplierName
+        if (!empty($hebrewName)) {
+            $suppliersFile = __DIR__ . '/../suppliers.json';
+            if (file_exists($suppliersFile)) {
+                $suppliers = json_decode(file_get_contents($suppliersFile), true);
+                foreach ($suppliers as $supplier) {
+                    if ($supplier['hebrewName'] === $hebrewName) {
+                        $supplierName = $supplier['supplierName'];
+                        break;
+                    }
+                }
+            }
+            // If not found in mapping, keep as N/A
+            if ($supplierName === 'N/A') {
+                $supplierName = 'N/A';
+            }
+        }
+
+        // Format date as dd-mm-yyyy
+        $rawDate = isset($_POST['process_date']) && !empty($_POST['process_date'])
+            ? $_POST['process_date']
+            : '';
+        if (!empty($rawDate)) {
+            $dateObj = DateTime::createFromFormat('Y-m-d', $rawDate);
+            if ($dateObj) {
+                $processDate = $dateObj->format('d-m-Y');
+            }
+        }
+    }
+
     // Load API key from config file
     $configFile = __DIR__ . '/config.json';
     if (!file_exists($configFile)) {
@@ -333,6 +374,7 @@ PROMPT;
         .section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 4px; }
         pre { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 14px; }
         .status { padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .status p { margin: 5px 0; }
         .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
@@ -345,6 +387,14 @@ PROMPT;
 <div class='container'>";
 
     echo "<h2>📄 OpenAI OCR Processing Results</h2>";
+
+    echo "<div class='section'>";
+    echo "<h3>📋 Processing Information</h3>";
+    echo "<div class='status info'>";
+    echo "<p><strong>Supplier Name:</strong> " . htmlspecialchars($supplierName) . "</p>";
+    echo "<p><strong>Process Date:</strong> " . htmlspecialchars($processDate) . "</p>";
+    echo "</div>";
+    echo "</div>";
 
     echo "<div class='section'>";
     echo "<h3>⏱️ Processing Time</h3>";
@@ -635,6 +685,57 @@ PROMPT;
         </div>
 
         <form method="post" enctype="multipart/form-data">
+            <!-- Radio Button Options -->
+            <div class="form-group">
+                <label><strong>📋 Processing Options:</strong></label>
+                <div style="margin-top: 10px;">
+                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                        <input type="radio" name="processing_option" value="simple" id="option_simple" checked style="margin-right: 8px;">
+                        Option 1: Process without supplier name and process date
+                    </label>
+                    <label style="display: block; cursor: pointer;">
+                        <input type="radio" name="processing_option" value="detailed" id="option_detailed" style="margin-right: 8px;">
+                        Option 2: Add supplier name and process date
+                    </label>
+                </div>
+            </div>
+
+            <!-- Supplier and Date Fields (Hidden by default) -->
+            <div id="detailedFields" style="display: none;">
+                <div class="form-group">
+                    <label for="supplier_name">🏢 Supplier Name:</label>
+                    <input type="text" id="supplier_name" name="supplier_name" list="supplierList"
+                           placeholder="Start typing to search..."
+                           style="width: 100%; padding: 10px; border: 2px solid #ccc; border-radius: 4px; font-size: 14px;">
+                    <datalist id="supplierList">
+                        <?php
+                        // Load suppliers from JSON file
+                        $suppliersFile = __DIR__ . '/../suppliers.json';
+                        if (file_exists($suppliersFile)) {
+                            $suppliers = json_decode(file_get_contents($suppliersFile), true);
+                            // Sort by hebrewName
+                            usort($suppliers, function($a, $b) {
+                                return strcmp($a['hebrewName'], $b['hebrewName']);
+                            });
+                            // Generate options
+                            foreach ($suppliers as $supplier) {
+                                echo '<option value="' . htmlspecialchars($supplier['hebrewName']) . '" data-supplier="' . htmlspecialchars($supplier['supplierName']) . '">';
+                            }
+                        }
+                        ?>
+                    </datalist>
+                    <small style="display:block; margin-top:5px; color:#666;">Select supplier from the dropdown list</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="process_date">📅 Process Date:</label>
+                    <input type="date" id="process_date" name="process_date"
+                           value="<?php echo date('Y-m-d'); ?>"
+                           style="width: 100%; padding: 10px; border: 2px solid #ccc; border-radius: 4px; font-size: 14px;">
+                    <small style="display:block; margin-top:5px; color:#666;">Default is today's date</small>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label for="invoice_files">📁 Select Invoice PNG Files (Minimum 4, More if Multiple Tables)</label>
                 <input type="file" id="invoice_files" name="invoice_files[]" accept=".png,image/png" multiple required>
@@ -659,6 +760,19 @@ PROMPT;
     </div>
 
     <script>
+        // Toggle detailed fields based on radio selection
+        document.getElementById('option_simple').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('detailedFields').style.display = 'none';
+            }
+        });
+
+        document.getElementById('option_detailed').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('detailedFields').style.display = 'block';
+            }
+        });
+
         // Show loading overlay when form is submitted
         document.querySelector('form').addEventListener('submit', function(e) {
             // Validate that files are selected
