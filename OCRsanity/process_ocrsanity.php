@@ -309,7 +309,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     $writer = new Xlsx($spreadsheet);
     $writer->save($fullPath);
 
-    // Display success message
+    // Store PDF temporarily for verification (use original uploaded file)
+    $tempPdfName = 'temp_' . $excelFileName . '.pdf';
+    $tempPdfPath = $saveDirectory . $tempPdfName;
+    move_uploaded_file($pdfFile['tmp_name'], $tempPdfPath);
+
+    // Redirect to verification page
+    header("Location: verify_ocrsanity.php?excel=" . urlencode($excelFileName) . "&pdf=" . urlencode($tempPdfName));
+    exit;
+
+    // Display success message (this code is now unreachable but kept for reference)
     echo "<!DOCTYPE html>
 <html lang='en'>
 <head>
