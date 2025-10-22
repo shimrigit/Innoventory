@@ -207,6 +207,24 @@ $jsonData = json_encode($data);
             width: 100%;
             overflow: hidden;
         }
+
+        #text-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: auto;
+        }
+
+        .word-span {
+            position: absolute;
+            cursor: pointer;
+            padding: 0 2px;
+            user-select: none;
+        }
+
+        .word-span:hover {
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -219,7 +237,7 @@ $jsonData = json_encode($data);
     </div>
 
     <div class="instructions">
-        💡 <strong>Instructions:</strong> Edit cells in the spreadsheet on the left. Click on text in the PDF to copy it to the selected cell. Use arrow keys to navigate between cells.
+        💡 <strong>Instructions:</strong> Edit cells in the spreadsheet on the left. Scroll through the PDF on the right to view all pages. Click on highlighted text in the PDF (numbers shown in green) to copy it to the selected cell. Use arrow keys to navigate between cells. Toggle overlay to show/hide clickable text.
     </div>
 
     <div class="container">
@@ -238,14 +256,14 @@ $jsonData = json_encode($data);
                 <button id="zoom-out">🔍 -</button>
                 <button id="zoom-in">🔍 +</button>
                 <button id="zoom-reset">↻ Reset</button>
+                <button id="toggle-overlay">👁 Toggle Overlay</button>
                 <span id="zoom-level">Zoom: 100%</span>
-                <button id="prev-page" style="margin-left: auto;">← Previous</button>
-                <span id="page-info">Page: 1 / 1</span>
-                <button id="next-page">Next →</button>
+                <span id="page-info" style="margin-left: auto;">Total Pages: 0</span>
             </div>
             <div class="pdf-container" id="pdf-scroll-container">
                 <div class="pdf-wrapper">
                     <canvas id="pdf-canvas"></canvas>
+                    <div id="text-layer"></div>
                 </div>
             </div>
         </div>
@@ -289,10 +307,8 @@ $jsonData = json_encode($data);
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         let pdfDoc = null;
-        let pageNum = 1;
-        let pageRendering = false;
-        let pageNumPending = null;
         let scale = 1.5;
+        let overlayVisible = true;
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
 
@@ -301,74 +317,134 @@ $jsonData = json_encode($data);
 
         pdfjsLib.getDocument(pdfPath).promise.then(function(pdfDoc_) {
             pdfDoc = pdfDoc_;
-            document.getElementById('page-info').textContent = `Page: ${pageNum} / ${pdfDoc.numPages}`;
-            renderPage(pageNum);
+            document.getElementById('page-info').textContent = `Total Pages: ${pdfDoc.numPages}`;
+            renderAllPages();
         });
 
-        function renderPage(num) {
-            pageRendering = true;
-            pdfDoc.getPage(num).then(function(page) {
-                const viewport = page.getViewport({ scale: scale });
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
+        async function renderAllPages() {
+            if (!pdfDoc) return;
 
+            // Get all pages and their viewports
+            const numPages = pdfDoc.numPages;
+            const pages = [];
+            const viewports = [];
+
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: scale });
+                pages.push(page);
+                viewports.push(viewport);
+            }
+
+            // Calculate total canvas dimensions
+            const maxWidth = Math.max(...viewports.map(v => v.width));
+            const totalHeight = viewports.reduce((sum, v) => sum + v.height, 0);
+
+            // Set canvas size
+            canvas.width = maxWidth;
+            canvas.height = totalHeight;
+
+            // Clear and setup text layer
+            const textLayerDiv = document.getElementById('text-layer');
+            textLayerDiv.innerHTML = '';
+            textLayerDiv.style.width = `${maxWidth}px`;
+            textLayerDiv.style.height = `${totalHeight}px`;
+
+            // Render all pages vertically stacked
+            let currentY = 0;
+            for (let i = 0; i < pages.length; i++) {
+                const page = pages[i];
+                const viewport = viewports[i];
+
+                // Save context and translate for this page
+                ctx.save();
+                ctx.translate(0, currentY);
+
+                // Render page
                 const renderContext = {
                     canvasContext: ctx,
                     viewport: viewport
                 };
+                await page.render(renderContext).promise;
 
-                const renderTask = page.render(renderContext);
-                renderTask.promise.then(function() {
-                    pageRendering = false;
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
+                // Extract and render text content
+                const textContent = await page.getTextContent();
+                textContent.items.forEach(item => {
+                    const span = document.createElement('span');
+                    const word = item.str.trim();
+
+                    if (!word) return; // Skip empty strings
+
+                    span.textContent = word;
+                    span.classList.add('word-span');
+
+                    // Calculate position using PDF.js transform
+                    const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
+                    const x = transform[4];
+                    const y = transform[5] + currentY; // Offset by current Y position
+                    const fontSize = Math.sqrt(transform[0] ** 2 + transform[1] ** 2);
+
+                    span.style.left = `${x}px`;
+                    span.style.top = `${y - fontSize}px`;
+                    span.style.fontSize = `${fontSize}px`;
+
+                    // Highlight numbers with light green background
+                    const hasDigits = /[\d]/.test(word);
+                    if (hasDigits) {
+                        span.style.backgroundColor = 'rgba(144, 238, 144, 0.3)';
+                    }
+
+                    // Click handler - copy to selected Excel cell
+                    span.onclick = function() {
+                        span.style.backgroundColor = 'orange';
+                        if (selectedCell) {
+                            const { row, col } = selectedCell;
+                            hot.setDataAtCell(row, col, word);
+                            hot.selectCell(row, col);
+                            console.log(`✔ Inserted "${word}" into cell at row ${row}, column ${col}`);
+                        } else {
+                            console.warn('⚠ No cell selected!');
+                        }
+                    };
+
+                    // Only add span if overlay is visible
+                    if (overlayVisible) {
+                        textLayerDiv.appendChild(span);
                     }
                 });
-            });
 
-            document.getElementById('page-info').textContent = `Page: ${num} / ${pdfDoc.numPages}`;
-        }
+                // Restore context
+                ctx.restore();
 
-        function queueRenderPage(num) {
-            if (pageRendering) {
-                pageNumPending = num;
-            } else {
-                renderPage(num);
+                // Move Y position for next page
+                currentY += viewport.height;
             }
         }
-
-        // PDF Navigation
-        document.getElementById('prev-page').addEventListener('click', function() {
-            if (pageNum <= 1) return;
-            pageNum--;
-            queueRenderPage(pageNum);
-        });
-
-        document.getElementById('next-page').addEventListener('click', function() {
-            if (pageNum >= pdfDoc.numPages) return;
-            pageNum++;
-            queueRenderPage(pageNum);
-        });
 
         // Zoom controls
         document.getElementById('zoom-in').addEventListener('click', function() {
             scale += 0.2;
             document.getElementById('zoom-level').textContent = `Zoom: ${Math.round(scale * 100)}%`;
-            queueRenderPage(pageNum);
+            renderAllPages();
         });
 
         document.getElementById('zoom-out').addEventListener('click', function() {
             if (scale <= 0.5) return;
             scale -= 0.2;
             document.getElementById('zoom-level').textContent = `Zoom: ${Math.round(scale * 100)}%`;
-            queueRenderPage(pageNum);
+            renderAllPages();
         });
 
         document.getElementById('zoom-reset').addEventListener('click', function() {
             scale = 1.5;
             document.getElementById('zoom-level').textContent = `Zoom: 100%`;
-            queueRenderPage(pageNum);
+            renderAllPages();
+        });
+
+        // Toggle overlay
+        document.getElementById('toggle-overlay').addEventListener('click', function() {
+            overlayVisible = !overlayVisible;
+            renderAllPages();
         });
 
         // Save functionality
