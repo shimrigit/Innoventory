@@ -152,6 +152,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     // B5 - Remark (leave empty)
     $sheet->setCellValue('B5', '');
 
+    // Load supplier configuration for table mapping
+    $suppliersFile = __DIR__ . '/../suppliers.json';
+    $supplierConfig = null;
+    $statusMessage = '';
+    $rowsProcessed = 0;
+
+    if (!file_exists($suppliersFile)) {
+        $statusMessage = "Error: suppliers.json file not found";
+    } else {
+        $suppliers = json_decode(file_get_contents($suppliersFile), true);
+
+        // Find supplier by name
+        foreach ($suppliers as $supplier) {
+            if ($supplier['supplierName'] === $supplierName) {
+                $supplierConfig = $supplier;
+                break;
+            }
+        }
+
+        if ($supplierConfig === null) {
+            $statusMessage = "Supplier {$supplierName} does not exist in suppliers.json config file";
+        } elseif (!isset($supplierConfig['jsonToOcrSanity'])) {
+            $statusMessage = "Supplier {$supplierName} does not have jsonToOcrSanity array";
+        } else {
+            // Validate column names in jsonToOcrSanity
+            $validColumnNames = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'Discount1', 'Discount2'];
+            $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
+
+            foreach ($jsonToOcrSanity as $columnName => $propertyNumber) {
+                if (!in_array($columnName, $validColumnNames)) {
+                    $statusMessage = "Column name {$columnName} in jsonToOcrSanity array of supplier {$supplierName} is not valid";
+                    break;
+                }
+            }
+
+            // If validation passed, process table data
+            if (empty($statusMessage)) {
+                $tableData = $invoiceData['table'] ?? [];
+
+                foreach ($tableData as $rowObject) {
+                    $index = $rowObject['index'] ?? null;
+
+                    if ($index === null) {
+                        continue; // Skip rows without index
+                    }
+
+                    $excelRow = $index + 1; // Row in Excel (index n -> row n+1)
+
+                    // Write index to column C
+                    $sheet->setCellValue("C{$excelRow}", $index);
+
+                    // Map columns according to jsonToOcrSanity
+                    foreach ($jsonToOcrSanity as $columnName => $propertyNumber) {
+                        $propertyKey = (string)$propertyNumber;
+
+                        if (!isset($rowObject[$propertyKey])) {
+                            $statusMessage .= "Warning: Property '{$propertyNumber}' (for {$columnName}) does not exist in row {$index} of {$supplierName} invoice\n";
+                            continue;
+                        }
+
+                        $value = $rowObject[$propertyKey];
+
+                        // Special handling for ItemName - truncate to 15 characters
+                        if ($columnName === 'ItemName') {
+                            $value = mb_substr($value, 0, 15);
+                        }
+
+                        // Determine Excel column based on column name
+                        $excelColumn = '';
+                        switch ($columnName) {
+                            case 'Barcode':
+                                $excelColumn = 'D';
+                                break;
+                            case 'ItemName':
+                                $excelColumn = 'E';
+                                break;
+                            case 'Qty':
+                                $excelColumn = 'F';
+                                // Convert to number
+                                $value = is_numeric($value) ? floatval($value) : $value;
+                                break;
+                            case 'UnitPrice':
+                                $excelColumn = 'G';
+                                // Convert to number with formatting
+                                if (is_numeric($value)) {
+                                    $sheet->setCellValue("{$excelColumn}{$excelRow}", floatval($value));
+                                    $sheet->getStyle("{$excelColumn}{$excelRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+                                    continue 2; // Skip the setCellValue below
+                                }
+                                break;
+                            case 'LineTotal':
+                                $excelColumn = 'H';
+                                // Convert to number with formatting
+                                if (is_numeric($value)) {
+                                    $sheet->setCellValue("{$excelColumn}{$excelRow}", floatval($value));
+                                    $sheet->getStyle("{$excelColumn}{$excelRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+                                    continue 2; // Skip the setCellValue below
+                                }
+                                break;
+                            case 'Discount1':
+                                $excelColumn = 'I';
+                                // Convert to number with formatting
+                                if (is_numeric($value)) {
+                                    $sheet->setCellValue("{$excelColumn}{$excelRow}", floatval($value));
+                                    $sheet->getStyle("{$excelColumn}{$excelRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+                                    continue 2; // Skip the setCellValue below
+                                }
+                                break;
+                            case 'Discount2':
+                                $excelColumn = 'J';
+                                // Convert to number with formatting
+                                if (is_numeric($value)) {
+                                    $sheet->setCellValue("{$excelColumn}{$excelRow}", floatval($value));
+                                    $sheet->getStyle("{$excelColumn}{$excelRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+                                    continue 2; // Skip the setCellValue below
+                                }
+                                break;
+                        }
+
+                        // Write value to Excel
+                        if (!empty($excelColumn)) {
+                            $sheet->setCellValue("{$excelColumn}{$excelRow}", $value);
+                        }
+                    }
+
+                    $rowsProcessed++;
+                }
+
+                // Set completion message
+                if (empty($statusMessage)) {
+                    $statusMessage = "Completed OCRsanity for {$supplierName} with {$rowsProcessed} rows";
+                }
+            }
+        }
+    }
+
     // Auto-fit all columns
     foreach (range('A', 'J') as $columnID) {
         $sheet->getColumnDimension($columnID)->setAutoSize(true);
@@ -227,6 +363,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         .back-link:hover {
             background: #0056b3;
         }
+        .warning-box {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            white-space: pre-line;
+        }
+        .error-box {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
@@ -235,8 +388,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
         <div class='success-box'>
             <strong>File saved:</strong> {$excelFileName}
-        </div>
+        </div>";
 
+    // Display status message
+    if (!empty($statusMessage)) {
+        // Check if it's an error or warning
+        if (strpos($statusMessage, 'Error:') !== false || strpos($statusMessage, 'does not exist') !== false || strpos($statusMessage, 'does not have') !== false || strpos($statusMessage, 'not valid') !== false) {
+            echo "<div class='error-box'><strong>⚠️ Status:</strong><br>" . nl2br(htmlspecialchars($statusMessage)) . "</div>";
+        } elseif (strpos($statusMessage, 'Warning:') !== false) {
+            echo "<div class='warning-box'><strong>⚠️ Warnings:</strong><br>" . nl2br(htmlspecialchars($statusMessage)) . "</div>";
+        } else {
+            echo "<div class='success-box'><strong>✅ Status:</strong><br>" . htmlspecialchars($statusMessage) . "</div>";
+        }
+    }
+
+    echo "
         <div class='info-box'>
             <h3>📋 Extracted Information</h3>
             <p><strong>Supplier Name:</strong> {$supplierName}</p>
@@ -244,6 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
             <p><strong>Invoice Number:</strong> {$invoiceNumber}</p>
             <p><strong>Invoice Date:</strong> {$invoiceDate}</p>
             <p><strong>Invoice Total:</strong> {$invoiceTotal}</p>
+            <p><strong>Rows Processed:</strong> {$rowsProcessed}</p>
         </div>
 
         <a href='" . htmlspecialchars($_SERVER['PHP_SELF']) . "' class='back-link'>⬅️ Process Another File</a>
