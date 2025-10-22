@@ -83,7 +83,7 @@
         "supplierName": "Tnuva",
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "תנובה",
-        "jsonToOcrSanity": {"Barcode":5, "ItemName":4, "Qty":3, " UnitPrice ":2, "LineTotal ":1}
+        "jsonToOcrSanity": {"Barcode":5, "ItemName":4, "Qty":3, "UnitPrice":2, "LineTotal":1}
     },
     {
         "supplierName": "TnuvaMeat",
@@ -229,7 +229,7 @@
       "supplierName": "Avikam",
       "OCRsanityMethod": "LineTotal",
       "hebrewName": "אביקם זינגר",
-      "jsonToOcrSanity": {"Barcode":7, "ItemName":6, "Qty":5, " UnitPrice ":2, "LineTotal ":1}
+      "jsonToOcrSanity": {"Barcode":7, "ItemName":6, "Qty":5, "UnitPrice":2, "LineTotal":1}
     },
     {
       "supplierName": "Ays",
@@ -240,7 +240,7 @@
       "supplierName": "FarmaDeal",
       "OCRsanityMethod": "LineTotal",
       "hebrewName": "פארמה דיל",
-      "jsonToOcrSanity": {"Barcode":8, "ItemName":7, "Qty":5, " UnitPrice ":2, "LineTotal ":1}
+      "jsonToOcrSanity": {"Barcode":8, "ItemName":7, "Qty":5, "UnitPrice":2, "LineTotal":1}
     },
     {
       "supplierName": "Hamefitz",
