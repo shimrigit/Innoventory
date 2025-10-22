@@ -224,6 +224,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
                         switch ($columnName) {
                             case 'Barcode':
                                 $excelColumn = 'D';
+                                // Save as text to preserve long numbers (13 digits) without scientific notation
+                                $sheet->setCellValueExplicit("{$excelColumn}{$excelRow}", $value, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                                continue 2; // Skip the setCellValue below
                                 break;
                             case 'ItemName':
                                 $excelColumn = 'E';
