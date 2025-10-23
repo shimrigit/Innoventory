@@ -34,16 +34,36 @@ $highestColumn = $sheet->getHighestColumn();
 $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
 $data = [];
+$cellStyles = []; // Store cell background colors
 for ($row = 1; $row <= $highestRow; $row++) {
     $rowData = [];
     for ($col = 1; $col <= $highestColumnIndex; $col++) {
         $cell = $sheet->getCellByColumnAndRow($col, $row);
         $rowData[] = $cell->getFormattedValue();
+
+        // Get cell background color
+        $fill = $cell->getStyle()->getFill();
+        $fillType = $fill->getFillType();
+        if ($fillType !== \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_NONE) {
+            $bgColor = $fill->getStartColor()->getARGB();
+            // Remove FF prefix if present and convert to hex
+            if (strlen($bgColor) === 8 && substr($bgColor, 0, 2) === 'FF') {
+                $bgColor = '#' . substr($bgColor, 2);
+            } else {
+                $bgColor = '#' . $bgColor;
+            }
+            $cellStyles[] = [
+                'row' => $row - 1, // 0-indexed for Handsontable
+                'col' => $col - 1,
+                'backgroundColor' => $bgColor
+            ];
+        }
     }
     $data[] = $rowData;
 }
 
 $jsonData = json_encode($data);
+$cellStylesData = json_encode($cellStyles);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -232,7 +252,7 @@ $jsonData = json_encode($data);
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
             <button class="btn btn-save" id="saveBtn">💾 Save OCR Sanity</button>
-            <button class="btn btn-cancel" onclick="window.close()">❌ Cancel</button>
+            <button class="btn btn-cancel" id="reverifyBtn">🔄 Re-verify</button>
         </div>
     </div>
 
@@ -276,6 +296,14 @@ $jsonData = json_encode($data);
         // Excel data from PHP
         const excelData = <?php echo $jsonData; ?>;
         const excelFileName = <?php echo json_encode($excelFile); ?>;
+        const cellStyles = <?php echo $cellStylesData; ?>;
+
+        // Create a map for quick lookup of cell styles
+        const styleMap = new Map();
+        cellStyles.forEach(style => {
+            const key = `${style.row}-${style.col}`;
+            styleMap.set(key, style.backgroundColor);
+        });
 
         // Initialize Handsontable with proper scrolling
         const container = document.getElementById('hot-container');
@@ -293,7 +321,18 @@ $jsonData = json_encode($data);
             stretchH: 'none',
             autoWrapRow: false,
             autoWrapCol: false,
-            readOnly: false
+            readOnly: false,
+            cells: function(row, col) {
+                const cellProperties = {};
+                const key = `${row}-${col}`;
+                if (styleMap.has(key)) {
+                    cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                        td.style.backgroundColor = styleMap.get(`${row}-${col}`);
+                    };
+                }
+                return cellProperties;
+            }
         });
 
         // Track selected cell
@@ -498,6 +537,54 @@ $jsonData = json_encode($data);
                 alert('❌ Error: ' + error);
                 document.getElementById('saveBtn').disabled = false;
                 document.getElementById('saveBtn').textContent = '💾 Save OCR Sanity';
+            });
+        });
+
+        // Re-verify functionality
+        document.getElementById('reverifyBtn').addEventListener('click', function() {
+            const updatedData = hot.getData();
+
+            // Disable re-verify button
+            document.getElementById('reverifyBtn').disabled = true;
+            document.getElementById('reverifyBtn').textContent = '⏳ Re-verifying...';
+
+            // Send data to server to re-verify
+            fetch('reverify_ocrsanity.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filename: excelFileName,
+                    data: updatedData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update styleMap with new cell styles
+                    styleMap.clear();
+                    data.cellStyles.forEach(style => {
+                        const key = `${style.row}-${style.col}`;
+                        styleMap.set(key, style.backgroundColor);
+                    });
+
+                    // Force Handsontable to re-render all cells with new styles
+                    hot.render();
+
+                    // Re-enable button
+                    document.getElementById('reverifyBtn').disabled = false;
+                    document.getElementById('reverifyBtn').textContent = '🔄 Re-verify';
+                } else {
+                    alert('❌ Error re-verifying file: ' + data.error);
+                    document.getElementById('reverifyBtn').disabled = false;
+                    document.getElementById('reverifyBtn').textContent = '🔄 Re-verify';
+                }
+            })
+            .catch(error => {
+                alert('❌ Error: ' + error);
+                document.getElementById('reverifyBtn').disabled = false;
+                document.getElementById('reverifyBtn').textContent = '🔄 Re-verify';
             });
         });
     </script>

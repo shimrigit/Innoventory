@@ -5,6 +5,108 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Font;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+
+/**
+ * Apply sanity verification to the OCRsanity spreadsheet
+ *
+ * @param \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet The worksheet to verify
+ * @param string $method The sanity method to use (Simple, LineTotal, NoLineTotal, Discount1, Discount2)
+ */
+function applySanityVerification($sheet, $method) {
+    // Get the highest row with data
+    $highestRow = $sheet->getHighestDataRow();
+    if (!$highestRow) {
+        $highestRow = $sheet->getHighestRow();
+    }
+
+    // Apply verification based on method
+    switch ($method) {
+        case 'Simple':
+            applyDataTypeVerification($sheet, $highestRow);
+            applyBarcodeSanityVerification($sheet, $highestRow);
+            break;
+
+        // Future methods will be added here
+        case 'LineTotal':
+        case 'NoLineTotal':
+        case 'Discount1':
+        case 'Discount2':
+            // To be implemented
+            break;
+    }
+}
+
+/**
+ * DataType Verification: Check columns F-J for numeric values
+ * Non-numeric values get light purple background
+ */
+function applyDataTypeVerification($sheet, $highestRow) {
+    $columnsToCheck = ['F', 'G', 'H', 'I', 'J'];
+
+    for ($row = 2; $row <= $highestRow; $row++) {
+        foreach ($columnsToCheck as $column) {
+            $cell = $sheet->getCell("{$column}{$row}");
+            $value = $cell->getValue();
+
+            // Skip empty cells
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            // Check if value is numeric
+            if (!is_numeric($value)) {
+                // Paint cell background light purple
+                $cell->getStyle()->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFE6CCE6'); // Light purple
+            }
+        }
+    }
+}
+
+/**
+ * BarcodeSanity Verification: Check column D for valid barcodes
+ * - Must be string with only digits
+ * - Must not exceed 13 digits
+ * Invalid barcodes get light yellow background
+ */
+function applyBarcodeSanityVerification($sheet, $highestRow) {
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $cell = $sheet->getCell("D{$row}");
+        $value = $cell->getValue();
+
+        // Check if cell is empty
+        if ($value === null || $value === '') {
+            // Paint empty barcode cells light yellow
+            $cell->getStyle()->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFFFFFCC'); // Light yellow
+            continue;
+        }
+
+        // Convert to string for validation
+        $valueStr = (string)$value;
+
+        // Check if contains only digits
+        if (!ctype_digit($valueStr)) {
+            // Paint cell background light yellow (non-digit characters)
+            $cell->getStyle()->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFFFFFCC'); // Light yellow
+            continue;
+        }
+
+        // Check if length exceeds 13 digits
+        if (strlen($valueStr) > 13) {
+            // Paint cell background light yellow (too many digits)
+            $cell->getStyle()->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFFFFFCC'); // Light yellow
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset($_FILES['invoice_pdf'])) {
 
@@ -295,6 +397,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     foreach (range('A', 'J') as $columnID) {
         $sheet->getColumnDimension($columnID)->setAutoSize(true);
     }
+
+    // Apply "Simple" sanity verification
+    applySanityVerification($sheet, 'Simple');
 
     // Generate filename for Excel file
     $timestamp = date('dmY_His'); // ddmmyyyy_hhmmss
