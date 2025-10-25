@@ -28,18 +28,36 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 $spreadsheet = IOFactory::load($excelPath);
 $sheet = $spreadsheet->getActiveSheet();
 
+// Read metadata for total difference and sanity method
+$totalDifference = 0;
+$sanityMethod = 'Simple';
+$metaSheet = $spreadsheet->getSheetByName('_Metadata');
+if ($metaSheet !== null) {
+    $totalDifference = (float)$metaSheet->getCell('B1')->getValue();
+    $sanityMethod = $metaSheet->getCell('B2')->getValue();
+    if (empty($sanityMethod)) {
+        $sanityMethod = 'Simple';
+    }
+}
+
 // Convert Excel data to array for JavaScript
 $highestRow = $sheet->getHighestRow();
 $highestColumn = $sheet->getHighestColumn();
 $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
 $data = [];
-$cellStyles = []; // Store cell background colors
+$cellStyles = []; // Store cell background colors and borders
 for ($row = 1; $row <= $highestRow; $row++) {
     $rowData = [];
     for ($col = 1; $col <= $highestColumnIndex; $col++) {
         $cell = $sheet->getCellByColumnAndRow($col, $row);
         $rowData[] = $cell->getFormattedValue();
+
+        $styleData = [
+            'row' => $row - 1, // 0-indexed for Handsontable
+            'col' => $col - 1
+        ];
+        $hasStyle = false;
 
         // Get cell background color
         $fill = $cell->getStyle()->getFill();
@@ -52,11 +70,24 @@ for ($row = 1; $row <= $highestRow; $row++) {
             } else {
                 $bgColor = '#' . $bgColor;
             }
-            $cellStyles[] = [
-                'row' => $row - 1, // 0-indexed for Handsontable
-                'col' => $col - 1,
-                'backgroundColor' => $bgColor
-            ];
+            $styleData['backgroundColor'] = $bgColor;
+            $hasStyle = true;
+        }
+
+        // Get cell border style (check if any border is thick/bold)
+        $borders = $cell->getStyle()->getBorders();
+        $hasBoldBorder = false;
+
+        if ($borders->getTop()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
+            $borders->getBottom()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
+            $borders->getLeft()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
+            $borders->getRight()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK) {
+            $styleData['boldBorder'] = true;
+            $hasStyle = true;
+        }
+
+        if ($hasStyle) {
+            $cellStyles[] = $styleData;
         }
     }
     $data[] = $rowData;
@@ -105,7 +136,52 @@ $cellStylesData = json_encode($cellStyles);
 
         .header-buttons {
             display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .total-indicator {
+            display: flex;
+            align-items: center;
             gap: 10px;
+            background: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            color: #333;
+        }
+
+        .indicator-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .indicator-value {
+            display: inline-block;
+            min-width: 50px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            border: 2px solid;
+        }
+
+        .indicator-green {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+
+        .indicator-orange {
+            background-color: #ff9800;
+            border-color: #ff9800;
+            color: white;
+        }
+
+        .indicator-red {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
         }
 
         .btn {
@@ -251,6 +327,12 @@ $cellStylesData = json_encode($cellStyles);
     <div class="header">
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
+            <?php if ($sanityMethod === 'LineTotal'): ?>
+            <div id="totalIndicator" class="total-indicator">
+                <span class="indicator-label">Total Equality Indicator:</span>
+                <span class="indicator-value" id="indicatorValue">0</span>
+            </div>
+            <?php endif; ?>
             <button class="btn btn-save" id="saveBtn">💾 Save OCR Sanity</button>
             <button class="btn btn-cancel" id="reverifyBtn">🔄 Re-verify</button>
         </div>
@@ -297,13 +379,41 @@ $cellStylesData = json_encode($cellStyles);
         const excelData = <?php echo $jsonData; ?>;
         const excelFileName = <?php echo json_encode($excelFile); ?>;
         const cellStyles = <?php echo $cellStylesData; ?>;
+        let totalDifference = <?php echo $totalDifference; ?>;
+        const sanityMethod = <?php echo json_encode($sanityMethod); ?>;
 
         // Create a map for quick lookup of cell styles
         const styleMap = new Map();
         cellStyles.forEach(style => {
             const key = `${style.row}-${style.col}`;
-            styleMap.set(key, style.backgroundColor);
+            styleMap.set(key, style);
         });
+
+        // Function to update total indicator
+        function updateTotalIndicator(difference) {
+            const indicatorValue = document.getElementById('indicatorValue');
+            if (!indicatorValue) return; // Only for LineTotal method
+
+            totalDifference = difference;
+            indicatorValue.textContent = difference.toFixed(2);
+
+            // Remove existing color classes
+            indicatorValue.classList.remove('indicator-green', 'indicator-orange', 'indicator-red');
+
+            // Apply color based on difference
+            if (difference === 0) {
+                indicatorValue.classList.add('indicator-green');
+            } else if (Math.abs(difference) <= 3) {
+                indicatorValue.classList.add('indicator-orange');
+            } else {
+                indicatorValue.classList.add('indicator-red');
+            }
+        }
+
+        // Initialize indicator on page load (if LineTotal method)
+        if (sanityMethod === 'LineTotal') {
+            updateTotalIndicator(totalDifference);
+        }
 
         // Initialize Handsontable with proper scrolling
         const container = document.getElementById('hot-container');
@@ -328,7 +438,20 @@ $cellStylesData = json_encode($cellStyles);
                 if (styleMap.has(key)) {
                     cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
                         Handsontable.renderers.TextRenderer.apply(this, arguments);
-                        td.style.backgroundColor = styleMap.get(`${row}-${col}`);
+                        const styleData = styleMap.get(`${row}-${col}`);
+
+                        // Safety check - make sure styleData exists
+                        if (styleData) {
+                            // Apply background color if present
+                            if (styleData.backgroundColor) {
+                                td.style.backgroundColor = styleData.backgroundColor;
+                            }
+
+                            // Apply bold border if present
+                            if (styleData.boldBorder) {
+                                td.style.border = '3px solid #000';
+                            }
+                        }
                     };
                 }
                 return cellProperties;
@@ -561,13 +684,20 @@ $cellStylesData = json_encode($cellStyles);
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Re-verify response:', data); // Debug log
                 if (data.success) {
                     // Update styleMap with new cell styles
                     styleMap.clear();
                     data.cellStyles.forEach(style => {
                         const key = `${style.row}-${style.col}`;
-                        styleMap.set(key, style.backgroundColor);
+                        styleMap.set(key, style);
                     });
+
+                    // Update total indicator if LineTotal method
+                    if (sanityMethod === 'LineTotal' && data.totalDifference !== undefined) {
+                        console.log('Updating indicator with:', data.totalDifference); // Debug log
+                        updateTotalIndicator(data.totalDifference);
+                    }
 
                     // Force Handsontable to re-render all cells with new styles
                     hot.render();

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
 header('Content-Type: application/json');
 
@@ -37,11 +38,14 @@ try {
     $highestRow = $sheet->getHighestRow();
     $highestColumn = $sheet->getHighestColumn();
 
-    // Step 1: Clear all cell backgrounds (columns A-J, from row 2 onwards)
+    // Step 1: Clear all cell backgrounds and borders (columns A-J, from row 2 onwards)
     for ($row = 2; $row <= $highestRow; $row++) {
         foreach (range('A', 'J') as $column) {
             $cell = $sheet->getCell("{$column}{$row}");
+            // Clear background
             $cell->getStyle()->getFill()->setFillType(Fill::FILL_NONE);
+            // Clear borders
+            $cell->getStyle()->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_NONE);
         }
     }
 
@@ -51,19 +55,50 @@ try {
             $excelRow = $rowIndex + 1;
             $excelCol = $colIndex + 1;
 
+            // Skip empty values
+            if ($value === null || $value === '') {
+                continue;
+            }
+
             // Column D (4) is Barcode - save as text to prevent scientific notation
-            if ($excelCol === 4 && !empty($value)) {
+            if ($excelCol === 4) {
                 $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($excelCol);
                 $sheet->setCellValueExplicit("{$columnLetter}{$excelRow}", $value,
                     \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-            } else {
+            }
+            // Columns with numeric data - need to handle formatted strings (e.g., "3,172.04")
+            else if (in_array($excelCol, [2, 6, 7, 8, 9, 10])) { // B, F, G, H, I, J
+                // Remove thousand separators and convert to float
+                $numericValue = str_replace(',', '', $value);
+                if (is_numeric($numericValue)) {
+                    $sheet->setCellValueByColumnAndRow($excelCol, $excelRow, (float)$numericValue);
+                } else {
+                    $sheet->setCellValueByColumnAndRow($excelCol, $excelRow, $value);
+                }
+            }
+            else {
                 $sheet->setCellValueByColumnAndRow($excelCol, $excelRow, $value);
             }
         }
     }
 
-    // Step 3: Apply "Simple" sanity verification
-    applySanityVerification($sheet, 'Simple');
+    // Step 3: Get sanity method from metadata sheet (or default to Simple)
+    $sanityMethod = 'Simple';
+    $metaSheetIndex = $spreadsheet->getSheetByName('_Metadata');
+    if ($metaSheetIndex !== null) {
+        $sanityMethod = $metaSheetIndex->getCell('B2')->getValue();
+        if (empty($sanityMethod)) {
+            $sanityMethod = 'Simple';
+        }
+    }
+
+    // Apply sanity verification based on stored method
+    $totalDifference = applySanityVerification($sheet, $sanityMethod);
+
+    // Update metadata sheet with new total difference
+    if ($metaSheetIndex !== null) {
+        $metaSheetIndex->getCell('B1')->setValue($totalDifference);
+    }
 
     // Step 4: Save the file
     $writer = new Xlsx($spreadsheet);
@@ -77,6 +112,12 @@ try {
         for ($col = 1; $col <= $highestColumnIndex; $col++) {
             $cell = $sheet->getCellByColumnAndRow($col, $row);
 
+            $styleData = [
+                'row' => $row - 1, // 0-indexed for Handsontable
+                'col' => $col - 1
+            ];
+            $hasStyle = false;
+
             // Get cell background color
             $fill = $cell->getStyle()->getFill();
             $fillType = $fill->getFillType();
@@ -88,11 +129,22 @@ try {
                 } else {
                     $bgColor = '#' . $bgColor;
                 }
-                $cellStyles[] = [
-                    'row' => $row - 1, // 0-indexed for Handsontable
-                    'col' => $col - 1,
-                    'backgroundColor' => $bgColor
-                ];
+                $styleData['backgroundColor'] = $bgColor;
+                $hasStyle = true;
+            }
+
+            // Get cell border style (check if any border is thick/bold)
+            $borders = $cell->getStyle()->getBorders();
+            if ($borders->getTop()->getBorderStyle() === Border::BORDER_THICK ||
+                $borders->getBottom()->getBorderStyle() === Border::BORDER_THICK ||
+                $borders->getLeft()->getBorderStyle() === Border::BORDER_THICK ||
+                $borders->getRight()->getBorderStyle() === Border::BORDER_THICK) {
+                $styleData['boldBorder'] = true;
+                $hasStyle = true;
+            }
+
+            if ($hasStyle) {
+                $cellStyles[] = $styleData;
             }
         }
     }
@@ -100,7 +152,8 @@ try {
     echo json_encode([
         'success' => true,
         'message' => 'Re-verification completed',
-        'cellStyles' => $cellStyles
+        'cellStyles' => $cellStyles,
+        'totalDifference' => $totalDifference
     ]);
 
 } catch (Exception $e) {
@@ -111,17 +164,25 @@ try {
  * Apply sanity verification to the OCRsanity spreadsheet
  */
 function applySanityVerification($sheet, $method) {
-    $highestRow = $sheet->getHighestDataRow();
-    if (!$highestRow) {
-        $highestRow = $sheet->getHighestRow();
-    }
+    $highestRow = $sheet->getHighestRow();
+
+    $totalDifference = 0;
 
     switch ($method) {
         case 'Simple':
             applyDataTypeVerification($sheet, $highestRow);
             applyBarcodeSanityVerification($sheet, $highestRow);
             break;
+
+        case 'LineTotal':
+            applyDataTypeVerification($sheet, $highestRow);
+            applyBarcodeSanityVerification($sheet, $highestRow);
+            applyLineSumVerification($sheet, $highestRow);
+            $totalDifference = applyTotalSumVerification($sheet, $highestRow);
+            break;
     }
+
+    return $totalDifference;
 }
 
 /**
@@ -178,5 +239,68 @@ function applyBarcodeSanityVerification($sheet, $highestRow) {
                 ->getStartColor()->setARGB('FFFFFFCC'); // Light yellow
         }
     }
+}
+
+/**
+ * LineSum Verification: Check if Qty * UnitPrice = LineTotal
+ */
+function applyLineSumVerification($sheet, $highestRow) {
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $qtyCell = $sheet->getCell("F{$row}");
+        $unitPriceCell = $sheet->getCell("G{$row}");
+        $lineTotalCell = $sheet->getCell("H{$row}");
+
+        $qty = $qtyCell->getValue();
+        $unitPrice = $unitPriceCell->getValue();
+        $lineTotal = $lineTotalCell->getValue();
+
+        if (($qty === null || $qty === '') && ($unitPrice === null || $unitPrice === '') && ($lineTotal === null || $lineTotal === '')) {
+            continue;
+        }
+
+        if (!is_numeric($qty) || !is_numeric($unitPrice)) {
+            $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+            continue;
+        }
+
+        $expectedTotal = round((float)$qty * (float)$unitPrice, 2);
+        $actualTotal = round((float)$lineTotal, 2);
+
+        if (abs($expectedTotal - $actualTotal) > 0.01) {
+            $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+        }
+    }
+}
+
+/**
+ * TotalSum Verification: Check if sum of column H equals B4
+ */
+function applyTotalSumVerification($sheet, $highestRow) {
+    $columnHSum = 0;
+    $debugValues = []; // For debugging
+
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $cell = $sheet->getCell("H{$row}");
+        $value = $cell->getValue();
+
+        if ($value !== null && $value !== '' && is_numeric($value)) {
+            $columnHSum += (float)$value;
+            $debugValues[] = "Row {$row}: " . (float)$value; // Debug
+        }
+    }
+
+    $columnHSum = round($columnHSum, 2);
+    $invoiceTotal = $sheet->getCell('B4')->getValue();
+    $invoiceTotal = round((float)$invoiceTotal, 2);
+
+    // Calculate signed difference: B4 - sum of column H
+    $difference = $invoiceTotal - $columnHSum;
+    $difference = round($difference, 2);
+
+    // Debug logging
+    error_log("TotalSum Debug - B4: {$invoiceTotal}, Sum(H): {$columnHSum}, Difference: {$difference}");
+    error_log("Column H values: " . implode(", ", $debugValues));
+
+    return $difference;
 }
 ?>

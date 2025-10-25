@@ -4,9 +4,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
 /**
  * Apply sanity verification to the OCRsanity spreadsheet
@@ -16,10 +15,9 @@ use PhpOffice\PhpSpreadsheet\Style\Color;
  */
 function applySanityVerification($sheet, $method) {
     // Get the highest row with data
-    $highestRow = $sheet->getHighestDataRow();
-    if (!$highestRow) {
-        $highestRow = $sheet->getHighestRow();
-    }
+    $highestRow = $sheet->getHighestRow();
+
+    $totalDifference = 0;
 
     // Apply verification based on method
     switch ($method) {
@@ -28,14 +26,22 @@ function applySanityVerification($sheet, $method) {
             applyBarcodeSanityVerification($sheet, $highestRow);
             break;
 
-        // Future methods will be added here
         case 'LineTotal':
+            applyDataTypeVerification($sheet, $highestRow);
+            applyBarcodeSanityVerification($sheet, $highestRow);
+            applyLineSumVerification($sheet, $highestRow);
+            $totalDifference = applyTotalSumVerification($sheet, $highestRow);
+            break;
+
+        // Future methods will be added here
         case 'NoLineTotal':
         case 'Discount1':
         case 'Discount2':
             // To be implemented
             break;
     }
+
+    return $totalDifference;
 }
 
 /**
@@ -106,6 +112,76 @@ function applyBarcodeSanityVerification($sheet, $highestRow) {
                 ->getStartColor()->setARGB('FFFFFFCC'); // Light yellow
         }
     }
+}
+
+/**
+ * LineSum Verification: Check if Qty * UnitPrice = LineTotal
+ * For each row: F * G should equal H
+ * Invalid rows get bold border on cell H
+ */
+function applyLineSumVerification($sheet, $highestRow) {
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $qtyCell = $sheet->getCell("F{$row}");
+        $unitPriceCell = $sheet->getCell("G{$row}");
+        $lineTotalCell = $sheet->getCell("H{$row}");
+
+        $qty = $qtyCell->getValue();
+        $unitPrice = $unitPriceCell->getValue();
+        $lineTotal = $lineTotalCell->getValue();
+
+        // Skip empty rows
+        if (($qty === null || $qty === '') && ($unitPrice === null || $unitPrice === '') && ($lineTotal === null || $lineTotal === '')) {
+            continue;
+        }
+
+        // Check if F and G are numeric
+        if (!is_numeric($qty) || !is_numeric($unitPrice)) {
+            // Set bold border on H cell
+            $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+            continue;
+        }
+
+        // Calculate expected line total
+        $expectedTotal = round((float)$qty * (float)$unitPrice, 2);
+        $actualTotal = round((float)$lineTotal, 2);
+
+        // Compare with tolerance for floating point
+        if (abs($expectedTotal - $actualTotal) > 0.01) {
+            // Set bold border on H cell
+            $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+        }
+    }
+}
+
+/**
+ * TotalSum Verification: Check if sum of column H equals B4
+ * Returns the difference for display indicator
+ */
+function applyTotalSumVerification($sheet, $highestRow) {
+    $columnHSum = 0;
+
+    // Sum all numeric values in column H from row 2 to end
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $cell = $sheet->getCell("H{$row}");
+        $value = $cell->getValue();
+
+        if ($value !== null && $value !== '' && is_numeric($value)) {
+            $columnHSum += (float)$value;
+        }
+    }
+
+    // Round to 2 decimal places
+    $columnHSum = round($columnHSum, 2);
+
+    // Get invoice total from B4
+    $invoiceTotal = $sheet->getCell('B4')->getValue();
+    $invoiceTotal = round((float)$invoiceTotal, 2);
+
+    // Calculate signed difference: B4 - sum of column H
+    $difference = $invoiceTotal - $columnHSum;
+    $difference = round($difference, 2);
+
+    return $difference;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset($_FILES['invoice_pdf'])) {
@@ -398,8 +474,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         $sheet->getColumnDimension($columnID)->setAutoSize(true);
     }
 
-    // Apply "Simple" sanity verification
-    applySanityVerification($sheet, 'Simple');
+    // Load suppliers.json to get OCRsanityMethod
+    $suppliersJsonPath = __DIR__ . '/../suppliers.json';
+    $sanityMethod = 'Simple'; // Default method
+    $totalDifference = 0;
+
+    if (file_exists($suppliersJsonPath)) {
+        $suppliersData = json_decode(file_get_contents($suppliersJsonPath), true);
+        if ($suppliersData && is_array($suppliersData)) {
+            foreach ($suppliersData as $supplier) {
+                if (isset($supplier['supplierName']) && $supplier['supplierName'] === $supplierName) {
+                    if (isset($supplier['OCRsanityMethod'])) {
+                        $sanityMethod = $supplier['OCRsanityMethod'];
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // Apply sanity verification based on supplier's method
+    $totalDifference = applySanityVerification($sheet, $sanityMethod);
+
+    // Store total difference and sanity method in a hidden metadata sheet
+    // This will be used by verify_ocrsanity.php to display the indicator
+    $metaSheet = $spreadsheet->createSheet();
+    $metaSheet->setTitle('_Metadata');
+    $metaSheet->getCell('A1')->setValue('TotalDifference');
+    $metaSheet->getCell('B1')->setValue($totalDifference);
+    $metaSheet->getCell('A2')->setValue('SanityMethod');
+    $metaSheet->getCell('B2')->setValue($sanityMethod);
+    $metaSheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+
+    // Set active sheet back to first sheet
+    $spreadsheet->setActiveSheetIndex(0);
 
     // Generate filename for Excel file
     $timestamp = date('dmY_His'); // ddmmyyyy_hhmmss
