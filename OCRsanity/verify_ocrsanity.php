@@ -327,7 +327,7 @@ $cellStylesData = json_encode($cellStyles);
     <div class="header">
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
-            <?php if ($sanityMethod === 'LineTotal'): ?>
+            <?php if ($sanityMethod === 'LineTotal' || $sanityMethod === 'Discount1'): ?>
             <div id="totalIndicator" class="total-indicator">
                 <span class="indicator-label">Total Equality Indicator:</span>
                 <span class="indicator-value" id="indicatorValue">0</span>
@@ -410,8 +410,8 @@ $cellStylesData = json_encode($cellStyles);
             }
         }
 
-        // Initialize indicator on page load (if LineTotal method)
-        if (sanityMethod === 'LineTotal') {
+        // Initialize indicator on page load (if LineTotal or Discount1 method)
+        if (sanityMethod === 'LineTotal' || sanityMethod === 'Discount1') {
             updateTotalIndicator(totalDifference);
         }
 
@@ -693,8 +693,8 @@ $cellStylesData = json_encode($cellStyles);
                         styleMap.set(key, style);
                     });
 
-                    // Update total indicator if LineTotal method
-                    if (sanityMethod === 'LineTotal' && data.totalDifference !== undefined) {
+                    // Update total indicator if LineTotal or Discount1 method
+                    if ((sanityMethod === 'LineTotal' || sanityMethod === 'Discount1') && data.totalDifference !== undefined) {
                         console.log('Updating indicator with:', data.totalDifference); // Debug log
                         updateTotalIndicator(data.totalDifference);
                     }

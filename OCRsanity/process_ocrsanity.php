@@ -33,9 +33,15 @@ function applySanityVerification($sheet, $method) {
             $totalDifference = applyTotalSumVerification($sheet, $highestRow);
             break;
 
+        case 'Discount1':
+            applyDataTypeVerification($sheet, $highestRow);
+            applyBarcodeSanityVerification($sheet, $highestRow);
+            applyDiscount1CalcVerification($sheet, $highestRow);
+            $totalDifference = applyTotalSumVerification($sheet, $highestRow);
+            break;
+
         // Future methods will be added here
         case 'NoLineTotal':
-        case 'Discount1':
         case 'Discount2':
             // To be implemented
             break;
@@ -149,6 +155,53 @@ function applyLineSumVerification($sheet, $highestRow) {
         if (abs($expectedTotal - $actualTotal) > 0.01) {
             // Set bold border on H cell
             $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+        }
+    }
+}
+
+/**
+ * Discount1Calc Verification: Check if Qty × UnitPrice × (1 - Discount1/100) = LineTotal
+ * Formula: F × G × (1 - I/100) = H
+ * Invalid rows get bold border on cell H
+ */
+function applyDiscount1CalcVerification($sheet, $highestRow) {
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $qtyCell = $sheet->getCell("F{$row}");
+        $unitPriceCell = $sheet->getCell("G{$row}");
+        $lineTotalCell = $sheet->getCell("H{$row}");
+        $discount1Cell = $sheet->getCell("I{$row}");
+
+        $qty = $qtyCell->getValue();
+        $unitPrice = $unitPriceCell->getValue();
+        $lineTotal = $lineTotalCell->getValue();
+        $discount1 = $discount1Cell->getValue();
+
+        // Skip empty rows
+        if (($qty === null || $qty === '') && ($unitPrice === null || $unitPrice === '') && ($lineTotal === null || $lineTotal === '')) {
+            continue;
+        }
+
+        // Check if F, G, and I are numeric
+        if (!is_numeric($qty) || !is_numeric($unitPrice) || !is_numeric($discount1)) {
+            // Set bold border on H cell explicitly
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
+            continue;
+        }
+
+        // Calculate expected line total with discount: Qty × UnitPrice × (1 - Discount1/100)
+        $expectedTotal = round((float)$qty * (float)$unitPrice * (1 - (float)$discount1 / 100), 2);
+        $actualTotal = round((float)$lineTotal, 2);
+
+        // Compare with tolerance for floating point
+        if (abs($expectedTotal - $actualTotal) > 0.01) {
+            // Set bold border on H cell explicitly
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
         }
     }
 }
@@ -488,6 +541,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
                         $sanityMethod = $supplier['OCRsanityMethod'];
                     }
                     break;
+                }
+            }
+        }
+    }
+
+    // If using Discount1 method but jsonToOcrSanity doesn't have Discount1, fill column I with zeros
+    if ($sanityMethod === 'Discount1' && $supplierConfig !== null && isset($supplierConfig['jsonToOcrSanity'])) {
+        $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
+
+        // Check if Discount1 is NOT in the mapping
+        if (!isset($jsonToOcrSanity['Discount1'])) {
+            // Fill column I (Discount1) with 0 for all data rows
+            $highestRow = $sheet->getHighestRow();
+            for ($row = 2; $row <= $highestRow; $row++) {
+                // Only fill if the row has data (check if column C has index)
+                $indexValue = $sheet->getCell("C{$row}")->getValue();
+                if ($indexValue !== null && $indexValue !== '') {
+                    $sheet->setCellValue("I{$row}", 0);
                 }
             }
         }

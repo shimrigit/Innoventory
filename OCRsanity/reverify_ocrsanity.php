@@ -180,6 +180,13 @@ function applySanityVerification($sheet, $method) {
             applyLineSumVerification($sheet, $highestRow);
             $totalDifference = applyTotalSumVerification($sheet, $highestRow);
             break;
+
+        case 'Discount1':
+            applyDataTypeVerification($sheet, $highestRow);
+            applyBarcodeSanityVerification($sheet, $highestRow);
+            applyDiscount1CalcVerification($sheet, $highestRow);
+            $totalDifference = applyTotalSumVerification($sheet, $highestRow);
+            break;
     }
 
     return $totalDifference;
@@ -268,6 +275,53 @@ function applyLineSumVerification($sheet, $highestRow) {
 
         if (abs($expectedTotal - $actualTotal) > 0.01) {
             $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+        }
+    }
+}
+
+/**
+ * Discount1Calc Verification: Check if Qty × UnitPrice × (1 - Discount1/100) = LineTotal
+ * Formula: F × G × (1 - I/100) = H
+ * Invalid rows get bold border on cell H
+ */
+function applyDiscount1CalcVerification($sheet, $highestRow) {
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $qtyCell = $sheet->getCell("F{$row}");
+        $unitPriceCell = $sheet->getCell("G{$row}");
+        $lineTotalCell = $sheet->getCell("H{$row}");
+        $discount1Cell = $sheet->getCell("I{$row}");
+
+        $qty = $qtyCell->getValue();
+        $unitPrice = $unitPriceCell->getValue();
+        $lineTotal = $lineTotalCell->getValue();
+        $discount1 = $discount1Cell->getValue();
+
+        // Skip empty rows
+        if (($qty === null || $qty === '') && ($unitPrice === null || $unitPrice === '') && ($lineTotal === null || $lineTotal === '')) {
+            continue;
+        }
+
+        // Check if F, G, and I are numeric
+        if (!is_numeric($qty) || !is_numeric($unitPrice) || !is_numeric($discount1)) {
+            // Set bold border on H cell explicitly
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
+            continue;
+        }
+
+        // Calculate expected line total with discount: Qty × UnitPrice × (1 - Discount1/100)
+        $expectedTotal = round((float)$qty * (float)$unitPrice * (1 - (float)$discount1 / 100), 2);
+        $actualTotal = round((float)$lineTotal, 2);
+
+        // Compare with tolerance for floating point
+        if (abs($expectedTotal - $actualTotal) > 0.01) {
+            // Set bold border on H cell explicitly
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
         }
     }
 }
