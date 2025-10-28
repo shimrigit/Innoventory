@@ -218,7 +218,8 @@
     {
       "supplierName": "Tayari",
       "OCRsanityMethod": "Discount1",
-      "hebrewName": "האחים טיירי"
+      "hebrewName": "האחים טיירי",
+      "jsonToOcrSanity": {"Barcode":4, "ItemName":8, "Qty":3, "UnitPrice":2, "LineTotal":1, "Discount1":2}
     },
     {
       "supplierName": "Sbh",
