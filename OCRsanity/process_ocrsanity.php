@@ -320,6 +320,145 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
     $processDateFormatted = $processDate->format('d-m-Y'); // dd-mm-yyyy
 
+    // ===== EARLY VALIDATION: Check suppliers.json configuration BEFORE creating Excel file =====
+    $suppliersFile = __DIR__ . '/../suppliers.json';
+    $supplierConfig = null;
+    $validationError = '';
+
+    // Check if suppliers.json exists
+    if (!file_exists($suppliersFile)) {
+        $validationError = "Error: suppliers.json file not found";
+    } else {
+        $suppliers = json_decode(file_get_contents($suppliersFile), true);
+
+        // Find supplier by name
+        foreach ($suppliers as $supplier) {
+            if ($supplier['supplierName'] === $supplierName) {
+                $supplierConfig = $supplier;
+                break;
+            }
+        }
+
+        // Validation 1: Check if supplier exists
+        if ($supplierConfig === null) {
+            $validationError = "Error: Supplier '{$supplierName}' does not exist in suppliers.json config file";
+        }
+        // Validation 2: Check if supplier has jsonToOcrSanity
+        elseif (!isset($supplierConfig['jsonToOcrSanity'])) {
+            $validationError = "Error: Supplier '{$supplierName}' does not have jsonToOcrSanity array";
+        }
+        // Validation 3: Check if sanity method is valid/implemented
+        else {
+            $sanityMethod = $supplierConfig['OCRsanityMethod'] ?? 'Simple';
+            $validMethods = ['Simple', 'LineTotal', 'Discount1'];
+
+            if (!in_array($sanityMethod, $validMethods)) {
+                $validationError = "Error: OCRsanityMethod '{$sanityMethod}' for supplier {$supplierName} is not implemented. Valid methods: " . implode(', ', $validMethods);
+            }
+            // Validation 4: Check if required fields exist in jsonToOcrSanity for the selected method
+            else {
+                $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
+                $requiredFields = [];
+
+                switch ($sanityMethod) {
+                    case 'Simple':
+                        $requiredFields = ['Barcode', 'ItemName'];
+                        break;
+                    case 'LineTotal':
+                        $requiredFields = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'];
+                        break;
+                    case 'Discount1':
+                        $requiredFields = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'];
+                        // Note: Discount1 is optional - will be auto-filled with 0 if missing
+                        break;
+                }
+
+                $missingFields = [];
+                foreach ($requiredFields as $field) {
+                    if (!isset($jsonToOcrSanity[$field])) {
+                        $missingFields[] = $field;
+                    }
+                }
+
+                if (!empty($missingFields)) {
+                    $validationError = "Error: Required field(s) missing in jsonToOcrSanity for supplier {$supplierName} using '{$sanityMethod}' method: " . implode(', ', $missingFields);
+                }
+            }
+        }
+    }
+
+    // If validation failed, show error page and stop execution
+    if (!empty($validationError)) {
+        echo "<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>OCR Sanity Process - Configuration Error</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            border-bottom: 3px solid #dc3545;
+            padding-bottom: 10px;
+        }
+        .error-box {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .back-link:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <h2>❌ OCR Sanity Process - Configuration Error</h2>
+        <div class='error-box'>
+            <strong>⚠️ Configuration Error:</strong><br>
+            " . htmlspecialchars($validationError) . "
+        </div>
+        <p><strong>Supplier Name extracted from PDF:</strong> {$supplierName}</p>
+        <p><strong>What to do:</strong></p>
+        <ul>
+            <li>Check that the supplier '{$supplierName}' exists in suppliers.json</li>
+            <li>Verify the supplier has a valid 'jsonToOcrSanity' array</li>
+            <li>Verify the supplier has a valid 'OCRsanityMethod' (Simple, LineTotal, or Discount1)</li>
+            <li>Ensure all required fields are present in jsonToOcrSanity for the selected method</li>
+        </ul>
+        <a href='" . htmlspecialchars($_SERVER['PHP_SELF']) . "' class='back-link'>⬅️ Back to Upload</a>
+    </div>
+</body>
+</html>";
+        exit;
+    }
+
+    // Validation passed - proceed with Excel file creation
     // Create Excel file
     $spreadsheet = new Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
@@ -527,24 +666,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         $sheet->getColumnDimension($columnID)->setAutoSize(true);
     }
 
-    // Load suppliers.json to get OCRsanityMethod
-    $suppliersJsonPath = __DIR__ . '/../suppliers.json';
-    $sanityMethod = 'Simple'; // Default method
+    // Get sanity method from supplier config (already validated earlier)
+    $sanityMethod = $supplierConfig['OCRsanityMethod'] ?? 'Simple';
+    $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
     $totalDifference = 0;
-
-    if (file_exists($suppliersJsonPath)) {
-        $suppliersData = json_decode(file_get_contents($suppliersJsonPath), true);
-        if ($suppliersData && is_array($suppliersData)) {
-            foreach ($suppliersData as $supplier) {
-                if (isset($supplier['supplierName']) && $supplier['supplierName'] === $supplierName) {
-                    if (isset($supplier['OCRsanityMethod'])) {
-                        $sanityMethod = $supplier['OCRsanityMethod'];
-                    }
-                    break;
-                }
-            }
-        }
-    }
 
     // If using Discount1 method but jsonToOcrSanity doesn't have Discount1, fill column I with zeros
     if ($sanityMethod === 'Discount1' && $supplierConfig !== null && isset($supplierConfig['jsonToOcrSanity'])) {
@@ -600,119 +725,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
     // Redirect to verification page
     header("Location: verify_ocrsanity.php?excel=" . urlencode($excelFileName) . "&pdf=" . urlencode($tempPdfName));
-    exit;
-
-    // Display success message (this code is now unreachable but kept for reference)
-    echo "<!DOCTYPE html>
-<html lang='en'>
-<head>
-    <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>OCR Sanity Process - Success</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h2 {
-            color: #333;
-            border-bottom: 3px solid #28a745;
-            padding-bottom: 10px;
-        }
-        .success-box {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-        .info-box {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-        .info-box p {
-            margin: 5px 0;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 20px;
-            background: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-        }
-        .back-link:hover {
-            background: #0056b3;
-        }
-        .warning-box {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-            white-space: pre-line;
-        }
-        .error-box {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-    </style>
-</head>
-<body>
-    <div class='container'>
-        <h2>✅ OCR Sanity Process Completed Successfully</h2>
-
-        <div class='success-box'>
-            <strong>File saved:</strong> {$excelFileName}
-        </div>";
-
-    // Display status message
-    if (!empty($statusMessage)) {
-        // Check if it's an error or warning
-        if (strpos($statusMessage, 'Error:') !== false || strpos($statusMessage, 'does not exist') !== false || strpos($statusMessage, 'does not have') !== false || strpos($statusMessage, 'not valid') !== false) {
-            echo "<div class='error-box'><strong>⚠️ Status:</strong><br>" . nl2br(htmlspecialchars($statusMessage)) . "</div>";
-        } elseif (strpos($statusMessage, 'Warning:') !== false) {
-            echo "<div class='warning-box'><strong>⚠️ Warnings:</strong><br>" . nl2br(htmlspecialchars($statusMessage)) . "</div>";
-        } else {
-            echo "<div class='success-box'><strong>✅ Status:</strong><br>" . htmlspecialchars($statusMessage) . "</div>";
-        }
-    }
-
-    echo "
-        <div class='info-box'>
-            <h3>📋 Extracted Information</h3>
-            <p><strong>Supplier Name:</strong> {$supplierName}</p>
-            <p><strong>Process Date:</strong> {$processDateFormatted}</p>
-            <p><strong>Invoice Number:</strong> {$invoiceNumber}</p>
-            <p><strong>Invoice Date:</strong> {$invoiceDate}</p>
-            <p><strong>Invoice Total:</strong> {$invoiceTotal}</p>
-            <p><strong>Rows Processed:</strong> {$rowsProcessed}</p>
-        </div>
-
-        <a href='" . htmlspecialchars($_SERVER['PHP_SELF']) . "' class='back-link'>⬅️ Process Another File</a>
-    </div>
-</body>
-</html>";
     exit;
 }
 ?>
