@@ -699,6 +699,11 @@ $cellStylesData = json_encode($cellStyles);
                         updateTotalIndicator(data.totalDifference);
                     }
 
+                    // Reload cell data from server (including recalculated ActualUnitPrice in column K)
+                    if (data.cellData) {
+                        hot.loadData(data.cellData);
+                    }
+
                     // Force Handsontable to re-render all cells with new styles
                     hot.render();
 
@@ -706,7 +711,15 @@ $cellStylesData = json_encode($cellStyles);
                     document.getElementById('reverifyBtn').disabled = false;
                     document.getElementById('reverifyBtn').textContent = '🔄 Re-verify';
                 } else {
-                    alert('❌ Error re-verifying file: ' + data.error);
+                    // Check if it's an invalid method error
+                    if (data.error === 'invalid_method') {
+                        // Show detailed popup with valid methods
+                        const validMethodsList = data.validMethods.join(', ');
+                        alert(`❌ Invalid Sanity Method in cell B6!\n\nCurrent value: "${data.currentMethod}"\n\nPlease change cell B6 to one of these valid methods:\n${validMethodsList}\n\nThen click Re-verify again.`);
+                    } else {
+                        // Generic error
+                        alert('❌ Error re-verifying file: ' + (data.message || data.error));
+                    }
                     document.getElementById('reverifyBtn').disabled = false;
                     document.getElementById('reverifyBtn').textContent = '🔄 Re-verify';
                 }

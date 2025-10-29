@@ -471,8 +471,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     $sheet->setCellValue('A3', 'InvoiceDate');
     $sheet->setCellValue('A4', 'InvoiceTotal');
     $sheet->setCellValue('A5', 'Remark');
+    $sheet->setCellValue('A6', 'Sanity Method');
 
-    // Column C to J - Headers (bold)
+    // Column C to K - Headers (bold)
     $sheet->setCellValue('C1', 'Index');
     $sheet->setCellValue('D1', 'Barcode');
     $sheet->setCellValue('E1', 'ItemName');
@@ -481,10 +482,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     $sheet->setCellValue('H1', 'LineTotal');
     $sheet->setCellValue('I1', 'Discount1');
     $sheet->setCellValue('J1', 'Discount2');
+    $sheet->setCellValue('K1', 'ActualUnitPrice');
 
     // Make all headers bold
-    $sheet->getStyle('A1:A5')->getFont()->setBold(true);
-    $sheet->getStyle('C1:J1')->getFont()->setBold(true);
+    $sheet->getStyle('A1:A6')->getFont()->setBold(true);
+    $sheet->getStyle('C1:K1')->getFont()->setBold(true);
 
     // Stage 2: Map JSON data to Excel
 
@@ -521,6 +523,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
     // B5 - Remark (leave empty)
     $sheet->setCellValue('B5', '');
+
+    // B6 - Sanity Method (will be set after determining supplier config)
+    // Placeholder - will be filled later after loading supplier config
 
     // Load supplier configuration for table mapping
     $suppliersFile = __DIR__ . '/../suppliers.json';
@@ -689,8 +694,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         }
     }
 
+    // Set B6 with the sanity method name
+    $sheet->setCellValue('B6', $sanityMethod);
+
     // Apply sanity verification based on supplier's method
     $totalDifference = applySanityVerification($sheet, $sanityMethod);
+
+    // Calculate ActualUnitPrice for column K based on sanity method
+    $highestRow = $sheet->getHighestRow();
+    for ($row = 2; $row <= $highestRow; $row++) {
+        // Check if row has data (check if column C has index)
+        $indexValue = $sheet->getCell("C{$row}")->getValue();
+        if ($indexValue === null || $indexValue === '') {
+            continue; // Skip empty rows
+        }
+
+        $unitPrice = $sheet->getCell("G{$row}")->getValue();
+        $discount1 = $sheet->getCell("I{$row}")->getValue();
+
+        // Calculate ActualUnitPrice based on sanity method
+        $actualUnitPrice = 0;
+
+        switch ($sanityMethod) {
+            case 'Simple':
+            case 'LineTotal':
+                // ActualUnitPrice = UnitPrice (copy column G to column K)
+                $actualUnitPrice = $unitPrice;
+                break;
+
+            case 'Discount1':
+                // ActualUnitPrice = UnitPrice * (1 - Discount1/100)
+                if (is_numeric($unitPrice) && is_numeric($discount1)) {
+                    $actualUnitPrice = (float)$unitPrice * (1 - (float)$discount1 / 100);
+                } else {
+                    $actualUnitPrice = $unitPrice; // Fallback if not numeric
+                }
+                break;
+
+            default:
+                // For any other method, default to UnitPrice
+                $actualUnitPrice = $unitPrice;
+                break;
+        }
+
+        // Set ActualUnitPrice in column K
+        if (is_numeric($actualUnitPrice)) {
+            $sheet->setCellValue("K{$row}", (float)$actualUnitPrice);
+            $sheet->getStyle("K{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        } else {
+            $sheet->setCellValue("K{$row}", $actualUnitPrice);
+        }
+    }
 
     // Store total difference and sanity method in a hidden metadata sheet
     // This will be used by verify_ocrsanity.php to display the indicator

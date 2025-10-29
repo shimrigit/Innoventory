@@ -725,6 +725,261 @@ $sheet->setCellValueExplicit("{$columnLetter}{$excelRow}", $value, \PhpOffice\Ph
 
 ---
 
+## Recent Enhancements (Phase 2)
+
+### 1. ActualUnitPrice Column (Column K)
+
+**Added:** October 29, 2025
+
+**Purpose:** Calculate the actual price paid per unit after applying discounts.
+
+**Implementation:**
+
+When saving OCR Sanity, a new column K is added with header "ActualUnitPrice" (bold).
+
+**Calculation Logic by Sanity Method:**
+
+| Sanity Method | Formula | Description |
+|---------------|---------|-------------|
+| **Simple** | `K = G` | Copies UnitPrice (no discount) |
+| **LineTotal** | `K = G` | Copies UnitPrice (no discount) |
+| **Discount1** | `K = G × (1 - I/100)` | Applies Discount1 percentage |
+
+**Example (Discount1 method):**
+- UnitPrice (G) = 100
+- Discount1 (I) = 5
+- ActualUnitPrice (K) = 100 × (1 - 5/100) = 100 × 0.95 = **95.00**
+
+**Code Locations:**
+- Initial calculation: `process_ocrsanity.php` Lines 703-747
+- Re-verify calculation: `reverify_ocrsanity.php` Lines 118-162
+- Number formatting: `#,##0.00` (two decimal places with thousand separators)
+
+**Re-verify Behavior:**
+- ActualUnitPrice is **always recalculated** when re-verify is clicked
+- Updates dynamically if user edits UnitPrice (G) or Discount1 (I)
+- Calculation uses the sanity method from cell B6 (not suppliers.json)
+
+---
+
+### 2. Sanity Method Display in Cell B6
+
+**Added:** October 29, 2025
+
+**Purpose:** Show which sanity method is being used and allow dynamic switching.
+
+**Implementation:**
+
+- **Cell A6:** Label "Sanity Method" (bold)
+- **Cell B6:** Value showing the method (e.g., "Simple", "LineTotal", "Discount1")
+
+**Initial Value:** Comes from `suppliers.json` → `OCRsanityMethod` field
+
+**Dynamic Switching:**
+- User can **edit B6** to change the sanity method
+- On re-verify, system reads B6 (not suppliers.json)
+- Allows testing different verification methods without re-uploading
+
+**Code Locations:**
+- A6/B6 creation: `process_ocrsanity.php` Lines 474, 698
+- B6 validation: `reverify_ocrsanity.php` Lines 85-105
+- Invalid method popup: `verify_ocrsanity.php` Lines 714-722
+
+---
+
+### 3. Dynamic Sanity Method for Re-verify
+
+**Added:** October 29, 2025
+
+**Purpose:** All re-verify operations use B6 value instead of original suppliers.json configuration.
+
+**Breaking Change from Phase 1:**
+- **Before:** Re-verify always used method from suppliers.json
+- **After:** Re-verify uses method from cell B6 (user-editable)
+
+**Workflow:**
+
+1. **Initial Upload:**
+   - Supplier "Tayari" has `OCRsanityMethod: "Discount1"` in suppliers.json
+   - Excel created with B6 = "Discount1"
+   - Verification applied using "Discount1" method
+
+2. **User Changes Method:**
+   - User edits B6 from "Discount1" to "LineTotal"
+   - User clicks "Re-verify"
+   - System validates B6 value
+   - Verification applied using "LineTotal" method (from B6)
+   - ActualUnitPrice recalculated using "LineTotal" formula
+
+3. **Invalid Method Error:**
+   - User edits B6 to "MyCustomMethod"
+   - User clicks "Re-verify"
+   - Popup appears:
+   ```
+   ❌ Invalid Sanity Method in cell B6!
+
+   Current value: "MyCustomMethod"
+
+   Please change cell B6 to one of these valid methods:
+   Simple, LineTotal, Discount1
+
+   Then click Re-verify again.
+   ```
+
+**Validation:**
+- Valid methods: `['Simple', 'LineTotal', 'Discount1']`
+- Empty B6: Defaults to "Simple"
+- Invalid method: Shows error popup with valid options
+
+**What Re-verify Does Based on B6:**
+
+| Operation | Behavior |
+|-----------|----------|
+| **Verification Components** | Applies DataType, BarcodeSanity, LinSum/Discount1Calc based on B6 |
+| **Bold Frames on Column H** | Applied based on B6 method logic |
+| **ActualUnitPrice Calculation** | Uses formula matching B6 method |
+| **Total Equality Indicator** | Shows/hides based on B6 method (LineTotal or Discount1) |
+| **Metadata Sync** | Updates hidden _Metadata sheet with B6 value |
+
+**Code Locations:**
+- Read B6: `reverify_ocrsanity.php` Line 86
+- Validate B6: `reverify_ocrsanity.php` Lines 88-105
+- Apply verification: `reverify_ocrsanity.php` Line 110
+- Update metadata: `reverify_ocrsanity.php` Lines 112-116
+
+---
+
+### 4. Column H (LineTotal) Behavior Clarification
+
+**Important:** Column H is **NEVER recalculated** by the system.
+
+**Sources of Column H Values:**
+1. **OCR Extraction:** Initial value from AI/OCR JSON
+2. **Manual Edit:** User types directly into cell H
+3. **PDF Click-to-Copy:** User clicks highlighted text in PDF overlay
+
+**Re-verify Does NOT Recalculate H:**
+- Column H keeps its current value (from OCR or user edits)
+- **Only verification is applied** (bold frames if mismatch detected)
+
+**Verification Logic (Bold Frames on H):**
+
+| Sanity Method | Verification Rule |
+|---------------|-------------------|
+| **Simple** | No verification on H (no bold frames) |
+| **LineTotal** | Bold frame if `F × G ≠ H` |
+| **Discount1** | Bold frame if `F × G × (1 - I/100) ≠ H` |
+
+**Why H is Never Recalculated:**
+- OCR-extracted LineTotal might be correct even if calculation differs slightly
+- Users may need to manually correct OCR errors
+- PDF values override calculated values (user knows the invoice better than formula)
+
+**Code Locations:**
+- LineSum verification: `reverify_ocrsanity.php` Function `applyLineSumVerification()`
+- Discount1Calc verification: `reverify_ocrsanity.php` Function `applyDiscount1CalcVerification()`
+
+---
+
+### 5. Re-verify Data Synchronization Fix
+
+**Fixed:** October 29, 2025
+
+**Bug:** When user edited cells and clicked re-verify, ActualUnitPrice calculations were correct in Excel file but not displayed in Handsontable.
+
+**Root Cause:** Server was recalculating ActualUnitPrice and saving to Excel, but only returning cell styles (colors/borders) to client, not the updated cell values.
+
+**Solution:**
+- Server now returns both `cellStyles` AND `cellData` in re-verify response
+- Client reloads all cell values using `hot.loadData(data.cellData)`
+- Handsontable display stays synchronized with Excel file
+
+**Code Locations:**
+- Server adds cellData: `reverify_ocrsanity.php` Lines 153-210
+- Client reloads data: `verify_ocrsanity.php` Lines 702-705
+
+**Before Fix:**
+```
+User changes G6 from 5 to 11
+↓
+Re-verify clicked
+↓
+Server calculates K6 = 11
+↓
+Server saves Excel ✓
+↓
+Server returns only styles ✗
+↓
+Handsontable still shows K6 = 5 ✗
+```
+
+**After Fix:**
+```
+User changes G6 from 5 to 11
+↓
+Re-verify clicked
+↓
+Server calculates K6 = 11
+↓
+Server saves Excel ✓
+↓
+Server returns styles + data ✓
+↓
+Handsontable reloads K6 = 11 ✓
+```
+
+---
+
+### 6. Commercial Layer Configuration Setup
+
+**Added:** October 29, 2025
+
+**Purpose:** Prepare for multi-shop commercial layer development.
+
+**New Files Created:**
+
+1. **`configDir/shops_V2.json`**
+   - Stores shop-specific configurations
+   - Named "V2" to avoid confusion with legacy `shops.json`
+   - Initial shop: "CountryMZ" with BackOfficeType "comax"
+
+**Structure:**
+```json
+[
+  {
+    "shopName": "CountryMZ",
+    "BackOfficeType": "comax"
+  }
+]
+```
+
+**Future Parameters (planned):**
+- Shop address, contact info
+- Tax rates, currency settings
+- Default markup percentages
+- Inventory thresholds
+- Supplier relationships
+
+**Code Location:** `C:\xampp\htdocs\website\configDir\shops_V2.json`
+
+---
+
+### Summary of Phase 2 Changes
+
+| Feature | Files Modified | Lines Changed |
+|---------|---------------|---------------|
+| ActualUnitPrice Column | process_ocrsanity.php, reverify_ocrsanity.php | ~100 lines |
+| Sanity Method in B6 | process_ocrsanity.php | ~5 lines |
+| Dynamic B6 Re-verify | reverify_ocrsanity.php, verify_ocrsanity.php | ~50 lines |
+| Re-verify Data Sync | reverify_ocrsanity.php, verify_ocrsanity.php | ~20 lines |
+| Commercial Config | shops_V2.json (new file) | New file |
+
+**Total Impact:** ~175 lines of code across 3 PHP files + 1 new config file
+
+**Testing Status:** Ready for user testing with all three sanity methods
+
+---
+
 ## Next Steps
 
 ### Immediate Tasks

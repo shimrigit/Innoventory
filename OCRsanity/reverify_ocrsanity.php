@@ -82,18 +82,84 @@ try {
         }
     }
 
-    // Step 3: Get sanity method from metadata sheet (or default to Simple)
-    $sanityMethod = 'Simple';
-    $metaSheetIndex = $spreadsheet->getSheetByName('_Metadata');
-    if ($metaSheetIndex !== null) {
-        $sanityMethod = $metaSheetIndex->getCell('B2')->getValue();
-        if (empty($sanityMethod)) {
-            $sanityMethod = 'Simple';
-        }
+    // Step 3: Get sanity method from B6 cell (user can edit this to change method)
+    $sanityMethod = $sheet->getCell('B6')->getValue();
+
+    // Validate sanity method against allowed methods
+    $validMethods = ['Simple', 'LineTotal', 'Discount1'];
+
+    if (empty($sanityMethod)) {
+        // If B6 is empty, default to Simple
+        $sanityMethod = 'Simple';
+        $sheet->setCellValue('B6', $sanityMethod);
+    } elseif (!in_array($sanityMethod, $validMethods)) {
+        // If B6 has invalid method, return error with list of valid methods
+        echo json_encode([
+            'success' => false,
+            'error' => 'invalid_method',
+            'message' => "Invalid sanity method '{$sanityMethod}' in cell B6. Please change it to one of the following valid methods: " . implode(', ', $validMethods),
+            'validMethods' => $validMethods,
+            'currentMethod' => $sanityMethod
+        ]);
+        exit;
     }
 
-    // Apply sanity verification based on stored method
+    // Apply sanity verification based on method from B6
+    // NOTE: Column H (LineTotal) is NEVER recalculated - it comes from OCR or manual input
+    // Only verification (bold frames) is applied based on the sanity method
     $totalDifference = applySanityVerification($sheet, $sanityMethod);
+
+    // Update metadata sheet with the method from B6 (keep metadata in sync)
+    $metaSheetIndex = $spreadsheet->getSheetByName('_Metadata');
+    if ($metaSheetIndex !== null) {
+        $metaSheetIndex->getCell('B2')->setValue($sanityMethod);
+    }
+
+    // Recalculate ActualUnitPrice for column K based on sanity method
+    $highestRowForCalc = $sheet->getHighestRow();
+    for ($row = 2; $row <= $highestRowForCalc; $row++) {
+        // Check if row has data (check if column C has index)
+        $indexValue = $sheet->getCell("C{$row}")->getValue();
+        if ($indexValue === null || $indexValue === '') {
+            continue; // Skip empty rows
+        }
+
+        $unitPrice = $sheet->getCell("G{$row}")->getValue();
+        $discount1 = $sheet->getCell("I{$row}")->getValue();
+
+        // Calculate ActualUnitPrice based on sanity method
+        $actualUnitPrice = 0;
+
+        switch ($sanityMethod) {
+            case 'Simple':
+            case 'LineTotal':
+                // ActualUnitPrice = UnitPrice (copy column G to column K)
+                $actualUnitPrice = $unitPrice;
+                break;
+
+            case 'Discount1':
+                // ActualUnitPrice = UnitPrice * (1 - Discount1/100)
+                if (is_numeric($unitPrice) && is_numeric($discount1)) {
+                    $actualUnitPrice = (float)$unitPrice * (1 - (float)$discount1 / 100);
+                } else {
+                    $actualUnitPrice = $unitPrice; // Fallback if not numeric
+                }
+                break;
+
+            default:
+                // For any other method, default to UnitPrice
+                $actualUnitPrice = $unitPrice;
+                break;
+        }
+
+        // Set ActualUnitPrice in column K
+        if (is_numeric($actualUnitPrice)) {
+            $sheet->setCellValue("K{$row}", (float)$actualUnitPrice);
+            $sheet->getStyle("K{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        } else {
+            $sheet->setCellValue("K{$row}", $actualUnitPrice);
+        }
+    }
 
     // Update metadata sheet with new total difference
     if ($metaSheetIndex !== null) {
@@ -104,13 +170,18 @@ try {
     $writer = new Xlsx($spreadsheet);
     $writer->save($filePath);
 
-    // Step 5: Read back the cell styles to return to client
+    // Step 5: Read back the cell styles AND cell data to return to client
     $cellStyles = [];
+    $cellData = [];
     $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
     for ($row = 1; $row <= $highestRow; $row++) {
+        $rowData = [];
         for ($col = 1; $col <= $highestColumnIndex; $col++) {
             $cell = $sheet->getCellByColumnAndRow($col, $row);
+
+            // Collect cell value for data array
+            $rowData[] = $cell->getFormattedValue();
 
             $styleData = [
                 'row' => $row - 1, // 0-indexed for Handsontable
@@ -147,12 +218,14 @@ try {
                 $cellStyles[] = $styleData;
             }
         }
+        $cellData[] = $rowData;
     }
 
     echo json_encode([
         'success' => true,
         'message' => 'Re-verification completed',
         'cellStyles' => $cellStyles,
+        'cellData' => $cellData,
         'totalDifference' => $totalDifference
     ]);
 
