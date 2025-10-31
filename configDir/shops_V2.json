@@ -1,6 +1,13 @@
 [
   {
-    "shopName": "CountryMZ",
-    "BackOfficeType": "comax"
+    "ShopName": "CountryMZ",
+    "BackOfficeType": "Comax",
+    "PriceListColumns": {
+      "Barcode": 3,
+      "Department": 5,
+      "CostPrice": 9,
+      "SalesPrice": 7
+    },
+    "PriceChangePercentageThreshold": 3
   }
 ]
