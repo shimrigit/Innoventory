@@ -2,6 +2,9 @@ AIocr/crops/
 AIocr/ocr_extracted/
 AIocr/prompts/
 AIocr/config.json
+commercialLayer/commercial_invoice_files/
+commercialLayer/price_list_files/
+configDir/test_config.json
 downloads/
 ocrDir/
 OCRsanity/sanity_files/
