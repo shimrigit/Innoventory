@@ -3,6 +3,7 @@
     "ShopName": "CountryMZ",
     "BackOfficeType": "Comax",
     "PriceListColumns": {
+      "ItemERPName": 2,
       "Barcode": 3,
       "Department": 5,
       "CostPrice": 9,
