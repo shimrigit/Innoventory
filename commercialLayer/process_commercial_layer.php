@@ -259,35 +259,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $writer = new Xlsx($spreadsheet);
     $writer->save($clFilePath);
 
-    // Success message
-    echo "<!DOCTYPE html>
-    <html lang='en'>
-    <head>
-        <meta charset='UTF-8'>
-        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-        <title>Commercial Layer - Success</title>
-        <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-            .success { background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 5px; color: #155724; }
-            .info { margin-top: 20px; }
-            a { color: #007bff; text-decoration: none; }
-            a:hover { text-decoration: underline; }
-        </style>
-    </head>
-    <body>
-        <div class='success'>
-            <h2>✅ Commercial Layer Processing Complete</h2>
-            <div class='info'>
-                <p><strong>Shop:</strong> {$shopName}</p>
-                <p><strong>CL File Created:</strong> {$clFileName}</p>
-                <p><strong>Saved to:</strong> {$clFilePath}</p>
-            </div>
-            <p style='margin-top: 20px;'>
-                <a href='process_commercial_layer.php'>← Process Another Invoice</a>
-            </p>
-        </div>
-    </body>
-    </html>";
+    // Store PDF temporarily for verification (use original uploaded file or from test config)
+    $tempPdfName = 'temp_' . $clFileName . '.pdf';
+    $tempPdfPath = $saveDirectory . $tempPdfName;
+
+    if ($fileOption === 'manual') {
+        move_uploaded_file($invoicePdfPath, $tempPdfPath);
+    } else {
+        copy($invoicePdfPath, $tempPdfPath);
+    }
+
+    // Redirect to verification page
+    header("Location: verify_commercial_layer.php?cl=" . urlencode($clFileName) . "&pdf=" . urlencode($tempPdfName) . "&shop=" . urlencode($shopName));
     exit;
 }
 
