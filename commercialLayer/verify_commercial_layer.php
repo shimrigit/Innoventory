@@ -150,6 +150,15 @@ for ($row = 1; $row <= $highestRow; $row++) {
             background: #2980b9;
         }
 
+        .btn-generate {
+            background: #e67e22;
+            color: white;
+        }
+
+        .btn-generate:hover {
+            background: #d35400;
+        }
+
         .btn:disabled {
             background: #95a5a6;
             cursor: not-allowed;
@@ -277,7 +286,8 @@ for ($row = 1; $row <= $highestRow; $row++) {
         </div>
         <div class="button-group">
             <button class="btn btn-retrieve" id="retrieveBtn">🔄 Retrieve Again Commercial Data</button>
-            <button class="btn btn-save" id="saveBtn">💾 Save CL File</button>
+            <button class="btn btn-generate" id="generateBtn">📊 Generate Price Change and New Products Files</button>
+            <button class="btn btn-save" id="saveBtn">✅ Conclude CL Stage</button>
         </div>
     </div>
 
@@ -480,6 +490,56 @@ for ($row = 1; $row <= $highestRow; $row++) {
                 alert('❌ Error: ' + error);
                 document.getElementById('retrieveBtn').disabled = false;
                 document.getElementById('retrieveBtn').textContent = '🔄 Retrieve Again Commercial Data';
+            });
+        });
+
+        // Generate Price Change and New Products files functionality
+        document.getElementById('generateBtn').addEventListener('click', function() {
+            if (!confirm('📊 This will save the current CL file and generate Price Change and New Products files. Continue?')) {
+                return;
+            }
+
+            // Disable button during processing
+            document.getElementById('generateBtn').disabled = true;
+            document.getElementById('generateBtn').textContent = '⏳ Generating...';
+
+            const currentData = hot.getData();
+
+            fetch('generate_pc_np_files.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    filename: clFileName,
+                    shop: shopName,
+                    data: currentData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Check if PC file was skipped
+                    if (data.skipPriceChange) {
+                        alert('ℹ️ ' + data.message);
+                    } else {
+                        alert('✅ ' + data.message + '\n\n' +
+                              'Price Change file: ' + data.pcFileName + '\n' +
+                              'Total rows: ' + data.pcRowCount + '\n' +
+                              'Items with recommendations: ' + data.recommendationCount);
+                    }
+                    document.getElementById('generateBtn').disabled = false;
+                    document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+                } else {
+                    alert('❌ Error generating files: ' + data.error);
+                    document.getElementById('generateBtn').disabled = false;
+                    document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+                }
+            })
+            .catch(error => {
+                alert('❌ Error: ' + error);
+                document.getElementById('generateBtn').disabled = false;
+                document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
             });
         });
 
