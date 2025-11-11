@@ -171,10 +171,6 @@ async function searchCHP(barcode, city) {
             return data;
         });
 
-        // Take screenshot for debugging
-        await page.screenshot({ path: 'chp_screenshot.png', fullPage: true });
-        console.error('Screenshot saved to chp_screenshot.png');
-
         // Output results as JSON
         console.log(JSON.stringify(results, null, 2));
 
