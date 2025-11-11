@@ -9,6 +9,7 @@
       "CostPrice": 9,
       "SalesPrice": 7
     },
-    "PriceChangePercentageThreshold": 3
+    "PriceChangePercentageThreshold": 3,
+    "MarginTolerancePercentage": 15
   }
 ]
