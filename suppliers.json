@@ -47,7 +47,8 @@
     {
         "supplierName": "Gad",
         "OCRsanityMethod": "Discount1",
-        "hebrewName": "גד"
+        "hebrewName": "גד",
+        "jsonToOcrSanity": {"Barcode":7, "ItemName":5, "Qty":4, "UnitPrice":3, "LineTotal":1, "Discount1":2}
       },
     {
       "supplierName": "Mayan",
