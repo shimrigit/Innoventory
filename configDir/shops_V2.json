@@ -10,6 +10,7 @@
       "SalesPrice": 7
     },
     "PriceChangePercentageThreshold": 3,
-    "MarginTolerancePercentage": 15
+    "MarginTolerancePercentage": 15,
+    "shopDefaultCity": "תל אביב"
   }
 ]
