@@ -168,9 +168,9 @@ try {
     ];
 
     // 9. Write PC file headers
-    $pcSheet->setCellValue('A1', $headers[0]); // Column A header
-    $pcSheet->setCellValue('B1', $headers[1]); // Column B header
-    $pcSheet->setCellValue('C1', 'Original Index'); // Changed from "Index"
+    $pcSheet->setCellValue('A1', $clData[0][0] ?? '');
+    $pcSheet->setCellValue('B1', $clData[0][1] ?? '');
+    $pcSheet->setCellValue('C1', 'Original Index');
     $pcSheet->setCellValue('D1', 'Barcode');
     $pcSheet->setCellValue('E1', 'ActualUnitPrice');
     $pcSheet->setCellValue('F1', 'OriginalUnitPrice');
@@ -186,7 +186,7 @@ try {
     $pcSheet->setCellValue('P1', 'Rec Mrgn');
 
     // 10. Filter and copy rows based on PCPT threshold
-    $pcRowIndex = 2; // Start from row 2 (after headers)
+    $pcRowIndex = 2; // Start from row 2 (after header row)
     $copiedRowCount = 0;
 
     for ($clRowIdx = 1; $clRowIdx < count($clData); $clRowIdx++) { // Start from 1 to skip header
@@ -363,13 +363,18 @@ try {
     $pcWriter = new Xlsx($pcSpreadsheet);
     $pcWriter->save($pcFilePath);
 
+    // Store PC file info in session for verification page
+    $_SESSION['pcFileName'] = $pcFileName;
+    $_SESSION['shopName'] = $shopName;
+
     echo json_encode([
         'success' => true,
         'message' => "Price change file was created with price recommendation for {$yesRecommendationCount} items",
         'pcFileName' => $pcFileName,
         'pcRowCount' => $copiedRowCount,
         'recommendationCount' => $yesRecommendationCount,
-        'threshold' => $pcpt
+        'threshold' => $pcpt,
+        'redirectUrl' => 'verify_price_changes.php?pcFile=' . urlencode($pcFileName) . '&shop=' . urlencode($shopName)
     ]);
 
 } catch (Exception $e) {

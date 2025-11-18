@@ -522,14 +522,23 @@ for ($row = 1; $row <= $highestRow; $row++) {
                     // Check if PC file was skipped
                     if (data.skipPriceChange) {
                         alert('ℹ️ ' + data.message);
+                        document.getElementById('generateBtn').disabled = false;
+                        document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
                     } else {
                         alert('✅ ' + data.message + '\n\n' +
                               'Price Change file: ' + data.pcFileName + '\n' +
                               'Total rows: ' + data.pcRowCount + '\n' +
-                              'Items with recommendations: ' + data.recommendationCount);
+                              'Items with recommendations: ' + data.recommendationCount + '\n\n' +
+                              'Redirecting to verification page...');
+
+                        // Redirect to verification page
+                        if (data.redirectUrl) {
+                            window.location.href = data.redirectUrl;
+                        } else {
+                            document.getElementById('generateBtn').disabled = false;
+                            document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+                        }
                     }
-                    document.getElementById('generateBtn').disabled = false;
-                    document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
                 } else {
                     alert('❌ Error generating files: ' + data.error);
                     document.getElementById('generateBtn').disabled = false;
