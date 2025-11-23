@@ -1131,6 +1131,683 @@ Handsontable reloads K6 = 11 ✓
 
 ---
 
-**Last Updated:** October 28, 2025
-**Status:** ✅ Phase 1 Complete - Ready for Commercial Layer Development
-**Next Phase:** Multi-shop support, database integration, reporting dashboard
+## Commercial Layer Process (Stage 4)
+
+**Added:** November 23, 2025
+**Status:** ✅ Complete - Price Change & New Products Workflow Implemented
+
+The Commercial Layer is the final stage of invoice processing. It takes verified OCR Sanity files and performs commercial analysis by comparing invoice prices against current market prices, identifying price changes, and detecting new products that need to be added to the inventory system.
+
+### Commercial Layer Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│             STAGE 4: COMMERCIAL LAYER                        │
+│          (commercialLayer Directory)                         │
+└─────────────────────────────────────────────────────────────┘
+
+Input: OCRsanity_*.xlsx + shop selection
+                              ↓
+        ┌─────────────────────────────────────┐
+        │  1. Commercial Layer File Creation  │
+        │     - Copy OCRsanity to CL file     │
+        │     - Add ActualUnitPrice column    │
+        │     - Add CHPprice column           │
+        │     - Add PriceDiff column          │
+        │  2. CHP Price Search (Puppeteer)    │
+        │     - For each barcode, search CHP  │
+        │     - Extract market price          │
+        │     - Calculate price difference    │
+        │  3. CL Verification Screen          │
+        │     - Side-by-side view             │
+        │     - Editable spreadsheet          │
+        │     - Auto-save changes             │
+        │  4. Save CL File                    │
+        └─────────────────────────────────────┘
+                              ↓
+        ┌─────────────────────────────────────┐
+        │  5. Generate PC and NP Files        │
+        │     - Check PriceDiff column        │
+        │     - Generate PC file if changes   │
+        │     - Generate NP file if new items │
+        │  6. Verify Price Changes            │
+        │     - Split-screen interface        │
+        │     - CHP search panel              │
+        │     - Approve/reject changes        │
+        │  7. Verify New Products             │
+        │     - Department assignment         │
+        │     - Margin calculation            │
+        │     - Sale price determination      │
+        └─────────────────────────────────────┘
+                              ↓
+        ┌─────────────────────────────────────┐
+        │  8. Completion                      │
+        │     - CL file saved                 │
+        │     - PC file saved (if applicable) │
+        │     - NP file saved (if applicable) │
+        │     - Temp PDF deleted              │
+        └─────────────────────────────────────┘
+```
+
+---
+
+### Directory Structure
+
+```
+commercialLayer/
+├── commercial_layer.html               # Shop selection interface
+├── process_commercial_layer.php        # Main CL processing logic
+├── verify_commercial_layer.php         # CL verification screen
+├── save_commercial_layer.php           # Save CL file edits
+├── generate_pc_np_files.php            # Generate PC and NP files
+├── verify_price_changes.php            # PC verification screen
+├── save_price_changes.php              # Save PC file edits
+├── price_changes_complete.php          # PC completion screen
+├── generate_np_file.php                # Generate NP file
+├── verify_new_products.php             # NP verification screen
+├── calculate_margins.php               # Margin calculation endpoint
+├── save_new_products.php               # Save NP file edits
+├── new_products_complete.php           # NP completion screen
+├── getShopCHPprice.js                  # Puppeteer CHP price search
+├── commercial_invoice_files/           # CL, PC, NP files directory
+└── README.md                           # Commercial Layer documentation
+```
+
+---
+
+### File Naming Conventions
+
+**Commercial Layer (CL) File:**
+- Format: `OCRsanity_[SupplierName]_[Date]_[Timestamp]_CL_[Timestamp].xlsx`
+- Example: `OCRsanity_Gad_10-11-2025_10112025_110745_CL_23112025_085147.xlsx`
+- Created from OCRsanity file with `_CL_[Timestamp]` suffix
+
+**Price Change (PC) File:**
+- Format: `OCRsanity_[SupplierName]_[Date]_[Timestamp]_CL_[Timestamp]_PRICE-CHANGE_[Timestamp].xlsx`
+- Example: `OCRsanity_Gad_10-11-2025_10112025_110745_CL_23112025_085147_PRICE-CHANGE_231125_120000.xlsx`
+- Created from CL file with `_PRICE-CHANGE_[Timestamp]` suffix
+
+**New Products (NP) File:**
+- Format: `OCRsanity_[SupplierName]_[Date]_[Timestamp]_CL_[Timestamp]_NEW-PRODUCTS_[Timestamp].xlsx`
+- Example: `OCRsanity_Gad_10-11-2025_10112025_110745_CL_23112025_085147_NEW-PRODUCTS_231125_120000.xlsx`
+- Created from CL file with `_NEW-PRODUCTS_[Timestamp]` suffix
+
+**Timestamp Format:** `ddmmyy_hhmmss` (e.g., `231125_120000` = November 23, 2025 12:00:00)
+
+---
+
+### Commercial Layer File Structure (CL)
+
+**Created from OCRsanity file with additional columns:**
+
+| Column | Header | Source | Type | Description |
+|--------|--------|--------|------|-------------|
+| A-B | Metadata | OCRsanity | Various | InvoiceNo, SupplierName, InvoiceDate, InvoiceTotal, Remark, Sanity Method |
+| C | Index | OCRsanity | Number | Row number |
+| D | Barcode | OCRsanity | Text | Product barcode (13 digits max) |
+| E | ItemName | OCRsanity | Text | Product name (truncated to 15 chars) |
+| F | Qty | OCRsanity | Number | Quantity ordered |
+| G | UnitPrice | OCRsanity | Number | Price per unit from invoice |
+| H | LineTotal | OCRsanity | Number | Total for line item |
+| I | Discount1 | OCRsanity | Number | Discount percentage (0-100) |
+| J | Discount2 | OCRsanity | Number | Second discount percentage |
+| K | ActualUnitPrice | OCRsanity | Number | Calculated actual unit price after discount |
+| **L** | **CHPprice** | **CL Process** | **Number** | **Market price from CHP website** |
+| **M** | **MinimalQty** | **CL Process** | **Number** | **Minimum order quantity (from CHP)** |
+| **N** | **Origin** | **CL Process** | **Text** | **Product origin/manufacturer (from CHP)** |
+| **O** | **PromoPrice** | **CL Process** | **Number** | **Promotional price if available (from CHP)** |
+| **P** | **PriceDiff** | **CL Process** | **Text/Number** | **Price difference % or "Not Found"** |
+
+**PriceDiff Calculation:**
+- If product found in CHP: `((ActualUnitPrice - CHPprice) / CHPprice) × 100`
+- If product not found in CHP: `"Not Found"`
+- Formatted as percentage with 2 decimals (e.g., `5.25%`, `-3.10%`)
+
+**Special Handling:**
+- Columns L-P use ShopDefaultCity from shop configuration for CHP search
+- CHP search powered by Puppeteer headless browser (getShopCHPprice.js)
+- Temp PDF file created for verification (naming: `temp_[CLFileName].pdf`)
+
+---
+
+### Price Change File Structure (PC)
+
+**Created from CL file, containing only rows with price differences:**
+
+| Column | Header | Description |
+|--------|--------|-------------|
+| A-B | Metadata | Copied from CL (all rows, columns A-B only) |
+| C | Original Index | Index from CL file (to track original position) |
+| D | Barcode | Product barcode |
+| E | ItemName | Product name |
+| F | ItemERPName | ERP system name (editable by user) |
+| G | ActualUnitPrice | Current invoice price |
+| H | CHPprice | Market price from CHP |
+| I | PriceDiff | Price difference percentage |
+| J | ApprovedNewPrice | User-approved new price (editable) |
+| K | InvoiceIdentifier | Invoice reference (without timestamp) |
+
+**Row Population Logic:**
+1. Copy columns A-B from CL file (ALL rows)
+2. Populate columns C-K ONLY for rows where:
+   - PriceDiff is numeric (not "Not Found")
+   - PriceDiff ≠ 0
+3. Rows are populated sequentially from row 2 onwards
+
+**InvoiceIdentifier Extraction:**
+- From CL filename: `OCRsanity_[SupplierName]_[Date]_[Timestamp]_CL_[Timestamp]`
+- Extract: `[SupplierName]_[Date]` (remove both timestamps)
+- Example: `Gad_10-11-2025` or `Gad_10-11-2025 A` (with letter suffix)
+
+---
+
+### New Products File Structure (NP)
+
+**Created from CL file, containing only rows with "Not Found" in PriceDiff:**
+
+| Column | Header | Description |
+|--------|--------|-------------|
+| A-B | Metadata | Copied from CL (all rows, columns A-B only) |
+| C | Original Index | Index from CL file |
+| D | Barcode | Product barcode (editable) |
+| E | ItemName | Product name |
+| F | ItemERPName | ERP system name (editable) |
+| G | ActualUnitPrice | Current invoice price |
+| H | Supplier | Supplier Hebrew name (from suppliers.json) |
+| I | DepartmentName | Department (searchable dropdown - editable) |
+| J | DepartmentMargin | Expected margin % (calculated, placeholder initially) |
+| K | SalePrice | Sale price (editable) |
+| L | ActualMargin | Actual margin % (calculated, placeholder initially) |
+| M | InvoiceIdentifier | Invoice reference (without timestamp) |
+
+**Row Population Logic:**
+1. Copy columns A-B from CL file (ALL rows)
+2. Populate columns C-M ONLY for rows where:
+   - PriceDiff = "Not Found"
+3. Rows are populated sequentially from row 2 onwards
+
+**Margin Placeholders:**
+- Initially set to "To be calculated"
+- Orange border applied to cells J and L
+- Calculated when user clicks "Calculate Margins" button
+
+**Margin Calculation Formulas:**
+
+**DepartmentMargin (Column J):**
+- If DepartmentName is empty/null: `"Department Name is missing"`
+- If DepartmentName is valid: Get `ExpectedMarginPercentage` from department config
+- Convert to percentage format: `0.35 → 35%`
+- Example: Department "Dairy" has ExpectedMarginPercentage = 0.40 → `40%`
+
+**ActualMargin (Column L):**
+- If SalePrice is empty/null/zero/negative: `"Sale Price is incorrect"`
+- If SalePrice is valid: `((SalePrice/1.18) - ActualUnitPrice) / (SalePrice/1.18)`
+- Convert to percentage format with 2 decimals: `0.3542 → 35.42%`
+- Example: SalePrice = 100, ActualUnitPrice = 70 → `((100/1.18) - 70) / (100/1.18) → 17.52%`
+
+**Supplier Hebrew Name Lookup:**
+- Extract SupplierName from InvoiceIdentifier (first part before underscore)
+- Example: `Gad_10-11-2025` → SupplierName = `Gad`
+- Lookup in suppliers.json: `supplier.hebrewName`
+- Fallback to English name if Hebrew name not found
+
+---
+
+### Configuration Files
+
+**shops_V2.json Structure:**
+```json
+[
+  {
+    "shopName": "CountryMZ",
+    "BackOfficeType": "comax",
+    "shopDefaultCity": "Beer Sheva",
+    "Departments": [
+      {
+        "DepartmentName": "Dairy",
+        "ExpectedMarginPercentage": 0.35
+      },
+      {
+        "DepartmentName": "Meat",
+        "ExpectedMarginPercentage": 0.40
+      }
+    ]
+  }
+]
+```
+
+**Department Configuration Files:**
+- Named: `[ShopName]_Departments.json`
+- Example: `CountryMZ_Departments.json`
+- Contains array of department names (for dropdown population)
+
+**Shop Configuration Parameters:**
+- `shopName`: Unique shop identifier
+- `BackOfficeType`: Back-office system type ("comax", "priority", etc.)
+- `shopDefaultCity`: City for CHP price search (e.g., "Beer Sheva", "Tel Aviv")
+- `Departments`: Array of department objects with margin expectations
+
+---
+
+### CHP Price Search Integration
+
+**Technology:** Puppeteer (headless Chrome browser)
+
+**Implementation:** [getShopCHPprice.js](commercialLayer/getShopCHPprice.js:1)
+
+**Search Process:**
+1. Launch headless browser
+2. Navigate to CHP website
+3. Select city from shop configuration (`shopDefaultCity`)
+4. Enter barcode in search field
+5. Extract product data:
+   - Market price (CHPprice)
+   - Minimal quantity (MinimalQty)
+   - Origin/manufacturer (Origin)
+   - Promotional price (PromoPrice)
+6. Return data or "Not Found" if product doesn't exist
+
+**Search Endpoint:** Called by [process_commercial_layer.php](commercialLayer/process_commercial_layer.php)
+
+**Error Handling:**
+- Network timeout: Return "Search Error"
+- Product not found: Return "Not Found"
+- Invalid barcode: Return "Invalid Barcode"
+
+**Performance:**
+- Processes one barcode at a time
+- Average search time: 2-3 seconds per barcode
+- Progress indicator shown during batch processing
+
+---
+
+### Verification Screens
+
+#### 1. CL Verification Screen
+
+**File:** [verify_commercial_layer.php](commercialLayer/verify_commercial_layer.php)
+
+**Features:**
+- **Auto-save:** Changes saved automatically on cell blur (no manual save button)
+- **Editable columns:** All columns editable (especially L-P for manual corrections)
+- **PDF viewer:** Temp PDF displayed for reference
+- **Real-time updates:** Cell edits immediately persisted to Excel file
+
+**Layout:**
+```
+┌────────────────────────────────────────────────────────┐
+│  Header: Commercial Layer Verification                │
+│  File: [filename] | Shop: [shopname]                  │
+│  [Conclude CL - no PC/NP] [Generate PC & NP Files]   │
+└────────────────────────────────────────────────────────┘
+┌─────────────────────┬──────────────────────────────────┐
+│                     │                                  │
+│  Excel Spreadsheet  │       PDF Viewer                 │
+│  (Handsontable)     │       (PDF.js)                   │
+│  Auto-save on blur  │       Multi-page scrollable      │
+│                     │                                  │
+└─────────────────────┴──────────────────────────────────┘
+```
+
+**Button Actions:**
+- **"Conclude CL - no PC/NP"**: Save CL file, delete temp PDF, show completion message
+- **"Generate PC & NP Files"**: Save CL file, delete temp PDF, generate PC and NP files
+
+#### 2. PC Verification Screen
+
+**File:** [verify_price_changes.php](commercialLayer/verify_price_changes.php)
+
+**Features:**
+- **Split-screen layout:** PC data (right) + CHP search panel (left)
+- **CHP search panel:** Live price search by barcode (click-to-copy from table)
+- **Editable columns:** F (ItemERPName), J (ApprovedNewPrice)
+- **Color coding:** Price differences highlighted (red for increase, green for decrease)
+- **Final action:** "Save Price Changes File" button
+
+**Layout:**
+```
+┌────────────────────────────────────────────────────────┐
+│  Header: Verify Price Changes                         │
+│  [Save Price Changes File] - Right side               │
+└────────────────────────────────────────────────────────┘
+┌─────────────────────┬──────────────────────────────────┐
+│                     │                                  │
+│  CHP Search Panel   │    PC Data Table                 │
+│  - City selector    │    (Columns C-K visible)         │
+│  - Barcode input    │    Columns A-B hidden            │
+│  - Search button    │    Editable: F, J                │
+│  - Results display  │                                  │
+│                     │                                  │
+└─────────────────────┴──────────────────────────────────┘
+```
+
+**CHP Panel Features:**
+- City dropdown (from shop config)
+- Barcode input field (populated by clicking barcode in table)
+- Search button (triggers Puppeteer search)
+- Results display:
+  - Product name
+  - CHP price
+  - Minimal quantity
+  - Origin
+  - Promotional price
+- Loading indicator during search
+
+#### 3. NP Verification Screen
+
+**File:** [verify_new_products.php](commercialLayer/verify_new_products.php)
+
+**Features:**
+- **Split-screen layout:** NP data (right) + CHP search panel (left)
+- **Searchable dropdown:** Department selection using Select2 library
+- **Editable columns:** D (Barcode), F (ItemERPName), I (DepartmentName), K (SalePrice)
+- **Margin calculation:** "Calculate Margins" button fills columns J and L
+- **Final action:** "Save New Products File" button
+
+**Layout:**
+```
+┌────────────────────────────────────────────────────────┐
+│  Header: Verify New Products                          │
+│  [Calculate Margins] [Save New Products File]         │
+│  - Right side                                         │
+└────────────────────────────────────────────────────────┘
+┌─────────────────────┬──────────────────────────────────┐
+│                     │                                  │
+│  CHP Search Panel   │    NP Data Table                 │
+│  (Same as PC)       │    (Columns C-M visible)         │
+│                     │    Columns A-B hidden            │
+│                     │    Editable: D, F, I, K          │
+│                     │    Searchable dropdown: I        │
+│                     │    Orange placeholders: J, L     │
+│                     │                                  │
+└─────────────────────┴──────────────────────────────────┘
+```
+
+**Margin Calculation Workflow:**
+1. User fills in DepartmentName (column I) using searchable dropdown
+2. User fills in SalePrice (column K)
+3. User clicks "Calculate Margins"
+4. System calculates:
+   - DepartmentMargin (column J) from department config
+   - ActualMargin (column L) from formula
+5. Orange borders removed from calculated cells
+6. Page reloads to show calculated values
+7. User reviews and clicks "Save New Products File"
+
+---
+
+### Complete Workflow Example
+
+**Scenario:** Processing Gad supplier invoice for CountryMZ shop
+
+**Step 1: Upload OCR Sanity File**
+- User uploads: `OCRsanity_Gad_10-11-2025_10112025_110745.xlsx`
+- User selects shop: "CountryMZ"
+- System creates: `OCRsanity_Gad_10-11-2025_10112025_110745_CL_23112025_085147.xlsx`
+
+**Step 2: CL Processing**
+- System copies all data from OCRsanity file
+- System searches CHP for each barcode (using "Beer Sheva" city)
+- System populates columns L-P with CHP data and price differences
+- System creates temp PDF: `temp_OCRsanity_Gad_10-11-2025_10112025_110745_CL_23112025_085147.xlsx.pdf`
+- System redirects to CL verification screen
+
+**Step 3: CL Verification**
+- User reviews CL file with PDF side-by-side
+- User makes corrections if needed (auto-saved)
+- User clicks "Generate PC & NP Files"
+- System saves CL file
+- System deletes temp PDF (CL stage concluded)
+
+**Step 4: PC/NP Generation**
+- System scans PriceDiff column (P)
+- Finds 5 rows with numeric price differences (price changes)
+- Finds 2 rows with "Not Found" (new products)
+- System generates PC file with 5 rows of data
+- System generates NP file with 2 rows of data
+- System redirects to PC verification screen
+
+**Step 5: PC Verification**
+- User reviews 5 price changes
+- User uses CHP panel to verify prices
+- User approves new prices in column J
+- User fills in ItemERPName in column F
+- User clicks "Save Price Changes File"
+- System saves PC file
+- System redirects to PC completion screen
+- User clicks "Continue to New Product Process"
+
+**Step 6: NP Verification**
+- User reviews 2 new products
+- User uses CHP panel to search for market prices
+- User fills in ItemERPName (column F)
+- User selects Department from searchable dropdown (column I)
+- User enters SalePrice (column K)
+- User clicks "Calculate Margins"
+- System calculates DepartmentMargin (40%) and ActualMargin (35.42%)
+- User reviews calculations
+- User clicks "Save New Products File"
+- System saves NP file
+- System redirects to NP completion screen
+
+**Final Result:**
+- CL file saved: ✅
+- PC file saved: ✅ (5 price changes documented)
+- NP file saved: ✅ (2 new products ready for inventory)
+- Temp PDF deleted: ✅
+- Commercial Layer process complete
+
+---
+
+### Key Features
+
+**1. Auto-Save in CL Verification**
+- Eliminates need for manual save button
+- Cell changes persisted immediately on blur
+- Reduces risk of data loss
+- Improves user experience
+
+**2. Searchable Department Dropdown**
+- Uses Select2 jQuery plugin
+- RTL (right-to-left) support for Hebrew
+- Type-to-search functionality
+- Clear selection option
+
+**3. Click-to-Copy Barcodes**
+- Barcodes in PC/NP tables are clickable
+- Clicking copies barcode to CHP search panel
+- Barcode field is also editable (dual functionality)
+- Streamlines price verification workflow
+
+**4. Dynamic Margin Calculation**
+- Margins calculated on-demand (not automatic)
+- User controls when to calculate
+- Validates required fields (DepartmentName, SalePrice)
+- Shows error messages in cells if validation fails
+
+**5. Sequential Row Population**
+- PC/NP files always start from row 2
+- Rows populated consecutively (no gaps)
+- Columns A-B preserved from CL file (all rows)
+- Columns C onwards populated only for relevant rows
+
+**6. Session State Management**
+- CL filename stored in session
+- Shop name preserved across screens
+- NP filename stored for continuation
+- Enables smooth multi-screen workflow
+
+---
+
+### File Lifecycle
+
+**CL File:**
+1. Created in [process_commercial_layer.php](commercialLayer/process_commercial_layer.php)
+2. Edited in [verify_commercial_layer.php](commercialLayer/verify_commercial_layer.php) (auto-save)
+3. **Saved and concluded** in [generate_pc_np_files.php](commercialLayer/generate_pc_np_files.php:53-55)
+4. Remains in `commercial_invoice_files/` directory (permanent)
+
+**Temp PDF:**
+1. Created in [process_commercial_layer.php](commercialLayer/process_commercial_layer.php)
+2. Displayed in [verify_commercial_layer.php](commercialLayer/verify_commercial_layer.php)
+3. **Deleted** in [generate_pc_np_files.php](commercialLayer/generate_pc_np_files.php:57-62)
+4. Purpose: Temporary reference for CL verification only
+
+**PC File:**
+1. Created in [generate_pc_np_files.php](commercialLayer/generate_pc_np_files.php)
+2. Edited in [verify_price_changes.php](commercialLayer/verify_price_changes.php)
+3. Saved in [save_price_changes.php](commercialLayer/save_price_changes.php)
+4. Remains in `commercial_invoice_files/` directory (permanent)
+
+**NP File:**
+1. Created in [generate_np_file.php](commercialLayer/generate_np_file.php)
+2. Edited in [verify_new_products.php](commercialLayer/verify_new_products.php)
+3. Margin calculation in [calculate_margins.php](commercialLayer/calculate_margins.php)
+4. Saved in [save_new_products.php](commercialLayer/save_new_products.php)
+5. Remains in `commercial_invoice_files/` directory (permanent)
+
+---
+
+### Important Implementation Details
+
+**1. InvoiceIdentifier Extraction**
+
+InvoiceIdentifier is extracted from CL filename by removing both timestamps:
+
+```php
+// CL filename: OCRsanity_Gad_10-11-2025_10112025_110745_CL_23112025_085147.xlsx
+// Extract: Gad_10-11-2025_10112025_110745
+// Remove timestamp: _10112025_110745
+// Result: Gad_10-11-2025
+```
+
+Regex pattern: `/_\d{8}_\d{6}$/` (removes `_ddmmyyyy_hhmmss` from end)
+
+**2. Column A-B Preservation**
+
+All generated files (PC, NP) copy columns A-B from CL file for ALL rows:
+- Preserves metadata alignment
+- Enables Excel formula references
+- Maintains file structure consistency
+- Columns A-B hidden in UI (not shown to user)
+
+**3. Sequential Row Population (PC/NP)**
+
+Critical rule: When populating columns C onwards in PC/NP files:
+- First qualifying row from CL → Row 2 in PC/NP
+- Second qualifying row from CL → Row 3 in PC/NP
+- Third qualifying row from CL → Row 4 in PC/NP
+- etc.
+
+**Example:**
+```
+CL File:
+Row 5: PriceDiff = 5.25%     → PC Row 2
+Row 12: PriceDiff = -3.10%   → PC Row 3
+Row 23: PriceDiff = 0.75%    → PC Row 4
+
+NP File:
+Row 8: PriceDiff = "Not Found"  → NP Row 2
+Row 18: PriceDiff = "Not Found" → NP Row 3
+```
+
+**4. No Price Changes or New Products**
+
+If CL file has:
+- No price changes (all PriceDiff = 0 or "Not Found" only)
+- No new products (no "Not Found" entries)
+
+User clicks "Conclude CL - no PC/NP" button:
+- CL file saved
+- Temp PDF deleted
+- Completion message shown
+- No PC or NP files generated
+
+---
+
+### Technologies Used
+
+**Backend:**
+- PHP 8.x with PhpSpreadsheet library
+- Puppeteer (Node.js) for CHP price scraping
+- Session management for workflow state
+
+**Frontend:**
+- HTML5, CSS3, JavaScript
+- Handsontable (Excel-like editing)
+- PDF.js (PDF rendering)
+- jQuery + Select2 (searchable dropdowns)
+
+**External Integration:**
+- CHP website (market price source)
+- Headless Chrome (Puppeteer automation)
+
+---
+
+### Future Enhancements
+
+**1. Bulk Price Approval**
+- Select multiple price changes
+- Approve all in one action
+- Reject with reason codes
+
+**2. Price History Tracking**
+- Store historical price changes
+- Show price trends over time
+- Flag unusual price spikes
+
+**3. Auto-Department Assignment**
+- AI-based department suggestion from product name
+- Historical department mapping
+- Supplier-specific department rules
+
+**4. Margin Optimization Suggestions**
+- Recommend sale prices based on desired margin
+- Compare margins across similar products
+- Alert on below-minimum margin thresholds
+
+**5. Multi-Supplier Batch Processing**
+- Process multiple invoices in sequence
+- Consolidated PC/NP reports
+- Batch approval workflows
+
+**6. ERP Integration**
+- Direct export to back-office system (Comax, Priority)
+- Automatic product creation
+- Price update synchronization
+
+---
+
+### Troubleshooting
+
+**Issue:** CHP search times out
+- **Cause:** Network latency, website down, or city not available
+- **Solution:** Check getShopCHPprice.js timeout settings, verify city name in shop config
+
+**Issue:** NP file shows wrong margins
+- **Cause:** Department config missing or incorrect ExpectedMarginPercentage
+- **Solution:** Check [ShopName]_Departments.json file structure
+
+**Issue:** PC file is empty even with price changes
+- **Cause:** PriceDiff column has "Not Found" or zero values
+- **Solution:** Verify CHP search completed successfully in CL stage
+
+**Issue:** Columns A-B showing in PC/NP screens
+- **Cause:** Display logic issue in verify_price_changes.php or verify_new_products.php
+- **Solution:** Check `if ($colIdx < 2) continue;` condition in table rendering
+
+**Issue:** Sequential row population broken
+- **Cause:** Using CL row indices instead of sequential counter
+- **Solution:** Verify `$pcRowNum++` or `$npRowNum++` incrementation logic
+
+---
+
+**Last Updated:** November 23, 2025
+**Status:** ✅ Commercial Layer Complete - Full PC & NP Workflow Implemented
+**Next Phase:** ERP integration, price history tracking, bulk approval workflows
+
+---
+
+**Last Updated:** November 23, 2025
+**Status:** ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready
+**Next Phase:** ERP integration, database migration, reporting dashboard
