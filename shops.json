@@ -114,7 +114,7 @@
         "preProcessDestinationEmailAddress":"innoventory.tech@soluma.si",
         "preProcessMethod": "SinglePage",
         "// comment preProcessMethod": "MultiPage, SinglePage",
-        "preProcessToSend": 1,
+        "preProcessToSend": 0,
         "// comment preProcessToSend": "0-no email, 1-draft email, 2- send email",
         "customerDestinationEmailAddress": "shimri.lotan@gmail.com",
         "toSendToCustomer": 0,
