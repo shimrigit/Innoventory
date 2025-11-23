@@ -6,6 +6,7 @@
  * 2. New Products file - contains new products not in the price list
  */
 
+session_start();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -52,6 +53,13 @@ try {
     // Save the updated CL file
     $writer = new Xlsx($clSpreadsheet);
     $writer->save($clFilePath);
+
+    // Delete temp PDF file (CL file is now concluded)
+    $tempPdfName = 'temp_' . $clFileName . '.pdf';
+    $tempPdfPath = __DIR__ . '/commercial_invoice_files/' . $tempPdfName;
+    if (file_exists($tempPdfPath)) {
+        unlink($tempPdfPath);
+    }
 
     // 2. Load shops_V2.json to get shop configuration
     $shopsConfigPath = __DIR__ . '/../configDir/shops_V2.json';
@@ -363,8 +371,9 @@ try {
     $pcWriter = new Xlsx($pcSpreadsheet);
     $pcWriter->save($pcFilePath);
 
-    // Store PC file info in session for verification page
+    // Store PC file info and CL filename in session for verification page
     $_SESSION['pcFileName'] = $pcFileName;
+    $_SESSION['clFileName'] = $clFileName;
     $_SESSION['shopName'] = $shopName;
 
     echo json_encode([

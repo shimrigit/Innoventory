@@ -1,7 +1,7 @@
 <?php
 /**
- * Price Change Verification Interface
- * Split-screen view: PC file data (left) + CHP price search (right)
+ * New Products Verification Interface
+ * Split-screen view: NP file data (right) + CHP price search (left)
  */
 
 session_start();
@@ -13,11 +13,11 @@ require_once __DIR__ . '/chp_headless_client.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Get parameters from session or query
-$pcFileName = $_GET['pcFile'] ?? $_SESSION['pcFileName'] ?? null;
+$npFileName = $_GET['npFile'] ?? $_SESSION['npFileName'] ?? null;
 $shopName = $_GET['shop'] ?? $_SESSION['shopName'] ?? 'CountryMZ';
 
-if (!$pcFileName) {
-    die('Error: No PC file specified');
+if (!$npFileName) {
+    die('Error: No NP file specified');
 }
 
 // Load shop configuration for default city
@@ -32,32 +32,27 @@ foreach ($shopsConfig as $shop) {
 
 $defaultCity = $shopConfig['shopDefaultCity'] ?? 'תל אביב';
 
-// Load PC file data
-$pcFilePath = __DIR__ . DIRECTORY_SEPARATOR . 'commercial_invoice_files' . DIRECTORY_SEPARATOR . $pcFileName;
-if (!file_exists($pcFilePath)) {
-    die('Error: PC file not found: ' . $pcFilePath);
-}
-
-$spreadsheet = IOFactory::load($pcFilePath);
-$sheet = $spreadsheet->getActiveSheet();
-$pcData = $sheet->toArray();
-
-// Track which rows have modified Rec Mrgn (light orange background)
-$modifiedRows = [];
-$headers = $pcData[0];
-$colRecMrgnIdx = array_search('Rec Mrgn', $headers);
-
-if ($colRecMrgnIdx !== false) {
-    for ($i = 2; $i <= count($pcData); $i++) { // Start from row 2 (skip header)
-        $cell = $sheet->getCellByColumnAndRow($colRecMrgnIdx + 1, $i);
-        $fillColor = $cell->getStyle()->getFill()->getStartColor()->getARGB();
-
-        // Check if cell has light orange background (FFFFD700)
-        if ($fillColor === 'FFFFD700') {
-            $modifiedRows[] = $i;
+// Load departments configuration for dropdown
+$departmentsConfigPath = __DIR__ . '/../configDir/' . $shopName . '_Departments.json';
+$departments = [];
+if (file_exists($departmentsConfigPath)) {
+    $departmentsConfig = json_decode(file_get_contents($departmentsConfigPath), true);
+    foreach ($departmentsConfig as $dept) {
+        if (isset($dept['DepartmentName'])) {
+            $departments[] = $dept['DepartmentName'];
         }
     }
 }
+
+// Load NP file data
+$npFilePath = __DIR__ . DIRECTORY_SEPARATOR . 'commercial_invoice_files' . DIRECTORY_SEPARATOR . $npFileName;
+if (!file_exists($npFilePath)) {
+    die('Error: NP file not found: ' . $npFilePath);
+}
+
+$spreadsheet = IOFactory::load($npFilePath);
+$sheet = $spreadsheet->getActiveSheet();
+$npData = $sheet->toArray();
 
 // Handle CHP search
 $chpResults = null;
@@ -85,112 +80,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['chp_search'])) {
     }
 }
 
-// Handle re-calculation of recommended margins
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recalculate'])) {
-    $updatedPrices = $_POST['rec_price'] ?? [];
-    $originalPrices = $_POST['original_rec_price'] ?? [];
+// Handle save updated NP data
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_np_data'])) {
+    $barcodes = $_POST['barcode'] ?? [];
+    $itemERPNames = $_POST['item_erp_name'] ?? [];
+    $departmentNames = $_POST['department_name'] ?? [];
+    $salePrices = $_POST['sale_price'] ?? [];
 
     // Reload spreadsheet to make changes
-    $spreadsheet = IOFactory::load($pcFilePath);
+    $spreadsheet = IOFactory::load($npFilePath);
     $sheet = $spreadsheet->getActiveSheet();
 
-    // Find column indices
-    $headers = $sheet->rangeToArray('A1:P1')[0];
-    $colActualUnitPrice = array_search('ActualUnitPrice', $headers); // Column E (index 4)
-    $colSalesPrice = array_search('SalesPrice', $headers); // Column I (index 8)
-    $colRecPrice = array_search('Rec Price', $headers); // Column N (index 13)
-    $colRecommend = array_search('Recommend', $headers); // Column O (index 14)
-    $colRecMrgn = array_search('Rec Mrgn', $headers); // Column P (index 15)
+    // Update each row
+    foreach ($itemERPNames as $rowIndex => $value) {
+        $rowNum = (int)$rowIndex;
+        if ($rowNum <= 1) continue; // Skip header
 
-    $modifiedCount = 0;
-
-    // Only process rows where the value actually changed
-    foreach ($updatedPrices as $rowIndex => $newRecPrice) {
-        $rowNum = (int)$rowIndex; // This is the spreadsheet row number (1-based)
-
-        if ($rowNum <= 1) continue; // Skip header row
-
-        $originalPrice = isset($originalPrices[$rowIndex]) ? (float)$originalPrices[$rowIndex] : null;
-        $newRecPrice = !empty($newRecPrice) ? (float)$newRecPrice : null;
-
-        // Skip if value didn't change or is empty
-        if ($newRecPrice === null || $originalPrice === null || $newRecPrice == $originalPrice) {
-            continue;
+        // Update Barcode (column D) if changed
+        if (isset($barcodes[$rowIndex])) {
+            $sheet->setCellValue('D' . $rowNum, $barcodes[$rowIndex] ?? '');
         }
 
-        // This row was modified - recalculate
-        $modifiedCount++;
+        // Update ItemERPName (column F)
+        $sheet->setCellValue('F' . $rowNum, $value ?? '');
 
-        // Get ActualUnitPrice (column E) and SalesPrice (column I)
-        $actualUnitPrice = (float)$sheet->getCellByColumnAndRow($colActualUnitPrice + 1, $rowNum)->getValue();
-        $salesPrice = (float)$sheet->getCellByColumnAndRow($colSalesPrice + 1, $rowNum)->getValue();
+        // Update DepartmentName (column I)
+        $sheet->setCellValue('I' . $rowNum, $departmentNames[$rowIndex] ?? '');
 
-        // Update Rec Price (column N)
-        $sheet->setCellValueByColumnAndRow($colRecPrice + 1, $rowNum, $newRecPrice);
-
-        // Calculate new Rec Mrgn (column P): ((Y/1.18)-X)/(Y/1.18)
-        // where Y = Rec Price, X = ActualUnitPrice
-        $priceBeforeVAT = $newRecPrice / 1.18;
-        $newRecMrgn = (($priceBeforeVAT - $actualUnitPrice) / $priceBeforeVAT) * 100;
-        $sheet->setCellValueByColumnAndRow($colRecMrgn + 1, $rowNum, number_format($newRecMrgn, 2, '.', '') . '%');
-
-        // Set background color to light orange for modified Rec Mrgn cells
-        $recMrgnCell = $sheet->getCellByColumnAndRow($colRecMrgn + 1, $rowNum);
-        $recMrgnCell->getStyle()->getFill()
-            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-            ->getStartColor()->setARGB('FFFFD700'); // Light orange
-
-        // Update Recommend (column O) based on comparison with SalesPrice
-        $recommend = '';
-        if ($salesPrice == $newRecPrice) {
-            $recommend = 'NO';
-        } elseif ($salesPrice > $newRecPrice) {
-            $recommend = 'YES. decrease';
-        } else { // $salesPrice < $newRecPrice
-            $recommend = 'YES. increase';
-        }
-        $sheet->setCellValueByColumnAndRow($colRecommend + 1, $rowNum, $recommend);
+        // Update SalePrice (column K)
+        $sheet->setCellValue('K' . $rowNum, $salePrices[$rowIndex] ?? '');
     }
 
-    // Save the updated spreadsheet only if changes were made
-    if ($modifiedCount > 0) {
-        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-        $writer->save($pcFilePath);
+    // Save the updated spreadsheet
+    $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+    $writer->save($npFilePath);
 
-        // Reload the data for display
-        $pcData = $sheet->toArray();
+    // Reload the data for display
+    $npData = $sheet->toArray();
 
-        // Reload modified rows tracking
-        $modifiedRows = [];
-        if ($colRecMrgnIdx !== false) {
-            for ($i = 2; $i <= count($pcData); $i++) {
-                $cell = $sheet->getCellByColumnAndRow($colRecMrgnIdx + 1, $i);
-                $fillColor = $cell->getStyle()->getFill()->getStartColor()->getARGB();
-                if ($fillColor === 'FFFFD700') {
-                    $modifiedRows[] = $i;
-                }
-            }
-        }
-
-        // Set success message
-        $recalcSuccess = $modifiedCount;
-    } else {
-        $recalcSuccess = 0; // No changes made
-    }
+    $saveSuccess = true;
 }
 
-// Handle finalization (continue to New Product Process)
+// Handle finalization (save NP file)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
-    // Extract CL filename from session
-    $clFileName = $_SESSION['clFileName'] ?? null;
-
-    if (!$clFileName) {
-        die('Error: CL file name not found in session');
-    }
-
-    // Redirect with flag to trigger NP generation via JavaScript
-    $_SESSION['continue_to_np'] = true;
-    header('Location: verify_price_changes.php?pcFile=' . urlencode($pcFileName) . '&shop=' . urlencode($shopName) . '&continueToNP=1');
+    // The NP file is already saved
+    $_SESSION['np_complete'] = true;
+    header('Location: new_products_complete.php?npFile=' . urlencode($npFileName));
     exit;
 }
 ?>
@@ -199,7 +134,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>אימות שינויי מחירים - Commercial Layer</title>
+    <title>אימות מוצרים חדשים - Commercial Layer</title>
+
+    <!-- jQuery (required for Select2) -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -218,29 +159,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            direction: ltr; /* Force LTR for header */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
         .header h1 {
             font-size: 1.8em;
-            margin: 0;
-            direction: ltr;
             text-align: left;
+            direction: ltr;
         }
 
-        .header .file-info {
+        .file-info {
             font-size: 0.9em;
             opacity: 0.9;
-            direction: ltr;
-            text-align: left;
+            margin-top: 5px;
         }
 
         .finalize-button {
-            padding: 10px 25px;
+            padding: 12px 25px;
             font-size: 1.1em;
             font-weight: bold;
             background: #28a745;
@@ -257,28 +195,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
         }
 
-        .split-container {
-            display: flex;
-            height: calc(100vh - 70px);
-            gap: 10px;
-            padding: 10px;
+        .calculate-button {
+            padding: 12px 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 15px;
         }
 
+        .calculate-button:hover {
+            background: #f57c00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+        }
+
+        .split-container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+
+        /* CHP Panel (LEFT) */
         .left-panel {
             width: 500px;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            border-left: 3px solid #667eea;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
         }
 
+        /* NP File Panel (RIGHT) */
         .right-panel {
             flex: 1;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -290,37 +244,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             padding: 15px 20px;
             font-size: 1.3em;
             font-weight: bold;
+            text-align: center;
         }
 
-        .panel-content {
-            flex: 1;
-            overflow: auto;
-            padding: 15px;
-        }
-
-        /* PC Table Styles */
-        .pc-table-container {
+        .np-table-container {
             overflow: auto;
             flex: 1;
             direction: ltr; /* Force LTR for spreadsheet */
         }
 
-        .pc-table {
+        .np-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85em;
+            font-size: 1.1em;
             direction: ltr; /* Force LTR for spreadsheet */
         }
 
-        .pc-table thead {
+        .np-table thead {
             position: sticky;
             top: 0;
             background: #f8f9fa;
             z-index: 10;
         }
 
-        .pc-table th {
-            padding: 10px 8px;
+        .np-table th {
+            padding: 12px 10px;
             text-align: left; /* LTR: align left */
             font-weight: bold;
             border-bottom: 2px solid #667eea;
@@ -328,26 +276,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             white-space: nowrap;
         }
 
-        .pc-table tbody tr {
+        .np-table tbody tr {
             border-bottom: 1px solid #e0e0e0;
             transition: background-color 0.2s;
         }
 
-        .pc-table tbody tr:hover {
+        .np-table tbody tr:hover {
             background-color: #f5f5f5;
         }
 
-        .pc-table tbody tr:nth-child(even) {
+        .np-table tbody tr:nth-child(even) {
             background-color: #fafafa;
         }
 
-        .pc-table td {
-            padding: 8px;
+        .np-table td {
+            padding: 10px;
             text-align: left; /* LTR: align left */
             border-left: 1px solid #e0e0e0; /* LTR: border on left instead of right */
         }
 
-        .pc-table td:first-child {
+        .np-table td:first-child {
             border-left: none;
         }
 
@@ -445,10 +393,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             border-color: #667eea;
         }
 
-        .form-group input:read-only {
-            background: #f8f9fa;
-        }
-
         .search-button {
             padding: 12px 20px;
             font-size: 1.1em;
@@ -456,18 +400,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s;
         }
 
         .search-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .search-button:active {
-            transform: translateY(0);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
         .error-message {
@@ -501,31 +441,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
         }
 
         .stat-box .value {
-            font-size: 1.4em;
+            font-size: 1.8em;
             font-weight: bold;
             display: block;
         }
 
         .stat-box .label {
-            font-size: 0.85em;
+            font-size: 0.9em;
             opacity: 0.9;
+        }
+
+        .chp-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
         }
 
         .chp-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85em;
         }
 
         .chp-table thead {
-            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+            background: #667eea;
+            color: white;
+            z-index: 5;
         }
 
         .chp-table th {
-            padding: 8px;
-            text-align: right;
+            padding: 12px 10px;
+            text-align: center;
             font-weight: bold;
-            border-bottom: 2px solid #667eea;
+        }
+
+        .chp-table td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
         }
 
         .chp-table tbody tr {
@@ -552,58 +507,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             font-size: 1.1em;
         }
 
-        .recommendation-yes {
-            color: #28a745;
-            font-weight: bold;
-        }
-
-        .recommendation-no {
-            color: #dc3545;
-        }
-
-        /* Editable cell styles */
+        /* Editable cells */
         .editable-cell {
-            background-color: #fffacd !important; /* Light yellow to indicate editable */
+            background-color: #fffacd !important; /* Light yellow */
         }
 
-        .editable-cell input {
+        .editable-cell input,
+        .editable-cell select {
             width: 100%;
-            padding: 4px 6px;
+            padding: 6px 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 0.9em;
+            font-size: 1em;
             text-align: left;
         }
 
-        .editable-cell input:focus {
+        .editable-cell input:focus,
+        .editable-cell select:focus {
             outline: none;
             border-color: #667eea;
             background-color: white;
         }
 
-        /* Modified cell (light orange background) */
-        .modified-cell {
-            background-color: #FFD700 !important; /* Light orange */
-        }
-
-        /* Recalculate button */
-        .recalculate-button {
-            padding: 10px 25px;
-            font-size: 1.1em;
-            font-weight: bold;
-            background: #ff9800;
-            color: white;
-            border: none;
-            border-radius: 8px;
+        /* Barcode editable cell - both clickable and editable */
+        .barcode-editable-cell input {
             cursor: pointer;
-            transition: all 0.3s;
-            margin-right: 15px;
+            color: #667eea;
+            font-weight: bold;
         }
 
-        .recalculate-button:hover {
-            background: #f57c00;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+        .barcode-editable-cell input:hover {
+            background-color: #e9ecef;
+            border-color: #667eea;
+        }
+
+        /* Placeholder cells with orange border */
+        .placeholder-cell {
+            color: #ff9800;
+            font-weight: bold;
+            border: 2px solid #ff9800 !important;
         }
 
         /* Success message */
@@ -617,36 +559,125 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             margin: 10px 0;
             font-weight: bold;
         }
+
+        /* Select2 styling overrides */
+        .select2-container {
+            width: 100% !important;
+        }
+
+        .select2-container--default .select2-selection--single {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: auto;
+            padding: 6px 8px;
+            font-size: 1em;
+            text-align: left;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            padding: 0;
+            line-height: normal;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 100%;
+        }
+
+        .select2-container--default.select2-container--focus .select2-selection--single {
+            border-color: #667eea;
+        }
+
+        .select2-dropdown {
+            border: 1px solid #667eea;
+            border-radius: 4px;
+        }
+
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #667eea;
+        }
+
+        .select2-search--dropdown .select2-search__field {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 6px;
+            font-size: 0.9em;
+        }
+
+        .select2-search--dropdown .select2-search__field:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.2em;
+            color: #333;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <h1>🔍 Verify Price Changes</h1>
-            <div class="file-info">File: <?= htmlspecialchars($pcFileName) ?> | Shop: <?= htmlspecialchars($shopName) ?></div>
-        </div>
-        <div>
-            <button type="button" class="recalculate-button" onclick="document.getElementById('recalcForm').submit()">
-                🔄 Re-calculate Recommended Margin
+            <button type="button" class="calculate-button" onclick="calculateMargins()">
+                🧮 Calculate Margins
             </button>
             <form method="POST" style="display: inline;">
-                <button type="submit" name="finalize" class="finalize-button" onclick="return confirm('Continue to New Product process?')">
-                    ➡️ Continue to New Product Process
+                <button type="submit" name="finalize" class="finalize-button" onclick="return confirm('Save New Products file?')">
+                    💾 Save New Products File
                 </button>
             </form>
         </div>
+        <div>
+            <h1>🆕 Verify New Products</h1>
+            <div class="file-info">File: <?= htmlspecialchars($npFileName) ?> | Shop: <?= htmlspecialchars($shopName) ?></div>
+        </div>
     </div>
 
-    <?php if (isset($recalcSuccess)): ?>
-        <?php if ($recalcSuccess > 0): ?>
-            <div class="success-message">
-                ✓ Recommended margins recalculated successfully for <?= $recalcSuccess ?> row<?= $recalcSuccess > 1 ? 's' : '' ?>!
-            </div>
-        <?php else: ?>
-            <div class="success-message" style="background: #fff3cd; border-color: #ffeaa7; color: #856404;">
-                ℹ️ No changes detected. Please modify "Rec Price" values before recalculating.
-            </div>
-        <?php endif; ?>
+    <?php if (isset($saveSuccess)): ?>
+        <div class="success-message">
+            ✓ New Products data saved successfully!
+        </div>
     <?php endif; ?>
 
     <div class="split-container">
@@ -762,63 +793,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             </div>
         </div>
 
-        <!-- RIGHT PANEL: PC File Data -->
+        <!-- RIGHT PANEL: NP File Data -->
         <div class="right-panel">
             <div class="panel-header">
-                📊 נתוני שינוי מחירים
+                📋 נתוני מוצרים חדשים
             </div>
 
-            <!-- Full PC File Table (All columns A-P, all rows) -->
-            <div class="pc-table-container">
-                <form method="POST" id="recalcForm">
-                    <input type="hidden" name="recalculate" value="1">
-                    <table class="pc-table">
+            <!-- Full NP File Table (All columns, all rows) -->
+            <div class="np-table-container">
+                <form method="POST" id="npForm">
+                    <input type="hidden" name="save_np_data" value="1">
+                    <table class="np-table">
                         <thead>
                             <tr>
-                                <?php foreach ($pcData[0] as $header): ?>
-                                    <th><?= htmlspecialchars($header) ?></th>
+                                <?php foreach ($npData[0] as $colIdx => $header): ?>
+                                    <?php
+                                    // Skip columns A and B in display (except we show the header)
+                                    if ($colIdx >= 2) { // Only show from column C onwards (index 2+)
+                                    ?>
+                                        <th><?= htmlspecialchars($header) ?></th>
+                                    <?php } ?>
                                 <?php endforeach; ?>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php for ($i = 1; $i < count($pcData); $i++): ?>
-                                <?php $row = $pcData[$i]; ?>
+                            <?php for ($i = 1; $i < count($npData); $i++): ?>
+                                <?php
+                                $row = $npData[$i];
+
+                                // Check if this row has product data (check if Barcode column has value)
+                                $barcodeColIdx = array_search('Barcode', $npData[0]);
+                                $hasProductData = !empty($row[$barcodeColIdx] ?? '');
+
+                                // Skip empty rows (rows without barcode)
+                                if (!$hasProductData) {
+                                    continue;
+                                }
+                                ?>
                                 <tr>
                                     <?php foreach ($row as $colIdx => $cell): ?>
-                                        <?php if ($pcData[0][$colIdx] === 'Barcode'): ?>
-                                            <td class="barcode-cell" onclick="copyBarcode('<?= htmlspecialchars($cell) ?>')">
-                                                <?= htmlspecialchars($cell) ?>
-                                                <span class="tooltip">לחץ להעתקה</span>
-                                            </td>
-                                        <?php elseif ($pcData[0][$colIdx] === 'Rec Price'): ?>
-                                            <td class="editable-cell">
-                                                <!-- Hidden field to store original value -->
+                                        <?php
+                                        // Skip columns A and B (indices 0 and 1) for data rows
+                                        if ($colIdx < 2) {
+                                            continue; // Don't display columns A and B
+                                        }
+
+                                        $headerName = $npData[0][$colIdx] ?? '';
+                                        $rowNum = $i + 1; // Spreadsheet row number (1-based)
+                                        ?>
+
+                                        <?php if ($headerName === 'Barcode'): ?>
+                                            <td class="editable-cell barcode-editable-cell">
                                                 <input
-                                                    type="hidden"
-                                                    name="original_rec_price[<?= $i + 1 ?>]"
+                                                    type="text"
+                                                    name="barcode[<?= $rowNum ?>]"
                                                     value="<?= htmlspecialchars($cell) ?>"
+                                                    onclick="copyBarcodeFromInput(this)"
+                                                    placeholder="Enter barcode"
+                                                    title="Click to copy to CHP search"
                                                 >
-                                                <!-- Editable field for new value -->
+                                            </td>
+
+                                        <?php elseif ($headerName === 'ItemERPName'): ?>
+                                            <td class="editable-cell">
+                                                <input
+                                                    type="text"
+                                                    name="item_erp_name[<?= $rowNum ?>]"
+                                                    value="<?= htmlspecialchars($cell) ?>"
+                                                    placeholder="Enter ERP name"
+                                                >
+                                            </td>
+
+                                        <?php elseif ($headerName === 'DepartmentName'): ?>
+                                            <td class="editable-cell">
+                                                <select name="department_name[<?= $rowNum ?>]" class="department-select">
+                                                    <option value="">-- Select Department --</option>
+                                                    <?php foreach ($departments as $dept): ?>
+                                                        <option value="<?= htmlspecialchars($dept) ?>" <?= $cell == $dept ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($dept) ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </td>
+
+                                        <?php elseif ($headerName === 'DepartmentMargin' || $headerName === 'ActualMargin'): ?>
+                                            <td class="placeholder-cell">
+                                                <?= htmlspecialchars($cell) ?>
+                                            </td>
+
+                                        <?php elseif ($headerName === 'SalePrice'): ?>
+                                            <td class="editable-cell">
                                                 <input
                                                     type="number"
                                                     step="0.01"
-                                                    name="rec_price[<?= $i + 1 ?>]"
+                                                    name="sale_price[<?= $rowNum ?>]"
                                                     value="<?= htmlspecialchars($cell) ?>"
-                                                    placeholder="<?= htmlspecialchars($cell) ?>"
+                                                    placeholder="Enter sale price"
                                                 >
                                             </td>
-                                        <?php elseif ($pcData[0][$colIdx] === 'Rec Mrgn'): ?>
-                                            <?php
-                                            // Check if this row was modified (row number is $i + 1 in spreadsheet terms)
-                                            $isModified = in_array($i + 1, $modifiedRows);
-                                            ?>
-                                            <td class="<?= $isModified ? 'modified-cell' : '' ?>">
-                                                <?= htmlspecialchars($cell) ?>
-                                            </td>
-                                        <?php elseif ($pcData[0][$colIdx] === 'Recommend'): ?>
-                                            <td class="<?= strpos($cell, 'YES') === 0 ? 'recommendation-yes' : 'recommendation-no' ?>">
-                                                <?= htmlspecialchars($cell) ?>
-                                            </td>
+
                                         <?php else: ?>
                                             <td><?= htmlspecialchars($cell) ?></td>
                                         <?php endif; ?>
@@ -837,7 +910,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
         ✓ ברקוד הועתק בהצלחה!
     </div>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">מחשב שוליים...</div>
+        </div>
+    </div>
+
     <script>
+        // Initialize Select2 for all department dropdowns
+        $(document).ready(function() {
+            $('.department-select').select2({
+                placeholder: '-- Select Department --',
+                allowClear: true,
+                width: '100%',
+                dir: 'rtl'
+            });
+        });
+
+        function calculateMargins() {
+            // First, save the current form data
+            const formData = new FormData(document.getElementById('npForm'));
+
+            // Show loading overlay
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.classList.add('show');
+
+            // Submit the form to save data first
+            fetch('<?= $_SERVER['PHP_SELF'] ?>?npFile=<?= urlencode($npFileName) ?>&shop=<?= urlencode($shopName) ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(() => {
+                // After saving, call the margin calculation endpoint
+                return fetch('calculate_margins.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        npFileName: '<?= $npFileName ?>',
+                        shopName: '<?= $shopName ?>'
+                    })
+                });
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingOverlay.classList.remove('show');
+
+                if (data.success) {
+                    // Reload the page to show updated margins
+                    window.location.reload();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                loadingOverlay.classList.remove('show');
+                alert('❌ Error calculating margins: ' + error);
+                console.error('Error:', error);
+            });
+        }
+
         function copyBarcode(barcode) {
             // Copy to clipboard
             navigator.clipboard.writeText(barcode).then(function() {
@@ -857,53 +993,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             });
         }
 
-        // Check if we need to continue to NP process
-        <?php if (isset($_GET['continueToNP']) && $_GET['continueToNP'] == '1'): ?>
-        window.addEventListener('DOMContentLoaded', function() {
-            // Get CL filename from session
-            const clFileName = '<?= $_SESSION['clFileName'] ?? '' ?>';
-            const shopName = '<?= $shopName ?>';
+        function copyBarcodeFromInput(inputElement) {
+            // Get the barcode value from the input field
+            const barcode = inputElement.value;
 
-            if (!clFileName) {
-                alert('Error: CL file name not found');
-                return;
+            if (!barcode) {
+                return; // Don't copy if empty
             }
 
-            // Call generate_np_file.php
-            fetch('generate_np_file.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    clFileName: clFileName,
-                    shopName: shopName
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (data.hasNewProducts) {
-                        alert('✅ New Products file created!\n\n' +
-                              'Products found: ' + data.newProductCount + '\n' +
-                              'Supplier: ' + data.supplierHebrewName + '\n\n' +
-                              'Redirecting to New Product verification...');
+            // Copy to clipboard
+            navigator.clipboard.writeText(barcode).then(function() {
+                // Update the CHP barcode search field
+                document.getElementById('barcode').value = barcode;
 
-                        // Redirect to NP verification page
-                        window.location.href = data.redirectUrl;
-                    } else {
-                        alert('ℹ️ ' + data.message);
-                        window.location.href = 'index.php';
-                    }
-                } else {
-                    alert('❌ Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                alert('❌ Error generating NP file: ' + error);
+                // Show notification
+                const notification = document.getElementById('copiedNotification');
+                notification.classList.add('show');
+
+                // Hide after 3 seconds
+                setTimeout(function() {
+                    notification.classList.remove('show');
+                }, 3000);
+            }).catch(function(err) {
+                alert('שגיאה בהעתקה: ' + err);
             });
-        });
-        <?php endif; ?>
+        }
     </script>
 </body>
 </html>

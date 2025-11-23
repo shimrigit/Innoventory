@@ -287,7 +287,7 @@ for ($row = 1; $row <= $highestRow; $row++) {
         <div class="button-group">
             <button class="btn btn-retrieve" id="retrieveBtn">🔄 Retrieve Again Commercial Data</button>
             <button class="btn btn-generate" id="generateBtn">📊 Generate Price Change and New Products Files</button>
-            <button class="btn btn-save" id="saveBtn">✅ Conclude CL Stage</button>
+            <button class="btn btn-save" id="saveBtn">✅ Conclude CL Stage - no price change and new products</button>
         </div>
     </div>
 
