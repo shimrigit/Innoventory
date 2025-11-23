@@ -1808,6 +1808,240 @@ User clicks "Conclude CL - no PC/NP" button:
 
 ---
 
+## Stage 1: Invoice Pre-Process (PP) - PreProcess2 System
+
+**Location:** `C:\xampp\htdocs\website\PreProcess2\`
+**Version:** 2.0 (Beta Stage - Retailomatics System)
+**Created:** November 23, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+PreProcess2 is a redesigned invoice pre-processing system that combines multi-page PDF invoices into single files with proper naming conventions. This system is the **first stage** in the Retailomatics Beta pipeline and prepares invoices for OCR analysis.
+
+**Key Innovation:** Unlike the legacy PreProcess system, PreProcess2 **does not send emails**. All processed files remain in `preProcessDir` for the next stage (OA - OCR and Analysis).
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           RETAILOMATICS BETA SYSTEM - STAGE 1                │
+└─────────────────────────────────────────────────────────────┘
+
+Input: Raw PDF scans in preProcessDir
+    ↓
+ProcessInvoices.php
+- Display all PDFs with embedded preview
+- User inputs: Supplier, Letter, Page Number, Date
+- User can discard unwanted pages
+    ↓
+AppendAndRename.php
+- Groups PDFs by Supplier + Letter + Date
+- Merges pages using three-tier fallback (FPDI → PDFtk → Ghostscript)
+- Renames: "{Supplier} {dd-mm-yy} {Letter}.pdf"
+- Moves original pages to TempPP
+- Keeps merged PDFs in preProcessDir
+    ↓
+Output: Properly named merged PDFs ready for Stage 2 (OA)
+```
+
+### Files
+
+**[ProcessInvoices.php](PreProcess2/ProcessInvoices.php)**
+- Entry point for the pre-processing workflow
+- Displays all PDF files from `../preProcessDir`
+- Visual PDF preview with embedded viewer
+- Form inputs: Supplier (Hebrew autocomplete), Letter (A-J), Page Number (1-20), Date, Discard toggle
+
+**[AppendAndRename.php](PreProcess2/AppendAndRename.php)**
+- Processes submitted form data
+- Groups PDFs by Supplier + Letter + Date
+- Merges multi-page invoices using three fallback methods:
+  1. **FPDI** (primary - PHP library, fast)
+  2. **PDFtk** (fallback - handles compressed PDFs)
+  3. **Ghostscript** (second fallback - handles complex operations)
+- Outputs merged PDFs to `preProcessDir` with naming: `{Supplier} {dd-mm-yy} {Letter}.pdf`
+- Moves original page files to `TempPP` directory
+- Displays comprehensive results page
+
+**[README.md](PreProcess2/README.md)**
+- Complete system documentation
+- Usage instructions
+- Error handling guide
+- Integration notes for Retailomatics Beta System
+
+### File Naming Convention
+
+**Input:** Any PDF filename (e.g., `scan001.pdf`, `IMG_2023.pdf`)
+
+**Output:** `{SupplierEnglish} {dd-mm-yy} {Letter}.pdf`
+- Example: `Tayari 15-11-25 A.pdf`
+- Example: `FarmaDeal 23-11-25 B.pdf`
+
+**Extraction Logic:**
+1. User selects Supplier (Hebrew name from autocomplete)
+2. System maps Hebrew name → English name using `suppliers.json`
+3. User selects Letter (A-J) to distinguish multiple invoices on same date
+4. User selects Date (defaults to today)
+5. System formats date as dd-mm-yy
+
+### Directory Structure
+
+```
+PreProcess2/
+├── ProcessInvoices.php          # Entry point - display PDFs
+├── AppendAndRename.php           # Processing logic - merge PDFs
+└── README.md                     # Complete documentation
+
+../preProcessDir/                 # Source and destination directory
+├── [input PDFs]                  # Unprocessed PDF pages
+├── [merged PDFs]                 # Output: "Supplier dd-mm-yy L.pdf"
+└── TempPP/                       # Archived original page files
+```
+
+### PDF Merging Methods (Three-Tier Fallback)
+
+**1. FPDI (Primary)**
+- PHP library (setasign/fpdi)
+- Fast, no external dependencies
+- Cannot handle compressed PDFs
+
+**2. PDFtk (Fallback)**
+- Command-line tool
+- Handles all PDF types including compressed
+- Requires installation
+
+**3. Ghostscript (Second Fallback)**
+- Command-line tool
+- Industry standard, very robust
+- Requires installation
+
+**Automatic Fallback Chain:**
+- Try FPDI → If fails (compressed PDF) → Try PDFtk → If fails → Try Ghostscript → If all fail → Show error with installation links
+
+### Results Reporting
+
+After processing, the system displays:
+- **Success items:** Document name, page count, page numbers used, method used (FPDI/PDFtk/Ghostscript)
+- **Error items:** Document name, all error messages (FPDI/PDFtk/Ghostscript), installation links
+- **Discarded files:** List of files moved to TempPP
+- Link to process more invoices
+
+### Example Workflow
+
+**Scenario:** Processing 3 pages of a Tayari invoice from November 15, 2025
+
+**Input Files:**
+- `scan001.pdf`
+- `scan002.pdf`
+- `scan003.pdf`
+
+**User Actions:**
+| File | Supplier | Letter | Page | Date | Discard |
+|------|----------|--------|------|------|---------|
+| scan001.pdf | טיארי | A | 1 | 2025-11-15 | No |
+| scan002.pdf | טיארי | A | 2 | 2025-11-15 | No |
+| scan003.pdf | טיארי | A | 3 | 2025-11-15 | No |
+
+**Processing:**
+1. System groups all 3 files (same Supplier + Letter + Date)
+2. Sorts by Page Number (1, 2, 3)
+3. Merges using FPDI
+4. Outputs: `Tayari 15-11-25 A.pdf` (3 pages)
+5. Moves originals to `TempPP/`
+
+**Result:**
+- `preProcessDir/Tayari 15-11-25 A.pdf` ✅ (ready for OCR stage)
+- `preProcessDir/TempPP/scan001.pdf` (archived)
+- `preProcessDir/TempPP/scan002.pdf` (archived)
+- `preProcessDir/TempPP/scan003.pdf` (archived)
+
+### Key Differences from Legacy PreProcess
+
+| Feature | Legacy (preProcess) | New (PreProcess2) |
+|---------|---------------------|-------------------|
+| **Email Sending** | Yes (via sendToOCR.php) | No - files stay in preProcessDir |
+| **Session Variables** | Sets OCR email variables | No session variables |
+| **Redirect** | Opens sendToOCR.php in new tab | Shows results page, link to process more |
+| **Dependencies** | Gmail API, email templates | None - standalone system |
+| **File Destination** | Emailed to OCR service | Remains in preProcessDir |
+| **Complexity** | High (email integration) | Low (simple file processing) |
+
+### Integration with Retailomatics Beta System
+
+**Current Stage: Invoice Pre-Process (PP)** ✅
+- Purpose: Combine and rename PDF invoices
+- Input: Raw PDF scans from preProcessDir
+- Output: Properly named merged PDFs in preProcessDir
+- Status: Complete
+
+**Next Stage: Invoice OCR and Analysis (OA)** 🔄
+- Purpose: Extract invoice data using AI/OCR
+- Input: Merged PDFs from preProcessDir
+- Output: Structured JSON/Excel files
+- Status: To be implemented
+
+**Future Stage: Invoice ERP Packing (EP)** 📅
+- Purpose: Package invoice data for ERP upload
+- Input: Verified invoice data (JSON/Excel)
+- Output: ERP-compatible files (Comax, Priority, etc.)
+- Status: To be implemented
+
+---
+
+## Future Enhancements for PreProcess2
+
+### 1. PDF Splitting Functionality
+
+**Purpose:** Split large multi-page PDFs into individual pages for easier pre-processing
+
+**Use Case:**
+- User has a 20-page PDF containing multiple invoices
+- Need to split it into individual pages before grouping and merging
+- Each page can then be assigned to different suppliers/dates
+
+**Planned Implementation:**
+- New file: `SplitPDF.php`
+- Allow user to upload large PDF
+- Automatically split into individual pages
+- Save pages to preProcessDir with sequential names
+- User can then process pages through normal workflow
+
+**Technical Approach:**
+- Use FPDI to extract individual pages
+- Alternative: PDFtk command `pdftk input.pdf burst output page_%02d.pdf`
+- Alternative: Ghostscript extraction
+
+### 2. JPG to PDF Conversion
+
+**Purpose:** Convert scanned JPG images into PDF format before processing
+
+**Use Case:**
+- User has invoice scans as JPG files
+- Need to convert to PDF before pre-processing
+- Support batch conversion of multiple JPG files
+
+**Planned Implementation:**
+- New file: `ConvertJPGtoPDF.php`
+- Allow user to upload JPG files (single or batch)
+- Convert each JPG to individual PDF page
+- Save converted PDFs to preProcessDir
+- User can then process through normal workflow
+
+**Technical Approach:**
+- Use FPDF/FPDI to create PDF with embedded image
+- Alternative: ImageMagick `convert image.jpg output.pdf`
+- Alternative: Ghostscript conversion
+- Maintain image quality and aspect ratio
+
+**Additional Features:**
+- Image rotation (90°, 180°, 270°)
+- Image cropping/trimming
+- Quality adjustment
+- Batch processing with preview
+
+---
+
 **Last Updated:** November 23, 2025
-**Status:** ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready
-**Next Phase:** ERP integration, database migration, reporting dashboard
+**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready
+**Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard
