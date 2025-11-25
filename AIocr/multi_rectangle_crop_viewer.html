@@ -78,6 +78,7 @@
   <form id="save-form" method="post" action="save_crops.php">
     <input type="hidden" name="imagesJson" id="imagesJson">
     <input type="hidden" name="originalFileName" id="originalFileName">
+    <input type="hidden" name="harmonized" id="harmonized" value="">
   </form>
 
   <script>
@@ -93,16 +94,17 @@
 
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
 
-    document.getElementById('pdf-file').addEventListener('change', function(e) {
-      const pdfFile = e.target.files[0];
-      const baseName = pdfFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
+    // Check if PDF URL is provided in query parameters (harmonized mode)
+    const urlParams = new URLSearchParams(window.location.search);
+    const pdfUrl = urlParams.get('pdf');
+    const harmonizedMode = urlParams.get('harmonized') === 'true';
+
+    // Function to load and render PDF
+    async function loadAndRenderPDF(source, fileName) {
+      const baseName = fileName ? fileName.replace(/\.[^/.]+$/, "") : "invoice";
       document.getElementById("originalFileName").value = baseName;
 
-      const fileReader = new FileReader();
-      fileReader.onload = function() {
-        const typedarray = new Uint8Array(this.result);
-
-        pdfjsLib.getDocument(typedarray).promise.then(async pdf => {
+      pdfjsLib.getDocument(source).promise.then(async pdf => {
           const numPages = pdf.numPages;
           const scale = 1.5;
 
@@ -155,9 +157,35 @@
           pdfImage.src = pdfCanvas.toDataURL("image/png");
           document.getElementById("show-results").disabled = false;
         });
+    }
+
+    // Manual file selection handler
+    document.getElementById('pdf-file').addEventListener('change', function(e) {
+      const pdfFile = e.target.files[0];
+      const fileName = pdfFile.name;
+
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const typedarray = new Uint8Array(this.result);
+        loadAndRenderPDF(typedarray, fileName);
       };
       fileReader.readAsArrayBuffer(pdfFile);
     });
+
+    // Auto-load PDF if URL parameter is provided (harmonized mode)
+    if (pdfUrl && harmonizedMode) {
+      // Hide file input in harmonized mode
+      document.getElementById('pdf-file').style.display = 'none';
+
+      // Set harmonized flag in form
+      document.getElementById('harmonized').value = 'true';
+
+      // Extract filename from URL
+      const fileName = decodeURIComponent(pdfUrl.split('/').pop());
+
+      // Load PDF from URL
+      loadAndRenderPDF(pdfUrl, fileName);
+    }
 
     overlayCanvas.addEventListener('mousedown', function(e) {
       const rect = overlayCanvas.getBoundingClientRect();

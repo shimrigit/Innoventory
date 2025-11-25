@@ -762,7 +762,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     // Generate filename for Excel file
     $timestamp = date('dmY_His'); // ddmmyyyy_hhmmss
     $processDateFile = $processDate->format('d-m-Y'); // dd-mm-yyyy for filename
-    $excelFileName = "OCRsanity_{$supplierName}_{$processDateFile}_{$timestamp}.xlsx";
+
+    // Check if harmonized mode with sequence identifier
+    $sequenceIdentifier = '';
+    if (isset($_POST['harmonized_mode']) && $_POST['harmonized_mode'] === 'true') {
+        $sequenceIdentifier = $_POST['harmonized_sequence'] ?? '';
+    }
+
+    // Include sequence identifier in filename if present
+    if (!empty($sequenceIdentifier)) {
+        $excelFileName = "OCRsanity_{$supplierName}_{$processDateFile}_{$sequenceIdentifier}_{$timestamp}.xlsx";
+    } else {
+        $excelFileName = "OCRsanity_{$supplierName}_{$processDateFile}_{$timestamp}.xlsx";
+    }
 
     // Save directory
     $saveDirectory = __DIR__ . '/sanity_files/';
@@ -775,11 +787,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     // Store PDF temporarily for verification (use original uploaded file)
     $tempPdfName = 'temp_' . $excelFileName . '.pdf';
     $tempPdfPath = $saveDirectory . $tempPdfName;
-    move_uploaded_file($pdfFile['tmp_name'], $tempPdfPath);
 
-    // Redirect to verification page
-    header("Location: verify_ocrsanity.php?excel=" . urlencode($excelFileName) . "&pdf=" . urlencode($tempPdfName));
-    exit;
+    // Handle PDF file upload/copy
+    if (is_uploaded_file($pdfFile['tmp_name'])) {
+        move_uploaded_file($pdfFile['tmp_name'], $tempPdfPath);
+    } else {
+        // In harmonized mode, file might already be in place, so copy it
+        copy($pdfFile['tmp_name'], $tempPdfPath);
+    }
+
+    // Check if harmonized mode for redirect
+    if (isset($_POST['harmonized_mode']) && $_POST['harmonized_mode'] === 'true') {
+        // Store OCRsanity file info in session
+        session_start();
+        $_SESSION['harmonizedFlow']['ocrSanityFile'] = $excelFileName;
+        $_SESSION['harmonizedFlow']['ocrSanityPath'] = $fullPath;
+        $_SESSION['harmonizedFlow']['step'] = 4;
+
+        // Redirect to verify_ocrsanity.php with harmonized flag (using absolute path)
+        header("Location: /website/OCRsanity/verify_ocrsanity.php?excel=" . urlencode($excelFileName) . "&pdf=" . urlencode($tempPdfName) . "&harmonized=true");
+        exit;
+    } else {
+        // Standard mode redirect
+        header("Location: verify_ocrsanity.php?excel=" . urlencode($excelFileName) . "&pdf=" . urlencode($tempPdfName));
+        exit;
+    }
 }
 ?>
 

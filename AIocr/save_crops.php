@@ -1,5 +1,5 @@
 <?php
-$saveDir = "C:/xampp/htdocs/website/AIocr/crops"; 
+$saveDir = "C:/xampp/htdocs/website/AIocr/crops";
 
 if (!isset($_POST['imagesJson']) || !isset($_POST['originalFileName'])) {
     die("Missing data.");
@@ -46,5 +46,13 @@ foreach ($images as $item) {
     }
 }
 
-echo "Images saved successfully.";
+// Check if we're in harmonized mode
+if (isset($_POST['harmonized']) && $_POST['harmonized'] === 'true') {
+    // Redirect to harmonized flow transition screen
+    header("Location: ../harmonizedFlow/handle_crops_saved.php");
+    exit;
+} else {
+    // Standard mode - show success message
+    echo "Images saved successfully.";
+}
 ?>

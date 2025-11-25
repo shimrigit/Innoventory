@@ -1,31 +1,17 @@
 <?php
 /**
- * New Products Process Completion Page
+ * CL Process Completion Page (Harmonized Flow)
+ * Used when user concludes CL stage without generating PC/NP files
  */
 
 session_start();
 
-// Check if we're skipping (no PC and no NP)
-$skip = isset($_GET['skip']) && $_GET['skip'] === 'true';
 $clFileName = $_GET['cl'] ?? null;
 $shopName = $_GET['shop'] ?? null;
 
-if ($skip) {
-    // Skipping mode - no PC and no NP files generated
-    $npFileName = null;
-    $npComplete = true;
-} else {
-    // Normal mode - NP file was generated
-    $npFileName = $_GET['npFile'] ?? null;
-    $npComplete = $_SESSION['np_complete'] ?? false;
-
-    if (!$npFileName || !$npComplete) {
-        header('Location: index.php');
-        exit;
-    }
-
-    // Clear session flag
-    unset($_SESSION['np_complete']);
+if (!$clFileName) {
+    header('Location: index.php');
+    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -33,7 +19,7 @@ if ($skip) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>תהליך מוצרים חדשים הושלם</title>
+    <title>תהליך Commercial Layer הושלם</title>
     <style>
         * {
             margin: 0;
@@ -143,14 +129,24 @@ if ($skip) {
             box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
         }
 
-        .completion-message {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
+        .info-note {
             margin-top: 30px;
-            font-size: 1.2em;
-            font-weight: bold;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 10px;
+            border-right: 5px solid #ffc107;
+        }
+
+        .info-note h2 {
+            color: #856404;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+
+        .info-note p {
+            color: #856404;
+            font-size: 1em;
+            line-height: 1.6;
         }
     </style>
 </head>
@@ -158,50 +154,33 @@ if ($skip) {
     <div class="completion-card">
         <div class="success-icon">✓</div>
 
-        <?php if ($skip): ?>
-            <h1>תהליך ה-Commercial Layer הושלם!</h1>
+        <h1>תהליך ה-Commercial Layer הושלם!</h1>
 
-            <div class="message">
-                לא נמצאו שינויי מחירים משמעותיים ומוצרים חדשים<br>
-                התהליך הושלם ללא יצירת קבצים נוספים
-            </div>
+        <div class="message">
+            קובץ ה-CL נשמר בהצלחה<br>
+            לא בוצעה בדיקת שינויי מחירים ומוצרים חדשים
+        </div>
 
-            <div class="file-info">
-                <p><strong>קובץ CL:</strong> <?= htmlspecialchars($clFileName ?? 'N/A') ?></p>
-                <p><strong>חנות:</strong> <?= htmlspecialchars($shopName ?? 'N/A') ?></p>
-                <p><strong>תאריך:</strong> <?= date('Y-m-d H:i:s') ?></p>
-                <p><strong>מיקום:</strong> commercialLayer/commercial_invoice_files/</p>
-            </div>
+        <div class="file-info">
+            <p><strong>קובץ CL:</strong> <?= htmlspecialchars($clFileName) ?></p>
+            <?php if ($shopName): ?>
+                <p><strong>חנות:</strong> <?= htmlspecialchars($shopName) ?></p>
+            <?php endif; ?>
+            <p><strong>תאריך:</strong> <?= date('Y-m-d H:i:s') ?></p>
+            <p><strong>מיקום:</strong> commercialLayer/commercial_invoice_files/</p>
+        </div>
 
-            <div class="buttons">
-                <a href="/website/harmonizedFlow/start_harmonized_flow.php" class="button button-primary">Continue to next invoice</a>
-            </div>
+        <div class="buttons">
+            <a href="/website/harmonizedFlow/start_harmonized_flow.php" class="button button-primary">Continue to next invoice</a>
+        </div>
 
-            <div class="completion-message">
-                ℹ️ לא נדרשו עדכוני מחירים או מוצרים חדשים
-            </div>
-
-        <?php else: ?>
-            <h1>תהליך המוצרים החדשים הושלם!</h1>
-
-            <div class="message">
-                קובץ המוצרים החדשים נשמר בהצלחה ומוכן ליישום במערכת
-            </div>
-
-            <div class="file-info">
-                <p><strong>שם הקובץ:</strong> <?= htmlspecialchars($npFileName) ?></p>
-                <p><strong>תאריך:</strong> <?= date('Y-m-d H:i:s') ?></p>
-                <p><strong>מיקום:</strong> commercialLayer/commercial_invoice_files/</p>
-            </div>
-
-            <div class="buttons">
-                <a href="/website/harmonizedFlow/start_harmonized_flow.php" class="button button-primary">Continue to next invoice</a>
-            </div>
-
-            <div class="completion-message">
-                🎉 שלב ה-Commercial Layer הושלם בהצלחה!
-            </div>
-        <?php endif; ?>
+        <div class="info-note">
+            <h2>ℹ️ שים לב</h2>
+            <p>
+                קובץ ה-CL נשמר אך לא נוצרו קבצי PC (שינוי מחירים) ו-NP (מוצרים חדשים).<br>
+                אם תרצה לבצע בדיקת שינויי מחירים או מוצרים חדשים, חזור לקובץ ה-CL ולחץ על כפתור
+                "📊 Generate Price Change and New Products Files".
+            </p>
         </div>
     </div>
 </body>

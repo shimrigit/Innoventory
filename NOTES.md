@@ -2042,6 +2042,75 @@ After processing, the system displays:
 
 ---
 
-**Last Updated:** November 23, 2025
-**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready
+## Harmonized Invoice Processing Flow
+
+**Status:** ✅ Complete - End-to-end automated workflow
+
+### Overview
+
+The harmonized flow integrates all invoice processing stages into a single seamless workflow that maintains context throughout the entire process using PHP session management.
+
+```
+PDF Selection → Crop Marking → AI OCR → Sanity Verification → Commercial Layer → PC/NP Generation → Results
+```
+
+### Key Features
+
+- **Automatic file detection**: System automatically finds and loads latest files at each stage
+- **Session persistence**: All data maintained across steps without manual file selection
+- **Sequence identifiers**: Support for multiple invoices per supplier/date (A-Z)
+- **Smart price list selection**: Automatically finds matching price list by shop name
+- **Completion scenarios**: Handles all flow outcomes (PC+NP, PC only, NP only, neither)
+
+### File Naming Convention
+
+**Input PDF:** `XXXX dd-mm-yy Z.pdf` (e.g., `Tnuva 23-11-25 A.pdf`)
+
+**Generated Files:**
+- OCRjson: `OCRjson_XXXX_dd-mm-yyyy_Z_ddmmyy_hhmmss.json`
+- OCRsanity: `OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyy_hhmmss.xlsx`
+- Commercial Layer: `OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyy_hhmmss_CL_ddmmyy_hhmmss.xlsx`
+- Price Changes: `..._CL_ddmmyy_hhmmss_PRICE-CHANGE_ddmmyy_hhmmss.xlsx`
+- New Products: `..._CL_ddmmyy_hhmmss_NEW-PRODUCTS_ddmmyy_hhmmss.xlsx`
+
+### Processing Steps
+
+1. **Step 1**: Start flow - PDF & shop selection with validation
+2. **Step 2**: Parse metadata & launch crop tool (PDF auto-loaded)
+3. **Step 3**: OCR processing with OpenAI (auto-detect latest crops)
+4. **Step 4**: Create OCRsanity file & verify
+5. **Step 5**: Commercial Layer processing (auto-select price list)
+6. **Step 6**: Generate PC/NP files (if applicable)
+7. **Completion**: Show results and "Continue to next invoice" button
+
+### Session Data Structure
+
+```php
+$_SESSION['harmonizedFlow'] = [
+    'pdfFile', 'pdfPath', 'shopName', 'supplierName',
+    'processDate', 'processDateFull', 'sequenceIdentifier',
+    'step', 'startTime', 'shopConfig',
+    'ocrJsonFile', 'ocrJsonPath',
+    'ocrSanityFile', 'ocrSanityPath',
+    'clFile', 'clPath',
+    'pcFile', 'npFile' // if applicable
+];
+```
+
+### Entry Point
+
+Navigate to: `http://localhost/website/harmonizedFlow/start_harmonized_flow.php`
+
+### Completion Screens
+
+All completion screens now have a single "Continue to next invoice" button that redirects to the harmonized flow start page:
+
+- `cl_complete.php` - CL stage complete without PC/NP
+- `price_change_complete.php` - PC file generated
+- `new_products_complete.php` - NP file generated (or no PC/NP)
+
+---
+
+**Last Updated:** November 25, 2025
+**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard

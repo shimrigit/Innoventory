@@ -6,6 +6,9 @@
  * 2. New Products file - contains new products not in the price list
  */
 
+// Start output buffering to prevent any accidental output before JSON
+ob_start();
+
 session_start();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -19,6 +22,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 $input = json_decode(file_get_contents('php://input'), true);
 
 if (!isset($input['filename']) || !isset($input['shop']) || !isset($input['data'])) {
+    ob_clean(); // Clear any output before sending JSON
     echo json_encode(['success' => false, 'error' => 'Missing required parameters']);
     exit;
 }
@@ -114,14 +118,55 @@ try {
         }
     }
 
-    // If no rows exceed threshold, skip PC file generation
+    // If no rows exceed threshold, skip PC file generation but check for New Products
     if (!$hasRowsExceedingThreshold) {
-        echo json_encode([
-            'success' => true,
-            'skipPriceChange' => true,
-            'message' => "There are no price changes ({$pcpt}% or below) to justify Price Change file. Proceeding to New Products file...",
-            'threshold' => $pcpt
-        ]);
+        // Check if there are new products (rows with "Not Found" in PriceDiff column)
+        $hasNewProducts = false;
+
+        // Find PriceDiff column index (already defined above, but let's be explicit)
+        $priceDiffColIdx = array_search('PriceDiff', $headers);
+
+        if ($priceDiffColIdx !== false) {
+            foreach ($clData as $rowIndex => $row) {
+                if ($rowIndex == 0) continue; // Skip header
+                $priceDiff = $row[$priceDiffColIdx] ?? '';
+                if (stripos($priceDiff, 'Not Found') !== false) {
+                    $hasNewProducts = true;
+                    break;
+                }
+            }
+        }
+
+        if ($hasNewProducts) {
+            // There are new products - need to generate NP file
+            // Store CL filename in session for NP generation
+            $_SESSION['clFileName'] = $clFileName;
+            $_SESSION['shopName'] = $shopName;
+
+            // Return flag to trigger NP generation on frontend
+            ob_clean(); // Clear any output before sending JSON
+            echo json_encode([
+                'success' => true,
+                'skipPriceChange' => true,
+                'hasNewProducts' => true,
+                'generateNP' => true, // Flag to tell frontend to call generate_np_file.php
+                'message' => "There are no price changes ({$pcpt}% or below) to justify Price Change file. Proceeding to New Products file...",
+                'threshold' => $pcpt,
+                'clFileName' => $clFileName,
+                'shopName' => $shopName
+            ]);
+        } else {
+            // No price changes and no new products - go directly to completion
+            ob_clean(); // Clear any output before sending JSON
+            echo json_encode([
+                'success' => true,
+                'skipPriceChange' => true,
+                'hasNewProducts' => false,
+                'message' => "There are no price changes ({$pcpt}% or below) and no new products. Process complete.",
+                'threshold' => $pcpt,
+                'redirectUrl' => 'new_products_complete.php?skip=true&cl=' . urlencode($clFileName) . '&shop=' . urlencode($shopName)
+            ]);
+        }
         exit;
     }
 
@@ -376,6 +421,7 @@ try {
     $_SESSION['clFileName'] = $clFileName;
     $_SESSION['shopName'] = $shopName;
 
+    ob_clean(); // Clear any output before sending JSON
     echo json_encode([
         'success' => true,
         'message' => "Price change file was created with price recommendation for {$yesRecommendationCount} items",
@@ -387,6 +433,7 @@ try {
     ]);
 
 } catch (Exception $e) {
+    ob_clean(); // Clear any output before sending JSON
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()

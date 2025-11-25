@@ -8,6 +8,9 @@ if (!isset($_GET['excel']) || !isset($_GET['pdf'])) {
 $excelFile = basename($_GET['excel']);
 $pdfFile = basename($_GET['pdf']);
 
+// Check if we're in harmonized mode
+$harmonizedMode = isset($_GET['harmonized']) && $_GET['harmonized'] === 'true';
+
 $excelPath = __DIR__ . '/sanity_files/' . $excelFile;
 $pdfPath = __DIR__ . '/sanity_files/' . $pdfFile;
 
@@ -635,6 +638,10 @@ $cellStylesData = json_encode($cellStyles);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // Check if we're in harmonized mode
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const harmonizedMode = urlParams.get('harmonized') === 'true';
+
                     // Show success page
                     document.body.innerHTML = `
                         <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5;">
@@ -647,9 +654,15 @@ $cellStylesData = json_encode($cellStyles);
                                 <p style="color: #666; font-size: 16px;">
                                     <strong>Location:</strong> C:\\xampp\\htdocs\\website\\OCRsanity\\sanity_files
                                 </p>
+                                ${harmonizedMode ? '<p style="color: #28a745; font-size: 14px; margin-top: 20px;">⏳ Redirecting to Commercial Layer...</p>' : ''}
                             </div>
                         </div>
                     `;
+
+                    // If harmonized mode, redirect to step 5 immediately
+                    if (harmonizedMode) {
+                        window.location.href = '/website/harmonizedFlow/step5_commercial_layer.php';
+                    }
                 } else {
                     alert('❌ Error saving file: ' + data.error);
                     document.getElementById('saveBtn').disabled = false;

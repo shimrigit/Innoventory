@@ -806,7 +806,7 @@ PROMPT;
             <h3>Processing Invoice...</h3>
             <p>Analyzing images with OpenAI</p>
             <p>Extracting invoice data</p>
-            <p class="estimate">Elapsed time: <span id="timeCounter">0</span> seconds</p>
+            <p class="estimate">Elapsed time: <span id="timeCounter">0 seconds</span></p>
             <p style="margin-top: 10px; color: #999; font-size: 13px;">Estimated: 1-2 minutes</p>
             <p style="margin-top: 10px; color: #999; font-size: 12px;">Please do not close this window</p>
         </div>
@@ -849,7 +849,15 @@ PROMPT;
             const timeCounter = document.getElementById('timeCounter');
             const timerInterval = setInterval(function() {
                 seconds++;
-                timeCounter.textContent = seconds;
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                if (minutes > 0) {
+                    // Show as M:SS format without "seconds"
+                    timeCounter.textContent = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                } else {
+                    // Show as "X seconds" format
+                    timeCounter.textContent = `${seconds} seconds`;
+                }
             }, 1000);
 
             // Store interval ID in case we need to clear it (though page will reload anyway)

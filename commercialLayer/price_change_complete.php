@@ -6,15 +6,26 @@
 session_start();
 
 $pcFileName = $_GET['pcFile'] ?? null;
-$verificationComplete = $_SESSION['verification_complete'] ?? false;
+$shopName = $_GET['shop'] ?? null;
+$clFileName = $_GET['cl'] ?? null;
+$noNewProducts = isset($_GET['noNP']) && $_GET['noNP'] === 'true';
 
-if (!$pcFileName || !$verificationComplete) {
-    header('Location: index.php');
-    exit;
+// Check if this is coming from NP check (no new products scenario)
+if ($noNewProducts) {
+    // Allow access when explicitly coming from "no new products" flow
+    $verificationComplete = true;
+} else {
+    // Original behavior - check session flag
+    $verificationComplete = $_SESSION['verification_complete'] ?? false;
+
+    if (!$pcFileName || !$verificationComplete) {
+        header('Location: index.php');
+        exit;
+    }
+
+    // Clear session flag
+    unset($_SESSION['verification_complete']);
 }
-
-// Clear session flag
-unset($_SESSION['verification_complete']);
 ?>
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
@@ -170,21 +181,31 @@ unset($_SESSION['verification_complete']);
     <div class="completion-card">
         <div class="success-icon">✓</div>
 
-        <h1>תהליך שינוי המחירים הושלם!</h1>
+        <h1>תהליך ה-Commercial Layer הושלם!</h1>
 
         <div class="message">
-            קובץ שינויי המחירים נשמר בהצלחה ומוכן ליישום במערכת
+            <?php if ($noNewProducts): ?>
+                קובץ שינויי המחירים נשמר בהצלחה<br>
+                לא נמצאו מוצרים חדשים
+            <?php else: ?>
+                קובץ שינויי המחירים נשמר בהצלחה ומוכן ליישום במערכת
+            <?php endif; ?>
         </div>
 
         <div class="file-info">
-            <p><strong>שם הקובץ:</strong> <?= htmlspecialchars($pcFileName) ?></p>
+            <p><strong>קובץ PC:</strong> <?= htmlspecialchars($pcFileName) ?></p>
+            <?php if ($shopName): ?>
+                <p><strong>חנות:</strong> <?= htmlspecialchars($shopName) ?></p>
+            <?php endif; ?>
+            <?php if ($clFileName): ?>
+                <p><strong>קובץ CL:</strong> <?= htmlspecialchars($clFileName) ?></p>
+            <?php endif; ?>
             <p><strong>תאריך:</strong> <?= date('Y-m-d H:i:s') ?></p>
-            <p><strong>מיקום:</strong> commercialLayer/PC/</p>
+            <p><strong>מיקום:</strong> commercialLayer/commercial_invoice_files/</p>
         </div>
 
         <div class="buttons">
-            <a href="index.php" class="button button-primary">חזרה לדף הראשי</a>
-            <a href="verify_price_changes.php?pcFile=<?= urlencode($pcFileName) ?>" class="button button-secondary">צפה בקובץ שוב</a>
+            <a href="/website/harmonizedFlow/start_harmonized_flow.php" class="button button-primary">Continue to next invoice</a>
         </div>
 
         <div class="next-steps">

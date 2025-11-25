@@ -264,13 +264,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tempPdfPath = $saveDirectory . $tempPdfName;
 
     if ($fileOption === 'manual') {
-        move_uploaded_file($invoicePdfPath, $tempPdfPath);
+        // In harmonized mode, file might already be in place, so check before moving
+        if (is_uploaded_file($invoicePdfPath)) {
+            move_uploaded_file($invoicePdfPath, $tempPdfPath);
+        } else {
+            copy($invoicePdfPath, $tempPdfPath);
+        }
     } else {
         copy($invoicePdfPath, $tempPdfPath);
     }
 
+    // Check if harmonized mode
+    $harmonizedMode = isset($_POST['harmonized_mode']) && $_POST['harmonized_mode'] === 'true';
+
+    // Build redirect URL
+    $redirectUrl = "/website/commercialLayer/verify_commercial_layer.php?cl=" . urlencode($clFileName) .
+                   "&pdf=" . urlencode($tempPdfName) .
+                   "&shop=" . urlencode($shopName);
+
+    if ($harmonizedMode) {
+        $redirectUrl .= "&harmonized=true";
+    }
+
     // Redirect to verification page
-    header("Location: verify_commercial_layer.php?cl=" . urlencode($clFileName) . "&pdf=" . urlencode($tempPdfName) . "&shop=" . urlencode($shopName));
+    header("Location: " . $redirectUrl);
     exit;
 }
 

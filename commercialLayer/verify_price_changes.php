@@ -892,8 +892,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                         // Redirect to NP verification page
                         window.location.href = data.redirectUrl;
                     } else {
+                        // No new products - go to completion page
                         alert('ℹ️ ' + data.message);
-                        window.location.href = 'index.php';
+                        window.location.href = 'price_change_complete.php?pcFile=' + encodeURIComponent('<?= $pcFileName ?>') + '&shop=' + encodeURIComponent('<?= $shopName ?>') + '&cl=' + encodeURIComponent(clFileName) + '&noNP=true';
                     }
                 } else {
                     alert('❌ Error: ' + data.error);

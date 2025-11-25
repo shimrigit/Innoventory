@@ -386,6 +386,10 @@ for ($row = 1; $row <= $highestRow; $row++) {
         document.getElementById('saveBtn').addEventListener('click', function() {
             const updatedData = hot.getData();
 
+            // Check if we're in harmonized mode
+            const urlParams = new URLSearchParams(window.location.search);
+            const harmonizedMode = urlParams.get('harmonized') === 'true';
+
             // Disable save button
             document.getElementById('saveBtn').disabled = true;
             document.getElementById('saveBtn').textContent = '⏳ Saving...';
@@ -406,18 +410,24 @@ for ($row = 1; $row <= $highestRow; $row++) {
             .then(data => {
                 if (data.success) {
                     alert('✅ CL file saved successfully!');
-                    // Redirect to process page
-                    window.location.href = 'process_commercial_layer.php';
+
+                    // If harmonized mode, redirect to harmonized completion page
+                    if (harmonizedMode) {
+                        window.location.href = 'cl_complete.php?cl=' + encodeURIComponent(clFileName) + '&shop=' + encodeURIComponent(shopName);
+                    } else {
+                        // Non-harmonized mode - redirect to process page
+                        window.location.href = 'process_commercial_layer.php';
+                    }
                 } else {
                     alert('❌ Error saving file: ' + data.error);
                     document.getElementById('saveBtn').disabled = false;
-                    document.getElementById('saveBtn').textContent = '💾 Save CL File';
+                    document.getElementById('saveBtn').textContent = '✅ Conclude CL Stage - no price change and new products';
                 }
             })
             .catch(error => {
                 alert('❌ Error: ' + error);
                 document.getElementById('saveBtn').disabled = false;
-                document.getElementById('saveBtn').textContent = '💾 Save CL File';
+                document.getElementById('saveBtn').textContent = '✅ Conclude CL Stage - no price change and new products';
             });
         });
 
@@ -518,12 +528,65 @@ for ($row = 1; $row <= $highestRow; $row++) {
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Response from generate_pc_np_files.php:', data);
+
                 if (data.success) {
                     // Check if PC file was skipped
                     if (data.skipPriceChange) {
                         alert('ℹ️ ' + data.message);
-                        document.getElementById('generateBtn').disabled = false;
-                        document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+
+                        console.log('skipPriceChange detected. generateNP flag:', data.generateNP);
+                        console.log('hasNewProducts:', data.hasNewProducts);
+                        console.log('redirectUrl:', data.redirectUrl);
+
+                        // Check if we need to generate NP file (no PC but has NP)
+                        if (data.generateNP) {
+                            console.log('Calling generate_np_file.php with:', {
+                                clFileName: data.clFileName,
+                                shopName: data.shopName
+                            });
+                            // Call generate_np_file.php to create NP file
+                            fetch('generate_np_file.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    clFileName: data.clFileName,
+                                    shopName: data.shopName
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(npData => {
+                                console.log('Response from generate_np_file.php:', npData);
+
+                                if (npData.success && npData.hasNewProducts) {
+                                    alert('✅ New Products file created!\n\n' +
+                                          'Products found: ' + npData.newProductCount + '\n' +
+                                          'Supplier: ' + npData.supplierHebrewName + '\n\n' +
+                                          'Redirecting to New Product verification...');
+                                    window.location.href = npData.redirectUrl;
+                                } else {
+                                    console.log('NP generation failed or no new products. npData:', npData);
+                                    alert('❌ Error: ' + (npData.error || 'Failed to create NP file'));
+                                    document.getElementById('generateBtn').disabled = false;
+                                    document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error calling generate_np_file.php:', error);
+                                alert('❌ Error generating NP file: ' + error);
+                                document.getElementById('generateBtn').disabled = false;
+                                document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+                            });
+                        } else if (data.redirectUrl) {
+                            console.log('Redirecting directly to:', data.redirectUrl);
+                            // Direct redirect (no PC, no NP - go to completion)
+                            window.location.href = data.redirectUrl;
+                        } else {
+                            document.getElementById('generateBtn').disabled = false;
+                            document.getElementById('generateBtn').textContent = '📊 Generate Price Change and New Products Files';
+                        }
                     } else {
                         alert('✅ ' + data.message + '\n\n' +
                               'Price Change file: ' + data.pcFileName + '\n' +
