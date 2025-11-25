@@ -84,7 +84,7 @@
         "supplierName": "Tnuva",
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "תנובה",
-        "jsonToOcrSanity": {"Barcode":5, "ItemName":4, "Qty":3, "UnitPrice":2, "LineTotal":1}
+        "jsonToOcrSanity": {"Barcode":4, "ItemName":5, "Qty":3, "UnitPrice":2, "LineTotal":1}
     },
     {
         "supplierName": "TnuvaMeat",
