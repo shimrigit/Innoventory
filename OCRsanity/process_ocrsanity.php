@@ -796,10 +796,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         copy($pdfFile['tmp_name'], $tempPdfPath);
     }
 
+    // Store OCRjson filename for later use (for "Check OCRjson file" feature)
+    session_start();
+    $_SESSION['ocrJsonFileName'] = $jsonFile['name'];
+
     // Check if harmonized mode for redirect
     if (isset($_POST['harmonized_mode']) && $_POST['harmonized_mode'] === 'true') {
         // Store OCRsanity file info in session
-        session_start();
         $_SESSION['harmonizedFlow']['ocrSanityFile'] = $excelFileName;
         $_SESSION['harmonizedFlow']['ocrSanityPath'] = $fullPath;
         $_SESSION['harmonizedFlow']['step'] = 4;
