@@ -214,6 +214,15 @@ $cellStylesData = json_encode($cellStyles);
             background: #5a6268;
         }
 
+        .btn-check-json {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-check-json:hover {
+            background: #138496;
+        }
+
         .container {
             display: flex;
             height: calc(100vh - 140px);
@@ -330,6 +339,7 @@ $cellStylesData = json_encode($cellStyles);
     <div class="header">
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
+            <button class="btn btn-check-json" id="checkOcrJsonBtn">📋 Check OCRjson file</button>
             <?php if ($sanityMethod === 'LineTotal' || $sanityMethod === 'Discount1'): ?>
             <div id="totalIndicator" class="total-indicator">
                 <span class="indicator-label">Total Equality Indicator:</span>
@@ -673,6 +683,168 @@ $cellStylesData = json_encode($cellStyles);
                 alert('❌ Error: ' + error);
                 document.getElementById('saveBtn').disabled = false;
                 document.getElementById('saveBtn').textContent = '💾 Save OCR Sanity';
+            });
+        });
+
+        // Check OCRjson file functionality
+        document.getElementById('checkOcrJsonBtn').addEventListener('click', function() {
+            // Disable button while loading
+            document.getElementById('checkOcrJsonBtn').disabled = true;
+            document.getElementById('checkOcrJsonBtn').textContent = '⏳ Loading...';
+
+            // Fetch OCRjson data
+            fetch('get_ocrjson_data.php')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Open popup window (75% of screen size)
+                    const screenWidth = window.screen.width;
+                    const screenHeight = window.screen.height;
+                    const popupWidth = Math.floor(screenWidth * 0.75);
+                    const popupHeight = Math.floor(screenHeight * 0.75);
+                    const left = Math.floor((screenWidth - popupWidth) / 2);
+                    const top = Math.floor((screenHeight - popupHeight) / 2);
+
+                    const popup = window.open('', 'OCRjsonViewer',
+                        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+
+                    // Write popup content
+                    popup.document.write(`
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title>OCRjson Data - ${data.fileName}</title>
+                            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.css">
+                            <style>
+                                * {
+                                    margin: 0;
+                                    padding: 0;
+                                    box-sizing: border-box;
+                                }
+                                body {
+                                    font-family: Arial, sans-serif;
+                                    padding: 20px;
+                                    background: #f5f5f5;
+                                }
+                                .header {
+                                    background: #17a2b8;
+                                    color: white;
+                                    padding: 15px 20px;
+                                    border-radius: 8px;
+                                    margin-bottom: 20px;
+                                }
+                                .header h1 {
+                                    font-size: 20px;
+                                    margin-bottom: 10px;
+                                }
+                                .stats {
+                                    display: flex;
+                                    gap: 20px;
+                                    font-size: 14px;
+                                }
+                                .stats span {
+                                    background: rgba(255,255,255,0.2);
+                                    padding: 5px 10px;
+                                    border-radius: 4px;
+                                }
+                                .container {
+                                    background: white;
+                                    border-radius: 8px;
+                                    padding: 20px;
+                                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                }
+                                #hot-container {
+                                    width: 100%;
+                                    height: calc(100vh - 200px);
+                                    overflow: hidden;
+                                }
+                                .info {
+                                    background: #fff3cd;
+                                    color: #856404;
+                                    padding: 10px;
+                                    border-radius: 4px;
+                                    margin-bottom: 15px;
+                                    font-size: 14px;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="header">
+                                <h1>📋 OCRjson Data Viewer</h1>
+                                <div class="stats">
+                                    <span>📄 File: ${data.fileName}</span>
+                                    <span>📊 Fields: ${data.fieldCount}</span>
+                                    <span>📈 Rows: ${data.rowCount}</span>
+                                </div>
+                            </div>
+                            <div class="container">
+                                <div class="info">
+                                    💡 This is the raw OCR data extracted by OpenAI. You can copy values from this table to the OCR Sanity sheet if the mapping doesn't match.
+                                </div>
+                                <div id="hot-container"></div>
+                            </div>
+                            <script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"><\/script>
+                            <script>
+                                const container = document.getElementById('hot-container');
+                                const ocrData = ${JSON.stringify(data.data)};
+
+                                const hot = new Handsontable(container, {
+                                    data: ocrData,
+                                    colHeaders: ${JSON.stringify(data.colHeaders)},
+                                    rowHeaders: true,
+                                    width: '100%',
+                                    height: 'calc(100vh - 220px)',
+                                    licenseKey: 'non-commercial-and-evaluation',
+                                    contextMenu: true,
+                                    manualColumnResize: true,
+                                    manualRowResize: true,
+                                    stretchH: 'all',
+                                    autoWrapRow: true,
+                                    autoWrapCol: true,
+                                    readOnly: false,
+                                    cells: function(row, col) {
+                                        const cellProperties = {};
+                                        // Highlight header row
+                                        if (row === 0) {
+                                            cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                                Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                                td.style.backgroundColor = '#17a2b8';
+                                                td.style.color = 'white';
+                                                td.style.fontWeight = 'bold';
+                                            };
+                                        }
+                                        // Highlight invoice metadata rows (1-3)
+                                        else if (row >= 1 && row <= 3) {
+                                            cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                                Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                                if (col === 0) {
+                                                    td.style.backgroundColor = '#e7f3ff';
+                                                    td.style.fontWeight = 'bold';
+                                                }
+                                            };
+                                        }
+                                        return cellProperties;
+                                    }
+                                });
+                            <\/script>
+                        </body>
+                        </html>
+                    `);
+                    popup.document.close();
+                } else {
+                    alert('❌ Error loading OCRjson data: ' + data.error);
+                }
+
+                // Re-enable button
+                document.getElementById('checkOcrJsonBtn').disabled = false;
+                document.getElementById('checkOcrJsonBtn').textContent = '📋 Check OCRjson file';
+            })
+            .catch(error => {
+                alert('❌ Error: ' + error);
+                document.getElementById('checkOcrJsonBtn').disabled = false;
+                document.getElementById('checkOcrJsonBtn').textContent = '📋 Check OCRjson file';
             });
         });
 
