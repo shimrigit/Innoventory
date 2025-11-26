@@ -205,7 +205,7 @@ if ($noNewProducts) {
         </div>
 
         <div class="buttons">
-            <a href="/website/harmonizedFlow/start_harmonized_flow.php" class="button button-primary">Continue to next invoice</a>
+            <button id="cleanupBtn" class="button button-primary">Cleanup and continue to next invoice</button>
         </div>
 
         <div class="next-steps">
@@ -218,5 +218,44 @@ if ($noNewProducts) {
             </ul>
         </div>
     </div>
+
+    <script>
+        document.getElementById('cleanupBtn').addEventListener('click', function() {
+            // Disable button
+            this.disabled = true;
+            this.textContent = '⏳ Cleaning up...';
+
+            // Get file information from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const pcFile = urlParams.get('pcFile');
+            const clFile = urlParams.get('cl');
+            const shopName = urlParams.get('shop');
+
+            // Build cleanup URL with file parameters
+            const cleanupUrl = '/website/harmonizedFlow/cleanup_process.php?' +
+                'pcFile=' + encodeURIComponent(pcFile || '') +
+                '&clFile=' + encodeURIComponent(clFile || '');
+
+            // Call cleanup process
+            fetch(cleanupUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect to cleanup results screen
+                        const resultsJson = encodeURIComponent(JSON.stringify(data));
+                        window.location.href = '/website/harmonizedFlow/cleanup_results.php?results=' + resultsJson;
+                    } else {
+                        alert('❌ Cleanup error: ' + data.error);
+                        this.disabled = false;
+                        this.textContent = 'Cleanup and continue to next invoice';
+                    }
+                })
+                .catch(error => {
+                    alert('❌ Error: ' + error);
+                    this.disabled = false;
+                    this.textContent = 'Cleanup and continue to next invoice';
+                });
+        });
+    </script>
 </body>
 </html>
