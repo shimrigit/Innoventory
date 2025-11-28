@@ -2109,8 +2109,35 @@ All completion screens now have a single "Continue to next invoice" button that 
 - `price_change_complete.php` - PC file generated
 - `new_products_complete.php` - NP file generated (or no PC/NP)
 
+### OCRjson Viewer Feature
+
+**Location:** OCR Sanity verification screen (`OCRsanity/verify_ocrsanity.php`)
+
+**Purpose:** Provides access to raw OCR data when supplier mapping doesn't match OpenAI response
+
+**How it works:**
+- "Check OCRjson file" button opens popup (75% screen size) with editable Handsontable
+- Shows original OCRjson data structure: invoice metadata + table rows
+- Backend: `get_ocrjson_data.php` loads from session (harmonized/original flow)
+- Users can copy values manually when jsonToOcrSanity mapping is incorrect
+
+### Cleanup Feature
+
+**Location:** All completion screens (`commercialLayer/*_complete.php`)
+
+**Purpose:** Organizes files after harmonized flow completion
+
+**How it works:**
+- Button: "Cleanup and continue to next invoice" (replaces old "Continue" button)
+- Backend: `harmonizedFlow/cleanup_process.php` moves files:
+  - PDF invoice: `preProcessDir/` → `uploads/`
+  - OCRjson: `AIocr/ocr_extracted/` → `uploads/`
+  - CL/PC/NP: Stay in `commercialLayer/commercial_invoice_files/`
+- Results screen: `cleanup_results.php` shows moved files + staying files
+- 2-second countdown, then redirects to `start_harmonized_flow.php`
+
 ---
 
-**Last Updated:** November 25, 2025
+**Last Updated:** November 26, 2025
 **Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard
