@@ -11,6 +11,10 @@
 
 session_start();
 
+// Increase execution time for large image processing (10 minutes)
+set_time_limit(600);
+ini_set('max_execution_time', '600');
+
 // Check if harmonized flow session exists
 if (!isset($_SESSION['harmonizedFlow'])) {
     die('Error: Harmonized flow session not found. Please start from Step 1.');
@@ -303,7 +307,9 @@ curl_setopt_array($ch, [
         'Content-Type: application/json',
         'Authorization: Bearer ' . $apiKey
     ],
-    CURLOPT_POSTFIELDS => json_encode($data)
+    CURLOPT_POSTFIELDS => json_encode($data),
+    CURLOPT_TIMEOUT => 600, // 10 minutes timeout for cURL request
+    CURLOPT_CONNECTTIMEOUT => 30 // 30 seconds to establish connection
 ]);
 
 $response = curl_exec($ch);
