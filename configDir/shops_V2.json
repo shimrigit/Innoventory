@@ -11,6 +11,15 @@
     },
     "PriceChangePercentageThreshold": 3,
     "MarginTolerancePercentage": 15,
-    "shopDefaultCity": "תל אביב"
+    "shopDefaultCity": "תל אביב",
+    "Invoice_to_upload_HeadersMapping": {
+      "A": ["שורה", 0, 0],
+      "B": ["פריט", "D", "T"],
+      "C": ["שם פריט", 0, 0],
+      "D": ["כמות", "F", "D"],
+      "E": ["מחיר מכירה", 0, 0],
+      "F": ["הנחה", 0, 0],
+      "G": ["מחיר", "K", "D"]
+    }
   }
 ]
