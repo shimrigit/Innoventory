@@ -48,12 +48,13 @@
         "supplierName": "Gad",
         "OCRsanityMethod": "Discount1",
         "hebrewName": "גד",
-        "jsonToOcrSanity": {"Barcode":7, "ItemName":5, "Qty":4, "UnitPrice":3, "LineTotal":1, "Discount1":2}
+        "jsonToOcrSanity": {"Barcode":7, "ItemName":2, "Qty":3, "UnitPrice":4, "LineTotal":6, "Discount1":5}
       },
     {
       "supplierName": "Mayan",
       "OCRsanityMethod": "LineTotal",
-      "hebrewName": "מעין"
+      "hebrewName": "מעין",
+        "jsonToOcrSanity": {"Barcode":10,"ItemName":9, "Qty":5, "UnitPrice":2, "LineTotal":1}
     },
     {
       "supplierName": "Osem",
@@ -68,7 +69,8 @@
     {
         "supplierName": "StraussSweets",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "שטראוס מתוקים"
+        "hebrewName": "שטראוס מתוקים",
+        "jsonToOcrSanity": {"Barcode":14,"ItemName":12,"Qty":8, "UnitPrice":2, "LineTotal":1}
     },
     {
         "supplierName": "StraussCool",
@@ -99,7 +101,9 @@
     {
         "supplierName": "LS",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "ליימן שליסל"
+        "hebrewName": "ליימן שליסל",
+      "jsonToOcrSanity": {"Barcode":9, "ItemName":8, "Qty":5, "UnitPrice":2, "LineTotal":1}
+
     },
     {
         "supplierName": "Sagi",
@@ -189,7 +193,8 @@
     {
       "supplierName": "Neto",
       "OCRsanityMethod": "LineTotal",
-      "hebrewName": "נטו"
+      "hebrewName": "נטו",
+        "jsonToOcrSanity": {"Barcode":6, "ItemName":7, "Qty":4, "UnitPrice":3, "LineTotal":2}
     },
     {
       "supplierName": "AllMeat",
@@ -242,7 +247,7 @@
       "supplierName": "FarmaDeal",
       "OCRsanityMethod": "LineTotal",
       "hebrewName": "פארמה דיל",
-      "jsonToOcrSanity": {"Barcode":8, "ItemName":7, "Qty":5, "UnitPrice":2, "LineTotal":1}
+      "jsonToOcrSanity": {"Barcode":1, "ItemName":4, "Qty":9, "UnitPrice":6, "LineTotal":5}
     },
     {
       "supplierName": "Hamefitz",
@@ -346,8 +351,9 @@
     },
     {
       "supplierName": "Shamir",
-      "OCRsanityMethod": "LineTotal",
-      "hebrewName": "סלטי שמיר"
+      "OCRsanityMethod": "Simple",
+      "hebrewName": "סלטי שמיר",
+      "jsonToOcrSanity": {"Barcode":3, "ItemName":2, "Qty":1}
     },
     {
       "supplierName": "Akerman",
