@@ -1386,6 +1386,134 @@ commercialLayer/
 - `BackOfficeType`: Back-office system type ("comax", "priority", etc.)
 - `shopDefaultCity`: City for CHP price search (e.g., "Beer Sheva", "Tel Aviv")
 - `Departments`: Array of department objects with margin expectations
+- `Invoice_to_upload_HeadersMapping`: Mapping configuration for generating ERP-compatible invoice files from CL files
+
+---
+
+### Invoice to Upload Headers Mapping
+
+**Purpose:** Configurable mapping system to transform Commercial Layer (CL) files into ERP-specific invoice upload formats.
+
+**Location:** `shops_V2.json` → `Invoice_to_upload_HeadersMapping`
+
+**Structure:**
+```json
+"Invoice_to_upload_HeadersMapping": {
+  "DestinationColumn": ["Header", "OriginColumn", "DataType"],
+  ...
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| **DestinationColumn** | String | Column letter in the Invoice_to_upload file | "A", "B", "C" |
+| **Header** | String | Column header text (row 1) in destination file | "שורה", "פריט", "כמות" |
+| **OriginColumn** | String/Number | Source column in CL file, or `0` if no origin | "D", "F", "K", 0 |
+| **DataType** | String | Data type for Excel formatting: "T" (text), "D" (double), "I" (integer), or `0` (no formatting) | "T", "D", "I", 0 |
+
+**Example Configuration (CountryMZ - Comax):**
+```json
+"Invoice_to_upload_HeadersMapping": {
+  "A": ["שורה", 0, 0],
+  "B": ["פריט", "D", "T"],
+  "C": ["שם פריט", 0, 0],
+  "D": ["כמות", "F", "D"],
+  "E": ["מחיר מכירה", 0, 0],
+  "F": ["הנחה", 0, 0],
+  "G": ["מחיר", "K", "D"]
+}
+```
+
+**Mapping Breakdown:**
+
+| Destination | Header (Hebrew) | Origin (CL Column) | Data Type | Description |
+|-------------|-----------------|-------------------|-----------|-------------|
+| A | שורה | 0 | 0 | Row number (auto-generated sequential) |
+| B | פריט | D | T | Barcode (from CL column D, as text to prevent scientific notation) |
+| C | שם פריט | 0 | 0 | Item name (no origin, left empty or manually filled) |
+| D | כמות | F | D | Quantity (from CL column F, as double) |
+| E | מחיר מכירה | 0 | 0 | Sale price (no origin, left empty or manually filled) |
+| F | הנחה | 0 | 0 | Discount (no origin, left empty or manually filled) |
+| G | מחיר | K | D | Cost price (from CL column K - ActualUnitPrice, as double) |
+
+**Data Type Codes:**
+
+- **`"T"`** - Text: Uses `setCellValueExplicit(..., DataType::TYPE_STRING)` to preserve formatting (prevents Excel from converting long numbers to scientific notation)
+- **`"D"`** - Double: Numeric value with decimals, formatted as `#,##0.00`
+- **`"I"`** - Integer: Whole number, formatted as `#,##0`
+- **`0`** - No formatting: No specific data type enforcement, Excel auto-detects
+
+**Processing Logic:**
+
+1. **Load CL File:** Read Commercial Layer Excel file (columns A-P)
+2. **Load Mapping:** Get `Invoice_to_upload_HeadersMapping` from shop config
+3. **Create Destination File:** New Excel spreadsheet for ERP upload
+4. **Set Headers:** Write header text to row 1 based on mapping
+5. **Process Data Rows:**
+   - For each row in CL file (starting from row 2):
+     - For each destination column in mapping:
+       - If `OriginColumn = 0`: Skip or auto-generate (e.g., row number)
+       - If `OriginColumn = letter`: Copy value from CL file column
+       - Apply `DataType` formatting if specified
+6. **Save File:** Output as XLSX or CSV based on `BackOfficeType`
+
+**Origin Column = 0 Special Cases:**
+
+| Column | Header | Behavior |
+|--------|--------|----------|
+| A | שורה | Auto-generate sequential row numbers (1, 2, 3...) |
+| C | שם פריט | Leave empty (to be filled manually or from price list) |
+| E | מחיר מכירה | Leave empty (to be filled manually or from price list) |
+| F | הנחה | Leave empty or default to 0 |
+
+**CL File Column Reference:**
+
+From Commercial Layer file structure:
+- **Column D:** Barcode
+- **Column E:** ItemName
+- **Column F:** Qty
+- **Column G:** UnitPrice
+- **Column H:** LineTotal
+- **Column I:** Discount1
+- **Column K:** ActualUnitPrice (calculated after discounts)
+- **Column L:** CHPprice
+- **Column P:** PriceDiff
+
+**Shop-Specific Customization:**
+
+Different shops may have different ERP requirements:
+
+**Comax Format:**
+- XLSX file format
+- Hebrew headers
+- Specific column order (Row, Barcode, Name, Qty, Sale Price, Discount, Cost Price)
+- Barcode as text to prevent scientific notation
+
+**All4Shops Format (Future):**
+- CSV file format
+- Different column order
+- Different headers
+- Additional mapping required
+
+**Priority Format (Future):**
+- Different structure entirely
+- May require additional columns
+
+**Benefits:**
+
+1. **Flexibility:** Each shop can have custom ERP upload format
+2. **Maintainability:** Change mapping without code changes
+3. **Scalability:** Easy to add new shops with different ERP systems
+4. **Clarity:** Clear documentation of column sources and types
+5. **Validation:** Data types ensure proper Excel formatting
+
+**Code Location (Future):**
+- Implementation: `BOpack/generateInvoiceToUpload.php`
+- Reads mapping from `shops_V2.json`
+- Processes CL files from `commercialLayer/commercial_invoice_files/`
+- Outputs to `BOpack/output/` directory
 
 ---
 
