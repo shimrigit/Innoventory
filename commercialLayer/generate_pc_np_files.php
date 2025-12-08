@@ -237,6 +237,17 @@ try {
     $pcSheet->setCellValue('N1', 'Rec Price');
     $pcSheet->setCellValue('O1', 'Recommend');
     $pcSheet->setCellValue('P1', 'Rec Mrgn');
+    $pcSheet->setCellValue('Q1', 'InvoiceIdentifier');
+
+    // Extract InvoiceIdentifier from CL filename
+    // Format: "OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyyyy_hhmmss_CL_..."
+    $invoiceIdentifier = 'UNKNOWN';
+    if (preg_match('/^OCRsanity_(.+?)_CL_/', $clFileName, $matches)) {
+        $fullMatch = $matches[1]; // e.g., "Gad_10-11-2025_A_10112025_110745"
+        // Remove timestamp (ddmmyyyy_hhmmss) from end
+        $invoiceIdentifier = preg_replace('/_\d{8}_\d{6}$/', '', $fullMatch);
+        // Result: "Gad_10-11-2025_A" or "Gad_10-11-2025"
+    }
 
     // 10. Filter and copy rows based on PCPT threshold
     $pcRowIndex = 2; // Start from row 2 (after header row)
@@ -271,6 +282,7 @@ try {
             $pcSheet->setCellValue('H' . $pcRowIndex, $row[$pcColumnMap['H']] ?? ''); // Department
             $pcSheet->setCellValue('I' . $pcRowIndex, $row[$pcColumnMap['I']] ?? ''); // SalesPrice
             $pcSheet->setCellValue('J' . $pcRowIndex, $priceDiffValue . '%'); // PriceDiff with % sign
+            $pcSheet->setCellValue('Q' . $pcRowIndex, $invoiceIdentifier); // InvoiceIdentifier
 
             $pcRowIndex++;
             $copiedRowCount++;
