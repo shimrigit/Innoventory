@@ -135,6 +135,37 @@ try {
     $npSheet->setCellValue('K1', 'SalePrice');
     $npSheet->setCellValue('L1', 'ActualMargin');
     $npSheet->setCellValue('M1', 'InvoiceIdentifier');
+    $npSheet->setCellValue('N1', 'SupplierCode');
+    $npSheet->setCellValue('O1', 'DepartmentCode');
+
+    // 9.5 Load supplier codes from {ShopName}_suppliers.json
+    $shopSupplierCodesPath = __DIR__ . '/../configDir/' . $shopName . '_suppliers.json';
+    $supplierCode = 'UNKNOWN';
+
+    if (file_exists($shopSupplierCodesPath)) {
+        $shopSupplierCodes = json_decode(file_get_contents($shopSupplierCodesPath), true);
+        if ($shopSupplierCodes) {
+            foreach ($shopSupplierCodes as $supplierData) {
+                if ($supplierData['SupplierName'] === $supplierName) {
+                    $supplierCode = $supplierData['SupplierCode'];
+                    break;
+                }
+            }
+        }
+    }
+
+    // 9.6 Load department codes from {ShopName}_Departments.json
+    $shopDepartmentsPath = __DIR__ . '/../configDir/' . $shopName . '_Departments.json';
+    $departmentMap = [];
+
+    if (file_exists($shopDepartmentsPath)) {
+        $shopDepartments = json_decode(file_get_contents($shopDepartmentsPath), true);
+        if ($shopDepartments) {
+            foreach ($shopDepartments as $dept) {
+                $departmentMap[$dept['DepartmentName']] = $dept['DepartmentNumber'];
+            }
+        }
+    }
 
     // 10. Get column indices from CL file
     $colIndex = array_search('Index', $headers); // The CL file has "Index" column, not "Original Index"
@@ -188,6 +219,14 @@ try {
 
         // Column M - InvoiceIdentifier
         $npSheet->setCellValue('M' . $npRowNum, $invoiceIdentifier);
+
+        // Column N - SupplierCode
+        $npSheet->setCellValue('N' . $npRowNum, $supplierCode);
+
+        // Column O - DepartmentCode (lookup from department name in column I)
+        $departmentName = $npSheet->getCell('I' . $npRowNum)->getValue();
+        $departmentCode = isset($departmentMap[$departmentName]) ? $departmentMap[$departmentName] : '';
+        $npSheet->setCellValue('O' . $npRowNum, $departmentCode);
 
         // Move to next row for next new product
         $npRowNum++;
