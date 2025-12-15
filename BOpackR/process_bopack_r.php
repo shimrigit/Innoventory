@@ -381,9 +381,243 @@ foreach ($clFiles as $clFile) {
 }
 
 echo "<hr>";
+
+// ============================================
+// STEP 3: Generate Price_change_list file
+// ============================================
+
+$priceChangeListFile = $outputDir . "/price_change_list_{$processDateShort}.xlsx";
+$priceChangeList = new Spreadsheet();
+$priceChangeSheet = $priceChangeList->getActiveSheet();
+
+// Get Price_change_list mapping
+if (!isset($shopConfig['Price_change_list_HeadersMapping'])) {
+    echo "<p>⚠️ Warning: Price_change_list_HeadersMapping not found in shop config. Skipping price change list generation.</p>";
+} else {
+    $pcMapping = $shopConfig['Price_change_list_HeadersMapping'];
+
+    // Set headers
+    foreach ($pcMapping as $destCol => $config) {
+        $header = $config[0];
+        $priceChangeSheet->setCellValue("{$destCol}1", $header);
+    }
+
+    // Delete existing file if it exists
+    if (file_exists($priceChangeListFile)) {
+        unlink($priceChangeListFile);
+    }
+
+    $pcRowIndex = 1; // Row index counter starting at 1
+    $pcDestRow = 2; // Start from row 2 in destination
+    $pcTotalRows = 0;
+
+    // Process each PC file
+    foreach ($pcFiles as $pcFile) {
+        // Load PC file
+        $pcSpreadsheet = IOFactory::load($pcFile['path']);
+        $pcSheet = $pcSpreadsheet->getActiveSheet();
+        $highestRow = $pcSheet->getHighestRow();
+
+        // Process each row in PC file (starting from row 2)
+        for ($sourceRow = 2; $sourceRow <= $highestRow; $sourceRow++) {
+            // Check if row is empty (check first few columns)
+            $isEmpty = true;
+            foreach (['A', 'B', 'C', 'D'] as $col) {
+                if (!empty($pcSheet->getCell($col . $sourceRow)->getValue())) {
+                    $isEmpty = false;
+                    break;
+                }
+            }
+
+            if ($isEmpty) {
+                continue; // Skip empty rows
+            }
+
+            foreach ($pcMapping as $destCol => $config) {
+                $header = $config[0];
+                $originCol = $config[1];
+                $dataType = $config[2];
+
+                // Handle origin column = 0 (special cases)
+                if ($originCol === 0) {
+                    // Column A: Auto-generate row number
+                    if ($destCol === 'A') {
+                        $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $pcRowIndex);
+                    }
+                    continue;
+                }
+
+                // Get value from PC file
+                $cellAddress = "{$originCol}{$sourceRow}";
+                $value = $pcSheet->getCell($cellAddress)->getValue();
+
+                // Apply data type formatting
+                if ($dataType === 'T') {
+                    // Text
+                    $priceChangeSheet->setCellValueExplicit("{$destCol}{$pcDestRow}", $value, DataType::TYPE_STRING);
+                } elseif ($dataType === 'D') {
+                    // Double
+                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", (float)$value);
+                    $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
+                } elseif ($dataType === 'I') {
+                    // Integer
+                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", (int)$value);
+                    $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                } elseif ($dataType === 'P') {
+                    // Percentage
+                    // Remove % sign if present and convert to decimal
+                    $percentValue = str_replace('%', '', $value);
+                    $percentValue = str_replace(',', '.', $percentValue);
+                    $percentDecimal = floatval($percentValue) / 100;
+                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $percentDecimal);
+                    $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode('0.00%');
+                } else {
+                    // No specific formatting
+                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $value);
+                }
+            }
+
+            $pcRowIndex++;
+            $pcDestRow++;
+            $pcTotalRows++;
+        }
+    }
+
+    // Auto-size all columns
+    foreach (array_keys($pcMapping) as $col) {
+        $priceChangeSheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    // Save Price_change_list file
+    $writer = new Xlsx($priceChangeList);
+    $writer->save($priceChangeListFile);
+
+    echo "<p>✅ Price change list created: <strong>{$priceChangeListFile}</strong></p>";
+    echo "<p>📊 Total price changes: <strong>{$pcTotalRows}</strong></p>";
+}
+
+echo "<hr>";
+
+// ============================================
+// STEP 4: Generate New_products_list file
+// ============================================
+
+$newProductsListFile = $outputDir . "/new_products_list_{$processDateShort}.xlsx";
+$newProductsList = new Spreadsheet();
+$newProductsSheet = $newProductsList->getActiveSheet();
+
+// Get New_products_list mapping
+if (!isset($shopConfig['New_products_list_HeadersMapping'])) {
+    echo "<p>⚠️ Warning: New_products_list_HeadersMapping not found in shop config. Skipping new products list generation.</p>";
+} else {
+    $npMapping = $shopConfig['New_products_list_HeadersMapping'];
+
+    // Set headers
+    foreach ($npMapping as $destCol => $config) {
+        $header = $config[0];
+        $newProductsSheet->setCellValue("{$destCol}1", $header);
+    }
+
+    // Delete existing file if it exists
+    if (file_exists($newProductsListFile)) {
+        unlink($newProductsListFile);
+    }
+
+    $npDestRow = 2; // Start from row 2 in destination
+    $npTotalRows = 0;
+
+    // Process each NP file
+    foreach ($npFiles as $npFile) {
+        // Load NP file
+        $npSpreadsheet = IOFactory::load($npFile['path']);
+        $npSheet = $npSpreadsheet->getActiveSheet();
+        $highestRow = $npSheet->getHighestRow();
+
+        // Process each row in NP file (starting from row 2)
+        for ($sourceRow = 2; $sourceRow <= $highestRow; $sourceRow++) {
+            // Check if row is empty by checking the key source columns used in the mapping
+            // Column D (Item Number/Barcode), F (Item Name), G (Purchase Price), K (Sale Price)
+            $isEmpty = true;
+            foreach (['D', 'F', 'G', 'K'] as $col) {
+                $value = $npSheet->getCell($col . $sourceRow)->getValue();
+                if (!empty($value) && $value !== 0 && $value !== '0') {
+                    $isEmpty = false;
+                    break;
+                }
+            }
+
+            if ($isEmpty) {
+                continue; // Skip empty rows
+            }
+
+            foreach ($npMapping as $destCol => $config) {
+                $header = $config[0];
+                $originCol = $config[1];
+                $dataType = $config[2];
+
+                // Handle origin column = 0 (special cases for NP)
+                if ($originCol === 0) {
+                    // Column E: SupplierCode from NP column N
+                    if ($destCol === 'E') {
+                        $supplierCodeValue = $npSheet->getCell('N' . $sourceRow)->getValue();
+                        $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", (int)$supplierCodeValue);
+                        $newProductsSheet->getStyle("{$destCol}{$npDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                    }
+                    // Column G: DepartmentCode from NP column O
+                    elseif ($destCol === 'G') {
+                        $deptCodeValue = $npSheet->getCell('O' . $sourceRow)->getValue();
+                        $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", (int)$deptCodeValue);
+                        $newProductsSheet->getStyle("{$destCol}{$npDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                    }
+                    continue;
+                }
+
+                // Get value from NP file
+                $cellAddress = "{$originCol}{$sourceRow}";
+                $value = $npSheet->getCell($cellAddress)->getValue();
+
+                // Apply data type formatting
+                if ($dataType === 'T') {
+                    // Text
+                    $newProductsSheet->setCellValueExplicit("{$destCol}{$npDestRow}", $value, DataType::TYPE_STRING);
+                } elseif ($dataType === 'D') {
+                    // Double
+                    $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", (float)$value);
+                    $newProductsSheet->getStyle("{$destCol}{$npDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
+                } elseif ($dataType === 'I') {
+                    // Integer
+                    $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", (int)$value);
+                    $newProductsSheet->getStyle("{$destCol}{$npDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                } else {
+                    // No specific formatting
+                    $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", $value);
+                }
+            }
+
+            $npDestRow++;
+            $npTotalRows++;
+        }
+    }
+
+    // Auto-size all columns
+    foreach (array_keys($npMapping) as $col) {
+        $newProductsSheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    // Save New_products_list file
+    $writer = new Xlsx($newProductsList);
+    $writer->save($newProductsListFile);
+
+    echo "<p>✅ New products list created: <strong>{$newProductsListFile}</strong></p>";
+    echo "<p>📊 Total new products: <strong>{$npTotalRows}</strong></p>";
+}
+
+echo "<hr>";
 echo "<h2>✨ BOpack Process Complete!</h2>";
 echo "<p>📋 Invoice list: <strong>1 file</strong></p>";
 echo "<p>📦 Invoices to upload: <strong>{$invoicesToUploadCount} files</strong></p>";
+echo "<p>💰 Price changes: <strong>{$pcTotalRows} rows</strong></p>";
+echo "<p>🆕 New products: <strong>{$npTotalRows} rows</strong></p>";
 echo "<p>📁 Output directory: <strong>{$outputDir}</strong></p>";
 echo "<hr>";
 echo '<p><a href="bopack_start.php">← חזור למסך הפתיחה</a></p>';
