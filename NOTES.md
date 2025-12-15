@@ -1936,6 +1936,450 @@ User clicks "Conclude CL - no PC/NP" button:
 
 ---
 
+## Stage 5: Back Office Pack (BOpack) Process
+
+**Location:** `C:\xampp\htdocs\website\BOpackR\`
+**Version:** BOpackR (Rewritten)
+**Created:** December 15, 2025
+**Status:** ✅ Complete - Ready for Testing
+
+### Overview
+
+The Back Office Pack (BOpack) process is the **final stage** in the Retailomatics Beta pipeline. It consolidates all processed invoices and price/product data for a specific shop and date, generating ERP-ready files for upload to the back-office system.
+
+**Purpose:**
+- Aggregate all Commercial Layer (CL) files for a shop/date
+- Generate consolidated invoice list and individual upload files
+- Create aggregated price change and new product lists
+- Prepare data in ERP-specific format using configurable mappings
+
+**Input:**
+- Commercial Layer files (`*_CL_*.xlsx`)
+- Price Change files (`*_PRICE-CHANGE_*.xlsx`)
+- New Products files (`*_NEW-PRODUCTS_*.xlsx`)
+
+**Output:**
+- `invoice_list_ddmmyy.xlsx` - Master invoice list
+- `invoice_to_upload_X.xlsx` - Individual invoice upload files (one per CL file)
+- `price_change_list_ddmmyy.xlsx` - Consolidated price changes
+- `new_products_list_ddmmyy.xlsx` - Consolidated new products
+
+---
+
+### BOpack Architecture
+
+**Entry Point:** [bopack_start.php](BOpackR/bopack_start.php)
+- Shop selection (dropdown with Select2)
+- Process date selection (date picker)
+- Submits to main processing script
+
+**Main Processor:** [process_bopack_r.php](BOpackR/process_bopack_r.php)
+- File discovery and grouping
+- Invoice list generation
+- Invoice upload files generation
+- Price change list generation
+- New products list generation
+
+---
+
+### File Discovery Algorithm
+
+**Process:**
+1. Scan `commercialLayer/commercial_invoice_files/` directory
+2. Filter files by shop name and process date
+3. Categorize files into three groups:
+   - **CL files:** Match pattern `*_CL_ddmmyyyy_hhmmss.xlsx`
+   - **PC files:** Match pattern `*_PRICE-CHANGE_ddmmyy_hhmmss.xlsx`
+   - **NP files:** Match pattern `*_NEW-PRODUCTS_ddmmyy_hhmmss.xlsx`
+
+**Important Notes:**
+- PC and NP files contain `_CL_` in their names, so they must be checked FIRST
+- Date format in CL files: `ddmmyyyy` (8 digits)
+- Date format in PC/NP files: `ddmmyy` (6 digits)
+- Files are grouped by timestamp to match related CL, PC, and NP files
+
+**Code Location:** [process_bopack_r.php:132-158](BOpackR/process_bopack_r.php#L132-L158)
+
+```php
+// Check PC and NP first since they contain _CL_ in their names
+if (preg_match('/_PRICE-CHANGE_\d{6}_\d{6}\.xlsx$/', $file)) {
+    $pcFiles[] = [...];
+} elseif (preg_match('/_NEW-PRODUCTS_\d{6}_\d{6}\.xlsx$/', $file)) {
+    $npFiles[] = [...];
+} elseif (preg_match('/_CL_\d{8}_\d{6}\.xlsx$/', $file)) {
+    $clFiles[] = [...];
+}
+```
+
+---
+
+### Step 1: Invoice List Generation
+
+**Purpose:** Create a master list of all invoices processed for the shop/date
+
+**File Name:** `invoice_list_ddmmyy.xlsx`
+
+**Structure:**
+| Column | Header | Source | Format |
+|--------|--------|--------|--------|
+| A | Invoice Number | CL Cell A3 | Text |
+| B | Invoice Date | CL Cell B3 | dd.mm.yyyy |
+| C | Invoice File Name | CL filename | Text |
+
+**Date Formatting Logic:**
+- Handles multiple input formats: `dd-mm-yyyy`, `dd.mm.yyyy`, `dd-mm-yy`, `dd.mm.yy`
+- Converts 2-digit years: 00-50 → 2000-2050, 51-99 → 1951-1999
+- Output format: Always `dd.mm.yyyy`
+
+**Code Location:** [process_bopack_r.php:178-210](BOpackR/process_bopack_r.php#L178-L210)
+
+---
+
+### Step 2: Invoice Upload Files Generation
+
+**Purpose:** Create individual upload files for each invoice, formatted for ERP system
+
+**File Name:** `invoice_to_upload_X.xlsx` (X = sequential counter starting at 1)
+
+**Configuration:** Uses `Invoice_to_upload_HeadersMapping` from `shops_V2.json`
+
+**Mapping Structure:**
+```json
+"Invoice_to_upload_HeadersMapping": {
+  "A": ["שורה", 0, 0],           // Row index (origin=0 means auto-generated)
+  "B": ["ברקוד", "D", "T"],      // Barcode from CL column D, Text type
+  "C": ["כמות", "F", "I"],       // Quantity from CL column F, Integer type
+  "D": ["מחיר יחידה", "K", "D"]  // Unit price from CL column K, Double type
+}
+```
+
+**Mapping Parameters:**
+- **[0]** - Header name (Hebrew/ERP-specific)
+- **[1]** - Source column from CL file (or 0 for auto-generated)
+- **[2]** - Data type: "T" (Text), "D" (Double), "I" (Integer), or 0 for row index
+
+**Row Indexing:**
+- Starts at 1 for first data row (row 2 in Excel)
+- Sequential numbering independent of source row numbers
+- Handles empty rows by skipping them
+
+**File Deletion:**
+- Deletes existing file before creation to avoid conflicts
+
+**Code Location:** [process_bopack_r.php:218-350](BOpackR/process_bopack_r.php#L218-L350)
+
+---
+
+### Step 3: Price Change List Generation
+
+**Purpose:** Consolidate all price changes from PC files into one master list
+
+**File Name:** `price_change_list_ddmmyy.xlsx`
+
+**Configuration:** Uses `Price_change_list_HeadersMapping` from `shops_V2.json`
+
+**Mapping Structure:**
+```json
+"Price_change_list_HeadersMapping": {
+  "A": ["שורה", 0, 0],
+  "B": ["ברקוד", "D", "T"],
+  "C": ["מחיר ישן", "I", "D"],
+  "F": ["שינוי עלות", "J", "P"],    // P = Percentage type
+  "G": ["מרווח נוכחי", "K", "P"],
+  "H": ["מרווח מומלץ", "P", "P"]
+}
+```
+
+**Data Types:**
+- **T** (Text): Stored as string
+- **D** (Double): Formatted with comma separator (e.g., 1,234.56)
+- **I** (Integer): Formatted as whole number
+- **P** (Percentage): Special handling for percentage values
+
+**Percentage Formatting:**
+```php
+// Remove % sign, convert to decimal
+$percentValue = str_replace('%', '', $value);
+$percentDecimal = floatval($percentValue) / 100;
+
+// Store as decimal and format as percentage
+$sheet->setCellValue($cell, $percentDecimal);
+$sheet->getStyle($cell)->getNumberFormat()->setFormatCode('0.00%');
+```
+
+**Empty Row Detection:**
+- Checks key columns (D, I, J, K, P) for data
+- Skips rows where all key columns are empty or zero
+
+**Code Location:** [process_bopack_r.php:385-497](BOpackR/process_bopack_r.php#L385-L497)
+
+---
+
+### Step 4: New Products List Generation
+
+**Purpose:** Consolidate all new products from NP files into one master list
+
+**File Name:** `new_products_list_ddmmyy.xlsx`
+
+**Configuration:** Uses `New_products_list_HeadersMapping` from `shops_V2.json`
+
+**Mapping Structure:**
+```json
+"New_products_list_HeadersMapping": {
+  "A": ["מס פריט", "D", "T"],      // Item number from column D
+  "B": ["שם פריט", "F", "T"],      // Item name from column F
+  "C": ["ברקוד", "D", "T"],        // Barcode from column D
+  "D": ["מחיר קניה", "G", "D"],    // Purchase price from column G
+  "E": ["ספק", 0, "I"],            // Supplier code (special handling)
+  "F": ["מחיר מכירה", "K", "D"],   // Sale price from column K
+  "G": ["מחלקה", 0, "I"],          // Department code (special handling)
+  "H": ["שורה מקורית", "C", "I"],  // Original row from column C
+  "I": ["מזהה חשבונית", "M", "T"], // Invoice ID from column M
+  "J": ["שם מחלקה", "H", "T"]      // Department name from column H
+}
+```
+
+**Special Handling for Origin=0:**
+When mapping has `origin=0`, the column requires special handling:
+
+- **Column E (ספק - Supplier):** Populated from NP file column N (SupplierCode)
+- **Column G (מחלקה - Department):** Populated from NP file column O (DepartmentCode)
+
+```php
+if ($originCol === 0) {
+    // Column E: SupplierCode from NP column N
+    if ($destCol === 'E') {
+        $supplierCodeValue = $npSheet->getCell('N' . $sourceRow)->getValue();
+        $newProductsSheet->setCellValue($destCol . $destRow, (int)$supplierCodeValue);
+    }
+    // Column G: DepartmentCode from NP column O
+    elseif ($destCol === 'G') {
+        $deptCodeValue = $npSheet->getCell('O' . $sourceRow)->getValue();
+        $newProductsSheet->setCellValue($destCol . $destRow, (int)$deptCodeValue);
+    }
+}
+```
+
+**Empty Row Detection:**
+- Checks key source columns: D, F, G, K (not A-D)
+- Column D: Item Number/Barcode
+- Column F: Item Name
+- Column G: Purchase Price
+- Column K: Sale Price
+- Skips rows where all key columns are empty or contain only zeros
+
+**Code Location:** [process_bopack_r.php:501-599](BOpackR/process_bopack_r.php#L501-L599)
+
+---
+
+### Configuration System
+
+**File:** [shops_V2.json](configDir/shops_V2.json)
+
+**Three Mapping Types:**
+
+**1. Invoice_to_upload_HeadersMapping**
+- Maps CL file columns to ERP upload format
+- Row index auto-generated (origin=0)
+
+**2. Price_change_list_HeadersMapping**
+- Maps PC file columns to consolidated format
+- Supports percentage data type ("P")
+- Row index auto-generated (origin=0)
+
+**3. New_products_list_HeadersMapping**
+- Maps NP file columns to consolidated format
+- Special handling for Supplier/Department codes (origin=0)
+- Row index NOT auto-generated (uses source data)
+
+**Example Shop Configuration:**
+```json
+{
+  "ShopName": "CountryMZ",
+  "Invoice_to_upload_HeadersMapping": {
+    "A": ["שורה", 0, 0],
+    "B": ["ברקוד", "D", "T"],
+    "C": ["כמות", "F", "I"],
+    "D": ["מחיר יחידה", "K", "D"]
+  },
+  "Price_change_list_HeadersMapping": {
+    "A": ["שורה", 0, 0],
+    "B": ["ברקוד", "D", "T"],
+    "F": ["שינוי עלות", "J", "P"]
+  },
+  "New_products_list_HeadersMapping": {
+    "A": ["מס פריט", "D", "T"],
+    "E": ["ספק", 0, "I"],
+    "G": ["מחלקה", 0, "I"]
+  }
+}
+```
+
+---
+
+### Output Files Location
+
+**Directory:** `BOpackR/output/{ShopName}_{ProcessDate}/`
+
+**Example:** `BOpackR/output/CountryMZ_26-11-2025/`
+
+**Files Generated:**
+```
+invoice_list_261125.xlsx
+invoice_to_upload_1.xlsx
+invoice_to_upload_2.xlsx
+invoice_to_upload_3.xlsx
+price_change_list_261125.xlsx
+new_products_list_261125.xlsx
+```
+
+---
+
+### Complete BOpack Workflow
+
+**Step 1: User Input**
+1. Navigate to [bopack_start.php](BOpackR/bopack_start.php)
+2. Select shop from dropdown (populated from `shops_V2.json`)
+3. Select process date (default: today)
+4. Click "התחל עיבוד" (Start Processing)
+
+**Step 2: File Discovery**
+1. Scan `commercialLayer/commercial_invoice_files/` for matching files
+2. Filter by shop name and date
+3. Categorize into CL, PC, and NP groups
+4. Display counts: X CL files, Y PC files, Z NP files found
+
+**Step 3: Invoice Processing**
+1. Generate `invoice_list_ddmmyy.xlsx` from all CL files
+2. Generate `invoice_to_upload_X.xlsx` for each CL file
+3. Apply Invoice_to_upload_HeadersMapping
+4. Auto-number rows starting at 1
+
+**Step 4: Price Change Processing**
+1. Load all PC files for the date
+2. Apply Price_change_list_HeadersMapping
+3. Handle percentage formatting
+4. Generate consolidated `price_change_list_ddmmyy.xlsx`
+5. Skip empty rows
+
+**Step 5: New Products Processing**
+1. Load all NP files for the date
+2. Apply New_products_list_HeadersMapping
+3. Handle special origin=0 columns (Supplier, Department codes)
+4. Generate consolidated `new_products_list_ddmmyy.xlsx`
+5. Skip empty rows
+
+**Step 6: Completion**
+- Display success message with counts
+- Show output directory path
+- Provide "חזור למסך הפתיחה" (Return to start) link
+
+---
+
+### Key Features
+
+**1. Configurable Column Mapping**
+- No code changes needed for different ERP systems
+- Shop-specific mappings in JSON config
+- Support for multiple data types
+
+**2. Intelligent File Discovery**
+- Handles complex filename patterns
+- Groups related files by timestamp
+- Validates date formats
+
+**3. Data Type Handling**
+- Text (T): String formatting
+- Double (D): Number with comma separator
+- Integer (I): Whole numbers
+- Percentage (P): Decimal stored as percentage
+
+**4. Row Management**
+- Auto-generated sequential row numbers
+- Empty row detection and skipping
+- Proper Excel formatting
+
+**5. File Cleanup**
+- Deletes existing files before creation
+- Prevents duplicate/conflicting files
+
+---
+
+### Error Handling
+
+**No Files Found:**
+```
+Error: No CL files found for shop 'ShopName' and date 'dd-mm-yyyy'
+```
+- Check shop name spelling
+- Verify date format
+- Confirm files exist in commercialLayer/commercial_invoice_files/
+
+**Missing Mapping Configuration:**
+```
+Warning: Invoice_to_upload_HeadersMapping not found in shop config.
+Skipping invoice upload file generation.
+```
+- Check shops_V2.json for shop configuration
+- Verify mapping name spelling
+- Ensure mapping structure is correct
+
+**Empty Result Files:**
+- Check source files have data in expected columns
+- Verify empty row detection logic
+- Review column mapping source columns
+
+---
+
+### Known Issues & Future Improvements
+
+**Current Limitations:**
+1. Products without original cost (OriginalUnitPrice) in price list:
+   - Currently marked as "Not Found" in PriceDiff column
+   - Excluded from PC files (floatval("Not Found") = 0)
+   - Treated as New Products
+   - **Note:** This mechanism may need adjustment based on testing
+
+**Future Enhancements:**
+1. Batch processing for multiple shops/dates
+2. Progress indicators for large file sets
+3. Validation reports (data quality checks)
+4. Direct ERP system integration
+5. Historical tracking and comparison
+6. Error recovery mechanisms
+
+---
+
+### Troubleshooting
+
+**Issue:** Files found but categorized incorrectly
+- **Cause:** PC/NP files contain "_CL_" in names and matched CL pattern first
+- **Solution:** Check PC and NP patterns BEFORE CL pattern in regex matching
+
+**Issue:** Date format mismatch in file discovery
+- **Cause:** CL files use ddmmyyyy (8 digits), PC/NP use ddmmyy (6 digits)
+- **Solution:** Use correct regex patterns: `\d{8}` for CL, `\d{6}` for PC/NP
+
+**Issue:** New products list showing empty rows with zeros
+- **Cause:** Empty row detection checking wrong columns (A-D instead of D,F,G,K)
+- **Solution:** Check key source columns that actually contain product data
+
+**Issue:** Supplier/Department codes missing in new products list
+- **Cause:** origin=0 columns were being skipped entirely
+- **Solution:** Special handling to populate from NP columns N and O
+
+**Issue:** Row indexing starting at 2 instead of 1
+- **Cause:** Using Excel row number directly instead of separate counter
+- **Solution:** Use dedicated $rowIndex counter starting at 1
+
+---
+
+**Last Updated:** December 15, 2025
+**Status:** ✅ BOpack Process Complete - Ready for Testing
+**Next Phase:** Testing with real data, potential adjustments to price change mechanism
+
+---
+
 ## Stage 1: Invoice Pre-Process (PP) - PreProcess2 System
 
 **Location:** `C:\xampp\htdocs\website\PreProcess2\`
