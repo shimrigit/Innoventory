@@ -227,8 +227,19 @@ foreach ($clFiles as $clFile) {
     $supplierCode = isset($supplierCodeMap[$supplierName]) ? $supplierCodeMap[$supplierName] : 'UNKNOWN';
 
     // Load CL file
-    $clSpreadsheet = IOFactory::load($clFile['path']);
-    $clSheet = $clSpreadsheet->getActiveSheet();
+    try {
+        $clSpreadsheet = IOFactory::load($clFile['path']);
+        $clSheet = $clSpreadsheet->getActiveSheet();
+    } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+        die("❌ <strong>Error: Unable to read CL file for Invoice List</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($clFile['path'])) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is corrupted or not a valid Excel file<br>" .
+            "• The file is locked by another process<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     // Extract values from CL file
     $cellB1 = $clSheet->getCell('B1')->getValue(); // Invoice Number
@@ -293,8 +304,19 @@ foreach ($clFiles as $clFile) {
     }
 
     // Load CL file
-    $clSpreadsheet = IOFactory::load($clFile['path']);
-    $clSheet = $clSpreadsheet->getActiveSheet();
+    try {
+        $clSpreadsheet = IOFactory::load($clFile['path']);
+        $clSheet = $clSpreadsheet->getActiveSheet();
+    } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+        die("❌ <strong>Error: Unable to read CL file for Invoice to Upload</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($clFile['path'])) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is corrupted or not a valid Excel file<br>" .
+            "• The file is locked by another process<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     // Get highest row in CL file
     $highestRow = $clSheet->getHighestRow();
@@ -414,8 +436,19 @@ if (!isset($shopConfig['Price_change_list_HeadersMapping'])) {
     // Process each PC file
     foreach ($pcFiles as $pcFile) {
         // Load PC file
-        $pcSpreadsheet = IOFactory::load($pcFile['path']);
-        $pcSheet = $pcSpreadsheet->getActiveSheet();
+        try {
+            $pcSpreadsheet = IOFactory::load($pcFile['path']);
+            $pcSheet = $pcSpreadsheet->getActiveSheet();
+        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+            die("❌ <strong>Error: Unable to read PC file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($pcFile['path'])) . "<br><br>" .
+                "⚠️ <strong>Possible causes:</strong><br>" .
+                "• The file is currently open in Excel or another program<br>" .
+                "• The file is corrupted or not a valid Excel file<br>" .
+                "• The file is locked by another process<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+                "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+        }
         $highestRow = $pcSheet->getHighestRow();
 
         // Process each row in PC file (starting from row 2)
@@ -529,8 +562,19 @@ if (!isset($shopConfig['New_products_list_HeadersMapping'])) {
     // Process each NP file
     foreach ($npFiles as $npFile) {
         // Load NP file
-        $npSpreadsheet = IOFactory::load($npFile['path']);
-        $npSheet = $npSpreadsheet->getActiveSheet();
+        try {
+            $npSpreadsheet = IOFactory::load($npFile['path']);
+            $npSheet = $npSpreadsheet->getActiveSheet();
+        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+            die("❌ <strong>Error: Unable to read NP file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($npFile['path'])) . "<br><br>" .
+                "⚠️ <strong>Possible causes:</strong><br>" .
+                "• The file is currently open in Excel or another program<br>" .
+                "• The file is corrupted or not a valid Excel file<br>" .
+                "• The file is locked by another process<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+                "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+        }
         $highestRow = $npSheet->getHighestRow();
 
         // Process each row in NP file (starting from row 2)

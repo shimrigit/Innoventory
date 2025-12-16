@@ -40,8 +40,17 @@ try {
     }
 
     // Load the CL spreadsheet to update it
-    $clSpreadsheet = IOFactory::load($clFilePath);
-    $clSheet = $clSpreadsheet->getActiveSheet();
+    try {
+        $clSpreadsheet = IOFactory::load($clFilePath);
+        $clSheet = $clSpreadsheet->getActiveSheet();
+    } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+        ob_clean();
+        echo json_encode([
+            'success' => false,
+            'error' => "Unable to read CL file. The file may be open in Excel or another program.\n\nFile: " . basename($clFilePath) . "\n\nPlease close the file and try again.\n\nTechnical details: " . $e->getMessage()
+        ]);
+        exit;
+    }
 
     // Update the CL file with current data
     $rowIndex = 1;
@@ -238,6 +247,7 @@ try {
     $pcSheet->setCellValue('O1', 'Recommend');
     $pcSheet->setCellValue('P1', 'Rec Mrgn');
     $pcSheet->setCellValue('Q1', 'InvoiceIdentifier');
+    $pcSheet->setCellValue('R1', 'Change reason');
 
     // Extract InvoiceIdentifier from CL filename
     // Format: "OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyyyy_hhmmss_CL_..."
@@ -385,43 +395,55 @@ try {
 
         // STEP 5: APPLY MARGIN VALIDATION AND SET FINAL PRICE (FP)
         $finalPrice = $preliminaryPrice;
+        $changeReason = '';
+
         if ($preliminaryPrice > $highMarginBorder) {
             $finalPrice = $highMarginBorder;
+            $changeReason = 'Price decrease. To meet HMB';
         } elseif ($preliminaryPrice < $lowMarginBorder) {
             $finalPrice = $lowMarginBorder;
+            $changeReason = 'Price increase. To meet LMB';
+        } else {
+            // PP is within acceptable range
+            $changeReason = 'Cost change. Within margin threshold';
         }
 
         // STEP 6: CHECK PRICE CHANGE THRESHOLDS AND SET RECOMMENDATIONS
         $priceDifference = abs($salesPrice - $finalPrice);
         $priceDifferencePercent = ($salesPrice > 0) ? ($priceDifference / $salesPrice) * 100 : 0;
 
+        // Calculate Rec Mrgn in all cases (byproduct of FP and ActualUnitPrice)
+        $fpNoVAT = $finalPrice / 1.18;
+        $recMargin = ($fpNoVAT - $actualUnitPrice) / $fpNoVAT;
+        $pcSheet->setCellValue('P' . $row, number_format($recMargin * 100, 2) . '%');
+
         if ($priceDifferencePercent < $pcpt) {
-            // Price change is too slim
+            // Price change is too slim - determine if close to LMB or HMB
+            if ($preliminaryPrice < $lowMarginBorder) {
+                // PP was below LMB, capped at LMB, but difference too small
+                $changeReason = 'No price change. Too close to LMB';
+            } elseif ($preliminaryPrice > $highMarginBorder) {
+                // PP was above HMB, capped at HMB, but difference too small
+                $changeReason = 'No price change. Too close to HMB';
+            }
+            // else: PP was within range, change too small, keep original changeReason
+
             $pcSheet->setCellValue('O' . $row, 'NO. slim difference');
             $pcSheet->setCellValue('N' . $row, $salesPrice);
         } elseif ($salesPrice > $finalPrice) {
             // Price decrease
             $pcSheet->setCellValue('O' . $row, 'YES. decrease');
             $pcSheet->setCellValue('N' . $row, number_format($finalPrice, 2));
-
-            // Calculate Rec Mrgn = ((FP/1.18) - ActualUnitPrice) / (FP/1.18)
-            $fpNoVAT = $finalPrice / 1.18;
-            $recMargin = ($fpNoVAT - $actualUnitPrice) / $fpNoVAT;
-            $pcSheet->setCellValue('P' . $row, number_format($recMargin * 100, 2) . '%');
-
             $yesRecommendationCount++;
         } elseif ($salesPrice < $finalPrice) {
             // Price increase
             $pcSheet->setCellValue('O' . $row, 'YES. increase');
             $pcSheet->setCellValue('N' . $row, number_format($finalPrice, 2));
-
-            // Calculate Rec Mrgn = ((FP/1.18) - ActualUnitPrice) / (FP/1.18)
-            $fpNoVAT = $finalPrice / 1.18;
-            $recMargin = ($fpNoVAT - $actualUnitPrice) / $fpNoVAT;
-            $pcSheet->setCellValue('P' . $row, number_format($recMargin * 100, 2) . '%');
-
             $yesRecommendationCount++;
         }
+
+        // Set Change Reason in column R
+        $pcSheet->setCellValue('R' . $row, $changeReason);
     }
 
     // 13. Save PC file

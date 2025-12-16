@@ -63,7 +63,7 @@
             outline: none;
             border-color: #667eea;
         }
-        .pdf-list {
+        .pdf-list, .sanity-list {
             max-height: 400px;
             overflow-y: auto;
             border: 2px solid #ddd;
@@ -71,7 +71,7 @@
             padding: 10px;
             background: #fafafa;
         }
-        .pdf-item {
+        .pdf-item, .sanity-item {
             padding: 12px;
             margin-bottom: 8px;
             background: white;
@@ -80,17 +80,17 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .pdf-item:hover {
+        .pdf-item:hover, .sanity-item:hover {
             background: #f0f0f0;
             border-color: #667eea;
             transform: translateX(5px);
         }
-        .pdf-item.selected {
+        .pdf-item.selected, .sanity-item.selected {
             background: #667eea;
             color: white;
             border-color: #667eea;
         }
-        .pdf-item input[type="radio"] {
+        .pdf-item input[type="radio"], .sanity-item input[type="radio"] {
             margin-right: 10px;
         }
         button {
@@ -144,35 +144,81 @@
             display: inline-block;
             margin-bottom: 15px;
         }
+        .process-mode {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .mode-option {
+            flex: 1;
+            padding: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .mode-option:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+        .mode-option.selected {
+            border-color: #667eea;
+            background: #e7f3ff;
+        }
+        .mode-option input[type="radio"] {
+            margin-right: 10px;
+        }
+        .mode-option label {
+            cursor: pointer;
+            margin: 0;
+            font-size: 16px;
+        }
+        .mode-description {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            font-weight: normal;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🔄 Harmonized Invoice Processing Flow</h1>
 
-        <div class="step-indicator">STEP 1: Select PDF Invoice & Shop</div>
+        <div class="step-indicator">STEP 1: Select Processing Mode & Shop</div>
 
         <div class="info-box">
             <p><strong>ℹ️ About This Process:</strong></p>
             <p>This harmonized workflow guides you through the complete invoice processing pipeline:</p>
             <p><strong>PDF Selection → Crop Marking → AI OCR → Sanity Verification → Commercial Layer → Results</strong></p>
+            <p><strong>OR Resume from existing OCR Sanity file for corrections/testing</strong></p>
         </div>
 
-        <div class="warning-box">
-            <p><strong>⚠️ PDF Naming Convention Required:</strong></p>
-            <p>Invoice PDFs in <code>preProcessDir</code> must follow this naming format:</p>
-            <p><strong>"XXXX dd-mm-yy Z.pdf"</strong></p>
-            <p>Where:</p>
-            <ul style="margin: 10px 0 0 20px; padding: 0;">
-                <li><strong>XXXX</strong> = Supplier name (letters/numbers)</li>
-                <li><strong>dd-mm-yy</strong> = Process date</li>
-                <li><strong>Z</strong> = Single capital letter (A-Z) for sequence</li>
-            </ul>
-            <p style="margin-top: 10px;"><strong>Examples:</strong> "Tayari 15-11-25 A.pdf", "FarmaDeal 23-11-25 B.pdf"</p>
-        </div>
+        <form id="flowForm" method="POST" action="">
+            <!-- Processing Mode Selection -->
+            <div class="form-group">
+                <label>🔧 Select Processing Mode:</label>
+                <div class="process-mode">
+                    <div class="mode-option selected" onclick="selectMode('new')">
+                        <input type="radio" name="processMode" value="new" id="mode_new" checked required>
+                        <label for="mode_new">📄 New Invoice Processing</label>
+                        <div class="mode-description">Start from PDF invoice file (full pipeline)</div>
+                    </div>
+                    <div class="mode-option" onclick="selectMode('existing')">
+                        <input type="radio" name="processMode" value="existing" id="mode_existing" required>
+                        <label for="mode_existing">📂 Resume from OCR Sanity File</label>
+                        <div class="mode-description">Continue from existing sanity file (testing/corrections)</div>
+                    </div>
+                </div>
+            </div>
 
-        <form id="flowForm" method="POST" action="step2_crop_launcher.php">
-            <!-- Shop Selection -->
+            <!-- Shop Selection (Common for both modes) -->
             <div class="form-group">
                 <label for="shopName">🏪 Select Shop:</label>
                 <select name="shopName" id="shopName" required class="shop-select">
@@ -189,41 +235,114 @@
                 </select>
             </div>
 
-            <!-- PDF Invoice Selection -->
-            <div class="form-group">
-                <label>📄 Select Invoice PDF from preProcessDir:</label>
-                <div class="pdf-list" id="pdfList">
-                    <?php
-                    $preProcessDir = realpath(__DIR__ . '/../preProcessDir');
-                    $pdfFiles = glob($preProcessDir . '/*.pdf');
+            <!-- NEW INVOICE MODE CONTENT -->
+            <div id="newInvoiceContent" class="content-section active">
+                <div class="warning-box">
+                    <p><strong>⚠️ PDF Naming Convention Required:</strong></p>
+                    <p>Invoice PDFs in <code>preProcessDir</code> must follow this naming format:</p>
+                    <p><strong>"XXXX dd-mm-yy Z.pdf"</strong></p>
+                    <p>Where:</p>
+                    <ul style="margin: 10px 0 0 20px; padding: 0;">
+                        <li><strong>XXXX</strong> = Supplier name (letters/numbers)</li>
+                        <li><strong>dd-mm-yy</strong> = Process date</li>
+                        <li><strong>Z</strong> = Single capital letter (A-Z) for sequence</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Examples:</strong> "Tayari 15-11-25 A.pdf", "FarmaDeal 23-11-25 B.pdf"</p>
+                </div>
 
-                    if (empty($pdfFiles)) {
-                        echo '<p style="padding: 20px; text-align: center; color: #999;">No PDF files found in preProcessDir</p>';
-                    } else {
-                        foreach ($pdfFiles as $pdfPath) {
-                            $pdfName = basename($pdfPath);
+                <!-- PDF Invoice Selection -->
+                <div class="form-group">
+                    <label>📄 Select Invoice PDF from preProcessDir:</label>
+                    <div class="pdf-list" id="pdfList">
+                        <?php
+                        $preProcessDir = realpath(__DIR__ . '/../preProcessDir');
+                        $pdfFiles = glob($preProcessDir . '/*.pdf');
 
-                            // Parse filename to check format
-                            // Expected format: "XXXX dd-mm-yy Z.pdf"
-                            $isValidFormat = preg_match('/^(.+?)\s+(\d{2}-\d{2}-\d{2})\s+([A-Z])\.pdf$/i', $pdfName, $matches);
+                        if (empty($pdfFiles)) {
+                            echo '<p style="padding: 20px; text-align: center; color: #999;">No PDF files found in preProcessDir</p>';
+                        } else {
+                            foreach ($pdfFiles as $pdfPath) {
+                                $pdfName = basename($pdfPath);
 
-                            $statusIcon = $isValidFormat ? '✅' : '⚠️';
-                            $statusColor = $isValidFormat ? '#28a745' : '#ff9800';
+                                // Parse filename to check format
+                                // Expected format: "XXXX dd-mm-yy Z.pdf"
+                                $isValidFormat = preg_match('/^(.+?)\s+(\d{2}-\d{2}-\d{2})\s+([A-Z])\.pdf$/i', $pdfName, $matches);
 
-                            echo "<div class='pdf-item' onclick='selectPdf(this)'>";
-                            echo "<input type='radio' name='pdfFile' value='{$pdfName}' id='pdf_{$pdfName}' required>";
-                            echo "<label for='pdf_{$pdfName}' style='display: inline; font-weight: normal; cursor: pointer; width: 100%;'>";
-                            echo "<span style='color: {$statusColor}; margin-right: 5px;'>{$statusIcon}</span>";
-                            echo htmlspecialchars($pdfName);
-                            echo "</label>";
-                            echo "</div>";
+                                $statusIcon = $isValidFormat ? '✅' : '⚠️';
+                                $statusColor = $isValidFormat ? '#28a745' : '#ff9800';
+
+                                echo "<div class='pdf-item' onclick='selectPdf(this)'>";
+                                echo "<input type='radio' name='pdfFile' value='{$pdfName}' id='pdf_{$pdfName}'>";
+                                echo "<label for='pdf_{$pdfName}' style='display: inline; font-weight: normal; cursor: pointer; width: 100%;'>";
+                                echo "<span style='color: {$statusColor}; margin-right: 5px;'>{$statusIcon}</span>";
+                                echo htmlspecialchars($pdfName);
+                                echo "</label>";
+                                echo "</div>";
+                            }
                         }
-                    }
-                    ?>
+                        ?>
+                    </div>
                 </div>
             </div>
 
-            <button type="submit" id="startBtn">🚀 Start Harmonized Flow</button>
+            <!-- EXISTING SANITY FILE MODE CONTENT -->
+            <div id="existingSanityContent" class="content-section">
+                <div class="info-box">
+                    <p><strong>ℹ️ OCR Sanity File Format:</strong></p>
+                    <p><strong>"OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyyyy_hhmmss.xlsx"</strong></p>
+                    <p>Where:</p>
+                    <ul style="margin: 10px 0 0 20px; padding: 0;">
+                        <li><strong>XXXX</strong> = Supplier name (any letters/numbers)</li>
+                        <li><strong>dd-mm-yyyy</strong> = Process date</li>
+                        <li><strong>Z</strong> = Invoice identifier (A-Z)</li>
+                        <li><strong>ddmmyyyy_hhmmss</strong> = Timestamp (8 digits date + 6 digits time)</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Example:</strong> "OCRsanity_Tayari_15-11-2025_A_15112025_143022.xlsx"</p>
+                </div>
+
+                <!-- Sanity File Selection -->
+                <div class="form-group">
+                    <label>📂 Select OCR Sanity File:</label>
+                    <div class="sanity-list" id="sanityList">
+                        <?php
+                        $sanityDir = realpath(__DIR__ . '/../OCRsanity/sanity_files');
+                        $sanityFiles = glob($sanityDir . '/OCRsanity_*.xlsx');
+
+                        if (empty($sanityFiles)) {
+                            echo '<p style="padding: 20px; text-align: center; color: #999;">No OCR Sanity files found in sanity_files directory</p>';
+                        } else {
+                            // Sort by modification time (newest first)
+                            usort($sanityFiles, function($a, $b) {
+                                return filemtime($b) - filemtime($a);
+                            });
+
+                            foreach ($sanityFiles as $sanityPath) {
+                                $sanityName = basename($sanityPath);
+                                $modTime = date('Y-m-d H:i:s', filemtime($sanityPath));
+
+                                // Parse filename to check format
+                                // Expected format: "OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyyyy_hhmmss.xlsx"
+                                $isValidFormat = preg_match('/^OCRsanity_(.+?)_(\d{2}-\d{2}-\d{4})_([A-Z])_(\d{8})_(\d{6})\.xlsx$/i', $sanityName, $matches);
+
+                                $statusIcon = $isValidFormat ? '✅' : '⚠️';
+                                $statusColor = $isValidFormat ? '#28a745' : '#ff9800';
+
+                                echo "<div class='sanity-item' onclick='selectSanity(this)'>";
+                                echo "<input type='radio' name='sanityFile' value='{$sanityName}' id='sanity_{$sanityName}'>";
+                                echo "<label for='sanity_{$sanityName}' style='display: inline; font-weight: normal; cursor: pointer; width: 100%;'>";
+                                echo "<span style='color: {$statusColor}; margin-right: 5px;'>{$statusIcon}</span>";
+                                echo htmlspecialchars($sanityName);
+                                echo "<br><span style='font-size: 12px; color: #888; margin-left: 25px;'>Modified: {$modTime}</span>";
+                                echo "</label>";
+                                echo "</div>";
+                            }
+                        }
+                        ?>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" id="startBtn">🚀 Start Process</button>
         </form>
     </div>
 
@@ -242,6 +361,36 @@
             });
         });
 
+        // Function to select processing mode
+        function selectMode(mode) {
+            // Update radio buttons
+            document.getElementById('mode_new').checked = (mode === 'new');
+            document.getElementById('mode_existing').checked = (mode === 'existing');
+
+            // Update visual selection
+            document.querySelectorAll('.mode-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            // Show/hide appropriate content
+            if (mode === 'new') {
+                document.getElementById('newInvoiceContent').classList.add('active');
+                document.getElementById('existingSanityContent').classList.remove('active');
+
+                // Update form action
+                document.getElementById('flowForm').action = 'step2_crop_launcher.php';
+                document.getElementById('startBtn').textContent = '🚀 Start Harmonized Flow';
+            } else {
+                document.getElementById('newInvoiceContent').classList.remove('active');
+                document.getElementById('existingSanityContent').classList.add('active');
+
+                // Update form action
+                document.getElementById('flowForm').action = 'resume_from_sanity.php';
+                document.getElementById('startBtn').textContent = '🚀 Resume from Sanity File';
+            }
+        }
+
         // Function to select PDF item
         function selectPdf(element) {
             // Remove selected class from all items
@@ -257,10 +406,25 @@
             radio.checked = true;
         }
 
+        // Function to select Sanity file item
+        function selectSanity(element) {
+            // Remove selected class from all items
+            document.querySelectorAll('.sanity-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // Add selected class to clicked item
+            element.classList.add('selected');
+
+            // Check the radio button
+            const radio = element.querySelector('input[type="radio"]');
+            radio.checked = true;
+        }
+
         // Form validation
         document.getElementById('flowForm').addEventListener('submit', function(e) {
             const shopName = document.getElementById('shopName').value;
-            const pdfFile = document.querySelector('input[name="pdfFile"]:checked');
+            const processMode = document.querySelector('input[name="processMode"]:checked').value;
 
             if (!shopName) {
                 alert('⚠️ Please select a shop');
@@ -268,21 +432,35 @@
                 return false;
             }
 
-            if (!pdfFile) {
-                alert('⚠️ Please select an invoice PDF');
-                e.preventDefault();
-                return false;
-            }
+            if (processMode === 'new') {
+                // Validate PDF selection
+                const pdfFile = document.querySelector('input[name="pdfFile"]:checked');
 
-            // Check if PDF has valid naming format
-            const pdfName = pdfFile.value;
-            const isValidFormat = /^(.+?)\s+(\d{2}-\d{2}-\d{2})\s+([A-Z])\.pdf$/i.test(pdfName);
+                if (!pdfFile) {
+                    alert('⚠️ Please select an invoice PDF');
+                    e.preventDefault();
+                    return false;
+                }
 
-            if (!isValidFormat) {
-                const proceed = confirm('⚠️ Warning: The selected PDF does not follow the required naming convention.\n\n' +
-                                       'Expected format: "XXXX dd-mm-yy Z.pdf"\n\n' +
-                                       'Do you want to proceed anyway?');
-                if (!proceed) {
+                // Check if PDF has valid naming format
+                const pdfName = pdfFile.value;
+                const isValidFormat = /^(.+?)\s+(\d{2}-\d{2}-\d{2})\s+([A-Z])\.pdf$/i.test(pdfName);
+
+                if (!isValidFormat) {
+                    const proceed = confirm('⚠️ Warning: The selected PDF does not follow the required naming convention.\n\n' +
+                                           'Expected format: "XXXX dd-mm-yy Z.pdf"\n\n' +
+                                           'Do you want to proceed anyway?');
+                    if (!proceed) {
+                        e.preventDefault();
+                        return false;
+                    }
+                }
+            } else {
+                // Validate Sanity file selection
+                const sanityFile = document.querySelector('input[name="sanityFile"]:checked');
+
+                if (!sanityFile) {
+                    alert('⚠️ Please select an OCR Sanity file');
                     e.preventDefault();
                     return false;
                 }

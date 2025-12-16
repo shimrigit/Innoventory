@@ -7,6 +7,10 @@
  * 2. Gets the PDF from session
  * 3. Calls process_ocrsanity.php to create OCRsanity Excel file
  * 4. Redirects to verify_ocrsanity.php
+ *
+ * OR (if resumedFromFile flag is set):
+ * 1. Uses existing sanity file from session
+ * 2. Redirects directly to verify_ocrsanity.php
  */
 
 session_start();
@@ -17,6 +21,13 @@ if (!isset($_SESSION['harmonizedFlow'])) {
 }
 
 $flowData = $_SESSION['harmonizedFlow'];
+
+// Check if we're resuming from an existing sanity file
+if (isset($flowData['resumedFromFile']) && $flowData['resumedFromFile'] === true) {
+    // We're resuming from an existing sanity file - redirect to PDF selection screen
+    header('Location: select_pdf_for_sanity.php');
+    exit;
+}
 
 // Get the latest OCRjson file from ocr_extracted directory
 $ocrExtractedDir = __DIR__ . '/../AIocr/ocr_extracted/';

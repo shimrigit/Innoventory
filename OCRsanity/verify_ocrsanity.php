@@ -19,8 +19,10 @@ if (!file_exists($excelPath)) {
     die('Error: Excel file not found');
 }
 
-if (!file_exists($pdfPath)) {
-    die('Error: PDF file not found');
+// Allow PDF to be missing when resuming from existing sanity file
+$pdfAvailable = file_exists($pdfPath);
+if (!$pdfAvailable && $pdfFile !== 'NOT_FOUND.pdf') {
+    die('Error: PDF file not found: ' . htmlspecialchars($pdfFile));
 }
 
 // Load Excel data using PhpSpreadsheet
@@ -487,14 +489,21 @@ $cellStylesData = json_encode($cellStyles);
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
 
-        // Load PDF
+        // Load PDF (if available)
+        <?php if ($pdfAvailable): ?>
         const pdfPath = 'sanity_files/<?php echo htmlspecialchars($pdfFile); ?>';
 
         pdfjsLib.getDocument(pdfPath).promise.then(function(pdfDoc_) {
             pdfDoc = pdfDoc_;
             document.getElementById('page-info').textContent = `Total Pages: ${pdfDoc.numPages}`;
             renderAllPages();
+        }).catch(function(error) {
+            console.error('Error loading PDF:', error);
+            document.getElementById('page-info').textContent = 'PDF not available';
         });
+        <?php else: ?>
+        document.getElementById('page-info').textContent = 'PDF not available - Sanity data only';
+        <?php endif; ?>
 
         async function renderAllPages() {
             if (!pdfDoc) return;

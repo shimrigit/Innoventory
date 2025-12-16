@@ -81,9 +81,9 @@ usort($matchingPriceListFiles, function($a, $b) {
 $latestPriceListPath = $matchingPriceListFiles[0];
 $latestPriceListFile = basename($latestPriceListPath);
 
-// 4. Get the invoice PDF from session
-$invoicePdfPath = $flowData['pdfPath'];
-$invoicePdfFile = $flowData['pdfFile'];
+// 4. Get the invoice PDF from session (may not exist if user skipped PDF)
+$invoicePdfPath = $flowData['pdfPath'] ?? null;
+$invoicePdfFile = $flowData['pdfFile'] ?? 'NOT_FOUND.pdf';
 
 // Verify all files exist
 if (!file_exists($latestOcrSanityPath)) {
@@ -94,7 +94,8 @@ if (!file_exists($latestPriceListPath)) {
     die('Error: Price list file not found: ' . htmlspecialchars($latestPriceListPath));
 }
 
-if (!file_exists($invoicePdfPath)) {
+// PDF is optional - only verify if path is provided
+if ($invoicePdfPath && !file_exists($invoicePdfPath)) {
     die('Error: Invoice PDF file not found: ' . htmlspecialchars($invoicePdfPath));
 }
 
@@ -115,13 +116,25 @@ $_FILES['priceList'] = [
     'type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ];
 
-$_FILES['invoice'] = [
-    'name' => $invoicePdfFile,
-    'tmp_name' => $invoicePdfPath,
-    'error' => UPLOAD_ERR_OK,
-    'size' => filesize($invoicePdfPath),
-    'type' => 'application/pdf'
-];
+// Only set invoice file if PDF exists
+if ($invoicePdfPath && file_exists($invoicePdfPath)) {
+    $_FILES['invoice'] = [
+        'name' => $invoicePdfFile,
+        'tmp_name' => $invoicePdfPath,
+        'error' => UPLOAD_ERR_OK,
+        'size' => filesize($invoicePdfPath),
+        'type' => 'application/pdf'
+    ];
+} else {
+    // No PDF available - set empty upload
+    $_FILES['invoice'] = [
+        'name' => '',
+        'tmp_name' => '',
+        'error' => UPLOAD_ERR_NO_FILE,
+        'size' => 0,
+        'type' => ''
+    ];
+}
 
 // Set POST parameters
 $_POST['shopName'] = $shopName;

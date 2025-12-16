@@ -90,8 +90,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Load OCR Sanity Excel file
-    $spreadsheet = IOFactory::load($ocrSanityPath);
-    $sheet = $spreadsheet->getActiveSheet();
+    try {
+        $spreadsheet = IOFactory::load($ocrSanityPath);
+        $sheet = $spreadsheet->getActiveSheet();
+    } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+        die("❌ <strong>Error: Unable to read OCR Sanity file</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($ocrSanityPath)) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is corrupted or not a valid Excel file<br>" .
+            "• The file is locked by another process<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     // Generate CL filename with suffix: _CL_ddmmyyyy_hhmmss
     $timestamp = date('dmY_His'); // ddmmyyyy_hhmmss
@@ -109,8 +120,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $sheet->getStyle('L1:P1')->getFont()->setBold(true);
 
     // Load Price List Excel file
-    $priceListSpreadsheet = IOFactory::load($priceListPath);
-    $priceListSheet = $priceListSpreadsheet->getActiveSheet();
+    try {
+        $priceListSpreadsheet = IOFactory::load($priceListPath);
+        $priceListSheet = $priceListSpreadsheet->getActiveSheet();
+    } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+        die("❌ <strong>Error: Unable to read Price List file</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceListPath)) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is corrupted or not a valid Excel file<br>" .
+            "• The file is locked by another process<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     // Get PriceListColumns mapping from shop config
     $priceListColumns = $shopConfig['PriceListColumns'];
