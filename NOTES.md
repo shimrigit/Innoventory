@@ -1,7 +1,7 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** October 28, 2025
+**Last Updated:** December 16, 2025
 **Status:** Phase 1 Complete - Ready for Commercial Layer
 
 ---
@@ -2708,8 +2708,220 @@ All completion screens now have a single "Continue to next invoice" button that 
 - Results screen: `cleanup_results.php` shows moved files + staying files
 - 2-second countdown, then redirects to `start_harmonized_flow.php`
 
+### Resume from OCR Sanity File Feature
+
+**Added:** December 16, 2025
+**Status:** ✅ Complete - Resume Workflow Operational
+
+This feature allows users to restart the harmonized flow from an existing OCR Sanity file, enabling testing, corrections, and data validation outside of Retailomatics.
+
+**Use Cases:**
+- Testing commercial layer with existing sanity files
+- Correcting sanity data externally and re-processing
+- Skipping OCR stage when sanity file already exists
+- Debugging commercial layer without re-running OCR
+
+**Workflow:**
+
+1. **Selection Screen** (`start_harmonized_flow.php`)
+   - Radio button: "New Invoice" or "Resume from Existing Sanity File"
+   - When "Resume" selected:
+     - Shop selection dropdown (required)
+     - Sanity file list from `OCRsanity/sanity_files/`
+     - Files sorted by modification time (newest first)
+     - Format validation with ✅/⚠️ indicators
+
+2. **File Format Validation**
+   - Expected: `OCRsanity_XXXX_dd-mm-yyyy_Z_ddmmyyyy_hhmmss.xlsx`
+   - Where:
+     - `XXXX` = Supplier name (any letters/numbers)
+     - `dd-mm-yyyy` = Process date
+     - `Z` = Invoice identifier (A-Z)
+     - `ddmmyyyy_hhmmss` = Timestamp (8 digits date + 6 digits time)
+   - Example: `OCRsanity_Tayari_15-11-2025_A_15112025_143022.xlsx`
+
+3. **PDF Selection** (`select_pdf_for_sanity.php`)
+   - Directory browser starting at `uploads/`
+   - Navigate parent/subdirectories
+   - Recursive PDF scan (max depth 2)
+   - Displays: file size, modification date, directory
+   - Options: "Continue with Selected PDF" or "Skip PDF"
+   - No naming convention enforced - any PDF file allowed
+
+4. **Session Creation** (`resume_from_sanity.php`)
+   - Parses sanity filename for metadata extraction
+   - Creates `$_SESSION['harmonizedFlow']` with:
+     - `shopName`, `supplierName`, `processDate`, `invoiceId`
+     - `sanityFileName`, `sanityFilePath`
+     - `pdfFile`, `pdfPath` (if selected)
+     - `resumedFromFile: true` (flag for resume detection)
+     - `currentStep: 'sanity_verify'`
+
+5. **Flow Continuation**
+   - Redirects to `step4_verify_ocr.php`
+   - Detects `resumedFromFile` flag → skips OCR creation
+   - Loads existing sanity file into verification screen
+   - Continues to commercial layer after verification
+
+**Files Involved:**
+- `harmonizedFlow/start_harmonized_flow.php` - Selection interface
+- `harmonizedFlow/resume_from_sanity.php` - Session handler
+- `harmonizedFlow/select_pdf_for_sanity.php` - PDF browser
+- `harmonizedFlow/process_pdf_selection.php` - PDF selection handler
+- `harmonizedFlow/step4_verify_ocr.php` - Resume detection logic
+
+**Session Key Standardization:**
+- All harmonized flow files now use `$_SESSION['harmonizedFlow']` (capital F)
+- Previously had inconsistency between `harmonized_flow` and `harmonizedFlow`
+- Resume flow now matches normal flow session structure
+
 ---
 
-**Last Updated:** November 26, 2025
-**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete
+### Recent Bug Fixes & Improvements
+
+**Date:** December 16, 2025
+
+#### 1. Session Key Inconsistency Fix
+
+**Problem:** Resume flow used `$_SESSION['harmonized_flow']` (lowercase) while normal flow used `$_SESSION['harmonizedFlow']` (capital F), causing "Harmonized flow session not found" errors.
+
+**Solution:** Standardized all session keys to `$_SESSION['harmonizedFlow']` across:
+- `resume_from_sanity.php`
+- `step4_verify_ocr.php`
+- `select_pdf_for_sanity.php`
+- `process_pdf_selection.php`
+- `step5_commercial_layer.php`
+
+**Impact:** Resume workflow now functions correctly end-to-end.
+
+---
+
+#### 2. File Lock Error Handling
+
+**Problem:** When Excel files were open in Excel or another program, PhpSpreadsheet threw cryptic `Unable to identify a reader for this file` errors that didn't indicate the actual problem.
+
+**Root Cause:** Windows file locking prevents reading files that are currently open in Excel or other applications.
+
+**Solution:** Added try-catch blocks with user-friendly error messages for all `IOFactory::load()` calls in recently created files:
+
+**Files Updated:**
+- `commercialLayer/process_commercial_layer.php`
+  - OCR Sanity file loading
+  - Price List file loading
+- `commercialLayer/generate_pc_np_files.php`
+  - CL file loading
+- `BOpackR/process_bopack_r.php`
+  - CL file loading (Invoice List)
+  - CL file loading (Invoice to Upload)
+  - PC file loading
+  - NP file loading
+
+**Error Message Format:**
+```
+❌ Error: Unable to read [File Type] file
+
+📄 File: filename.xlsx
+
+⚠️ Possible causes:
+• The file is currently open in Excel or another program
+• The file is corrupted or not a valid Excel file
+• The file is locked by another process
+
+💡 Solution: Please close the file in Excel and try again.
+
+🔧 Technical details: [Original PhpSpreadsheet error message]
+```
+
+**Impact:** Users now get clear, actionable error messages when files are locked, instead of confusing technical errors.
+
+---
+
+#### 3. Optional PDF Handling in Resume Flow
+
+**Problem:** When resuming from sanity file and user skips PDF selection, `step5_commercial_layer.php` expected `pdfPath` and `pdfFile` to exist in session, causing errors.
+
+**Solution:** Made PDF optional in `step5_commercial_layer.php`:
+- Used null coalescing operator: `$invoicePdfPath = $flowData['pdfPath'] ?? null`
+- Conditional file verification: only check if `$invoicePdfPath` is set
+- Conditional `$_FILES['invoice']` setup:
+  - If PDF exists: set `UPLOAD_ERR_OK` with valid file data
+  - If no PDF: set `UPLOAD_ERR_NO_FILE` with empty data
+
+**Impact:** Resume flow works correctly whether user selects a PDF or skips it.
+
+---
+
+#### 4. Sanity File Timestamp Regex Fix
+
+**Problem:** Warning icons appeared for all sanity files in resume selection screen, even though filenames matched the documented format.
+
+**Root Cause:** Regex pattern expected 6 digits for timestamp date (`\d{6}`) but actual format uses 8 digits (`\d{8}`).
+
+**Incorrect Pattern:**
+```php
+preg_match('/^OCRsanity_(.+?)_(\d{2}-\d{2}-\d{4})_([A-Z])_(\d{6})_(\d{6})\.xlsx$/i', ...)
+```
+
+**Correct Pattern:**
+```php
+preg_match('/^OCRsanity_(.+?)_(\d{2}-\d{2}-\d{4})_([A-Z])_(\d{8})_(\d{6})\.xlsx$/i', ...)
+```
+
+**Files Fixed:**
+- `harmonizedFlow/start_harmonized_flow.php`
+- `harmonizedFlow/resume_from_sanity.php`
+
+**Impact:** Sanity files now display ✅ status when format is valid.
+
+---
+
+#### 5. BOpack Empty Row Detection Fix
+
+**Problem:** `new_products_list` generation included rows with only zeros (inconsistent empty row detection).
+
+**Root Cause:** Empty row detection checked columns A-D, but actual NP data is in columns D, F, G, K. Also, columns E and G (supplier/department codes) with `origin=0` were being skipped instead of populated from source columns N and O.
+
+**Solution in `process_bopack_r.php`:**
+- Changed empty row detection to check key source columns: D (Item), F (Name), G (Cost), K (Sale Price)
+- Added special handling for `origin=0` columns:
+  - Column E (SupplierCode): populate from NP column N
+  - Column G (DepartmentCode): populate from NP column O
+
+**Impact:** New products list now generates correctly without empty zero rows, and supplier/department codes are properly populated.
+
+---
+
+#### 6. Price Change "Change Reason" Column
+
+**Added:** Column R "Change reason" to Price Change files
+
+**Values:**
+1. `"Price increase. To meet LMB"` - Preliminary Price below Low Margin Border
+2. `"Price decrease. To meet HMB"` - Preliminary Price above High Margin Border
+3. `"Cost change. Within margin threshold"` - PP within acceptable range
+4. `"No price change. Too close to LMB"` - Price change < PCPT, capped at LMB
+5. `"No price change. Too close to HMB"` - Price change < PCPT, capped at HMB
+
+**Terminology Fix:** Changed "Cost increase/decrease" to "Price increase/decrease" (customer-facing pricing, not supplier cost).
+
+**Rec Mrgn Display:** Now calculated and displayed in ALL cases (including "NO. slim difference" recommendations).
+
+**Files Updated:**
+- `commercialLayer/generate_pc_np_files.php`
+
+---
+
+#### 7. New Products List Column Fixes
+
+**Column J Header:** Changed from "שם מחלקה" (Department Name) to "שם ספק" (Supplier Name)
+
+**Column K Added:** "שם מחלקה" (Department Name) - maps from NP column I
+
+**Files Updated:**
+- `configDir/shops_V2.json`
+
+---
+
+**Last Updated:** December 16, 2025
+**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard
