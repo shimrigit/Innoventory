@@ -2922,6 +2922,49 @@ preg_match('/^OCRsanity_(.+?)_(\d{2}-\d{2}-\d{4})_([A-Z])_(\d{8})_(\d{6})\.xlsx$
 
 ---
 
-**Last Updated:** December 16, 2025
+---
+
+#### 8. Commercial Layer & BO Pack Bug Fixes (December 18, 2025)
+
+**File Locking & Error Handling:**
+- Added try-catch error handling for Excel file save operations (BOpackR)
+- Added safe file deletion with error handling before overwriting files
+- User-friendly error messages when files are open or locked
+
+**Missing Cost Price Handling:**
+- "No Cost in PL" rows now properly included in PC files with orange highlighting
+- Skips margin calculations and marks as "NO - Missing Cost"
+- Department margin recommendations now apply before missing cost checks
+
+**Visual Highlighting Improvements:**
+- Thick borders on barcode cells with "Not Found" status for easy identification
+- Border highlights now persist and refresh correctly after data retrieval
+- Created helper endpoint `get_cell_styles.php` for AJAX style reloading
+
+**UX Enhancements:**
+- Converted CHP search forms to AJAX (no page reload)
+- Converted recalculate margins to AJAX (preserves page state)
+- LineTotal Diff Check feature added to OCR Sanity verification (color-coded discrepancy detection)
+
+**Data Integrity:**
+- DepartmentCode (column O) auto-fills in New Products based on DepartmentName
+- Fixed CountryMZ shop column mappings in shops_V2.json
+- Fixed barcode border clearing/reapplication logic in retrieve flow
+
+**Files Updated:**
+- `BOpackR/process_bopack_r.php`
+- `OCRsanity/verify_ocrsanity.php`
+- `commercialLayer/generate_pc_np_files.php`
+- `commercialLayer/process_commercial_layer.php`
+- `commercialLayer/retrieve_commercial_layer.php`
+- `commercialLayer/verify_commercial_layer.php`
+- `commercialLayer/verify_new_products.php`
+- `commercialLayer/verify_price_changes.php`
+- `commercialLayer/get_cell_styles.php` (NEW)
+- `configDir/shops_V2.json`
+
+---
+
+**Last Updated:** December 18, 2025
 **Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard

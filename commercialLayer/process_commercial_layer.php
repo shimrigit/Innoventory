@@ -7,6 +7,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -245,7 +246,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $actualUnitPrice = $sheet->getCell("K{$n}")->getValue();
             $originalUnitPrice = $costPrice;
 
-            if (is_numeric($actualUnitPrice) && is_numeric($originalUnitPrice) && $originalUnitPrice != 0) {
+            // Check if cost price is missing or empty
+            if (empty($originalUnitPrice) || !is_numeric($originalUnitPrice) || $originalUnitPrice == 0) {
+                // Barcode found but no cost in price list
+                $sheet->setCellValue("P{$n}", "No Cost in PL");
+                $sheet->getStyle("P{$n}")->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFFFA500'); // Orange background
+            } elseif (is_numeric($actualUnitPrice) && is_numeric($originalUnitPrice)) {
                 $priceDiff = (((float)$actualUnitPrice / (float)$originalUnitPrice) - 1) * 100;
                 $priceDiff = round($priceDiff, 2);
 
@@ -268,6 +276,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // No match found - write "Not Found" in black text (default)
             $sheet->setCellValue("P{$n}", "Not Found");
+
+            // Add bold borders to the barcode cell (column D) to highlight for manual correction
+            $sheet->getCell("D{$n}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("D{$n}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("D{$n}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
+            $sheet->getCell("D{$n}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
         }
     }
 

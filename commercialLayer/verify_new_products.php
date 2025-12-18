@@ -91,6 +91,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_np_data'])) {
     $spreadsheet = IOFactory::load($npFilePath);
     $sheet = $spreadsheet->getActiveSheet();
 
+    // Load department codes for mapping DepartmentName -> DepartmentNumber
+    $shopDepartmentsPath = __DIR__ . '/../configDir/' . $shopName . '_Departments.json';
+    $departmentMap = [];
+
+    if (file_exists($shopDepartmentsPath)) {
+        $shopDepartments = json_decode(file_get_contents($shopDepartmentsPath), true);
+        if ($shopDepartments) {
+            foreach ($shopDepartments as $dept) {
+                $departmentMap[$dept['DepartmentName']] = $dept['DepartmentNumber'];
+            }
+        }
+    }
+
     // Update each row
     foreach ($itemERPNames as $rowIndex => $value) {
         $rowNum = (int)$rowIndex;
@@ -105,7 +118,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_np_data'])) {
         $sheet->setCellValue('F' . $rowNum, $value ?? '');
 
         // Update DepartmentName (column I)
-        $sheet->setCellValue('I' . $rowNum, $departmentNames[$rowIndex] ?? '');
+        $departmentName = $departmentNames[$rowIndex] ?? '';
+        $sheet->setCellValue('I' . $rowNum, $departmentName);
+
+        // Update DepartmentCode (column O) based on DepartmentName
+        $departmentCode = isset($departmentMap[$departmentName]) ? $departmentMap[$departmentName] : '';
+        $sheet->setCellValue('O' . $rowNum, $departmentCode);
 
         // Update SalePrice (column K)
         $sheet->setCellValue('K' . $rowNum, $salePrices[$rowIndex] ?? '');
@@ -687,7 +705,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                 🔎 חיפוש מחירים בשוק
             </div>
             <div class="panel-content">
-                <form method="POST" class="chp-form">
+                <form method="POST" class="chp-form" id="chpSearchForm">
                     <div class="form-group">
                         <label for="city">עיר:</label>
                         <input
@@ -714,6 +732,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                         🔎 חפש במאגר המחירים
                     </button>
                 </form>
+
+                <div id="chpResultsContainer">
 
                 <?php if ($chpError): ?>
                     <div class="error-message">
@@ -790,6 +810,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                         </table>
                     </div>
                 <?php endif; ?>
+                </div>
             </div>
         </div>
 
@@ -961,10 +982,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                 loadingOverlay.classList.remove('show');
 
                 if (data.success) {
-                    // Reload the page to show updated margins
-                    window.location.reload();
+                    // Reload only the NP table without refreshing the whole page
+                    return fetch(window.location.href);
                 } else {
                     alert('❌ Error: ' + data.error);
+                    throw new Error(data.error);
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Parse the response to extract the updated table
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newTable = doc.querySelector('#npForm table');
+                const oldTable = document.querySelector('#npForm table');
+
+                if (newTable && oldTable) {
+                    // Replace the table with updated data
+                    oldTable.innerHTML = newTable.innerHTML;
+
+                    // Re-initialize Select2 on the new department dropdowns
+                    $('.department-select').select2({
+                        placeholder: 'Select department',
+                        allowClear: true,
+                        width: '100%',
+                        dir: 'rtl'
+                    });
+
+                    alert('✅ Margins calculated successfully!');
+                } else {
+                    alert('⚠️ Error updating table');
                 }
             })
             .catch(error => {
@@ -1018,6 +1065,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                 alert('שגיאה בהעתקה: ' + err);
             });
         }
+
+        // Handle CHP search form submission via AJAX
+        document.getElementById('chpSearchForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent page reload
+
+            const formData = new FormData(this);
+            formData.append('chp_search', '1');
+
+            // Show loading indicator
+            const resultsContainer = document.getElementById('chpResultsContainer');
+            resultsContainer.innerHTML = '<div style="text-align: center; padding: 20px;">🔄 מחפש...</div>';
+
+            // Send AJAX request
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Parse the response HTML to extract just the results section
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newResults = doc.getElementById('chpResultsContainer');
+
+                if (newResults) {
+                    resultsContainer.innerHTML = newResults.innerHTML;
+                } else {
+                    resultsContainer.innerHTML = '<div class="error-message">⚠️ שגיאה בטעינת התוצאות</div>';
+                }
+            })
+            .catch(error => {
+                resultsContainer.innerHTML = '<div class="error-message">⚠️ שגיאה בחיפוש: ' + error.message + '</div>';
+            });
+        });
     </script>
 </body>
 </html>

@@ -39,7 +39,7 @@ for ($row = 1; $row <= $highestRow; $row++) {
     $excelData[] = $rowData;
 }
 
-// Collect cell styles (background colors from conditional formatting)
+// Collect cell styles (background colors and borders from conditional formatting)
 $cellStyles = [];
 $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
@@ -64,6 +64,16 @@ for ($row = 1; $row <= $highestRow; $row++) {
                 $bgColor = '#' . $bgColor;
             }
             $styleData['backgroundColor'] = $bgColor;
+            $hasStyle = true;
+        }
+
+        // Get border styles - check if any border is THICK (bold)
+        $borders = $cell->getStyle()->getBorders();
+        if ($borders->getTop()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
+            $borders->getBottom()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
+            $borders->getLeft()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
+            $borders->getRight()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK) {
+            $styleData['boldBorder'] = true;
             $hasStyle = true;
         }
 
@@ -361,15 +371,27 @@ for ($row = 1; $row <= $highestRow; $row++) {
             cells: function(row, col) {
                 const cellProperties = {};
                 const key = `${row}-${col}`;
-                if (styleMap.has(key)) {
-                    const style = styleMap.get(key);
-                    if (style.backgroundColor) {
-                        cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
-                            Handsontable.renderers.TextRenderer.apply(this, arguments);
-                            td.style.background = style.backgroundColor;
-                        };
+                const style = styleMap.get(key);
+
+                // Always define a renderer to handle both adding AND removing styles
+                cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.TextRenderer.apply(this, arguments);
+
+                    // Apply background color if present, otherwise clear it
+                    if (style && style.backgroundColor) {
+                        td.style.background = style.backgroundColor;
+                    } else {
+                        td.style.background = '';
                     }
-                }
+
+                    // Apply bold border if present, otherwise clear it
+                    if (style && style.boldBorder) {
+                        td.style.border = '3px solid #000';
+                    } else {
+                        td.style.border = '';
+                    }
+                };
+
                 return cellProperties;
             }
         });
@@ -459,37 +481,69 @@ for ($row = 1; $row <= $highestRow; $row++) {
                 if (data.success) {
                     // Update cells with retrieved data
                     if (data.updatedCells && data.updatedCells.length > 0) {
-                        data.updatedCells.forEach(cell => {
-                            // Format value for display
-                            let displayValue = cell.value;
+                        // First, reload the Excel file to get updated border styles
+                        fetch('get_cell_styles.php?filename=' + encodeURIComponent(clFileName))
+                            .then(response => response.json())
+                            .then(stylesData => {
+                                // Update styleMap with new styles from Excel
+                                if (stylesData.success && stylesData.styles) {
+                                    // Clear existing styleMap
+                                    styleMap.clear();
 
-                            // Column P (15) - add % sign for numeric values
-                            if (cell.col === 15 && typeof cell.value === 'number') {
-                                displayValue = cell.value.toFixed(2) + '%';
-                            }
-                            // Columns L and O (11, 14) - format as currency
-                            else if ((cell.col === 11 || cell.col === 14) && cell.value !== '') {
-                                displayValue = cell.value;
-                            }
+                                    // Rebuild styleMap with new styles
+                                    stylesData.styles.forEach(style => {
+                                        const key = `${style.row}-${style.col}`;
+                                        styleMap.set(key, style);
+                                    });
+                                }
 
-                            hot.setDataAtCell(cell.row, cell.col, displayValue);
+                                // Update cell values
+                                data.updatedCells.forEach(cell => {
+                                    // Format value for display
+                                    let displayValue = cell.value;
 
-                            // Update styleMap for background color
-                            const key = `${cell.row}-${cell.col}`;
-                            if (cell.background) {
-                                styleMap.set(key, { backgroundColor: cell.background });
-                            } else {
-                                styleMap.delete(key);
-                            }
-                        });
+                                    // Column P (15) - add % sign for numeric values
+                                    if (cell.col === 15 && typeof cell.value === 'number') {
+                                        displayValue = cell.value.toFixed(2) + '%';
+                                    }
+                                    // Columns L and O (11, 14) - format as currency
+                                    else if ((cell.col === 11 || cell.col === 14) && cell.value !== '') {
+                                        displayValue = cell.value;
+                                    }
 
-                        // Force re-render with updated styles
-                        hot.render();
+                                    hot.setDataAtCell(cell.row, cell.col, displayValue);
+                                });
+
+                                // Force re-render with updated styles
+                                hot.render();
+
+                                alert('✅ ' + data.message);
+                                document.getElementById('retrieveBtn').disabled = false;
+                                document.getElementById('retrieveBtn').textContent = '🔄 Retrieve Again Commercial Data';
+                            })
+                            .catch(error => {
+                                console.error('Error loading cell styles:', error);
+                                // Still update cell values even if styles fail
+                                data.updatedCells.forEach(cell => {
+                                    let displayValue = cell.value;
+                                    if (cell.col === 15 && typeof cell.value === 'number') {
+                                        displayValue = cell.value.toFixed(2) + '%';
+                                    } else if ((cell.col === 11 || cell.col === 14) && cell.value !== '') {
+                                        displayValue = cell.value;
+                                    }
+                                    hot.setDataAtCell(cell.row, cell.col, displayValue);
+                                });
+                                hot.render();
+
+                                alert('✅ ' + data.message);
+                                document.getElementById('retrieveBtn').disabled = false;
+                                document.getElementById('retrieveBtn').textContent = '🔄 Retrieve Again Commercial Data';
+                            });
+                    } else {
+                        alert('✅ ' + data.message);
+                        document.getElementById('retrieveBtn').disabled = false;
+                        document.getElementById('retrieveBtn').textContent = '🔄 Retrieve Again Commercial Data';
                     }
-
-                    alert('✅ ' + data.message);
-                    document.getElementById('retrieveBtn').disabled = false;
-                    document.getElementById('retrieveBtn').textContent = '🔄 Retrieve Again Commercial Data';
                 } else {
                     alert('❌ Error retrieving data: ' + data.error);
                     document.getElementById('retrieveBtn').disabled = false;

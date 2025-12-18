@@ -221,7 +221,7 @@
             <!-- Shop Selection (Common for both modes) -->
             <div class="form-group">
                 <label for="shopName">🏪 Select Shop:</label>
-                <select name="shopName" id="shopName" required class="shop-select">
+                <select name="shopName" id="shopName" class="shop-select">
                     <option value="">-- Select a Shop --</option>
                     <?php
                     $shopsFile = __DIR__ . '/../configDir/shops_V2.json';
@@ -359,6 +359,9 @@
                 allowClear: false,
                 width: '100%'
             });
+
+            // Initialize form action on page load (default is 'new' mode)
+            document.getElementById('flowForm').action = 'step2_crop_launcher.php';
         });
 
         // Function to select processing mode
@@ -427,7 +430,11 @@
             const processMode = document.querySelector('input[name="processMode"]:checked').value;
 
             if (!shopName) {
-                alert('⚠️ Please select a shop');
+                if (processMode === 'existing') {
+                    alert('⚠️ Please select a shop before resuming from Sanity File!\n\nYou must choose a shop from the dropdown to continue.');
+                } else {
+                    alert('⚠️ Please select a shop before starting the process!\n\nYou must choose a shop from the dropdown to continue.');
+                }
                 e.preventDefault();
                 return false;
             }

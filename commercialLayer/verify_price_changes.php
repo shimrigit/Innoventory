@@ -44,8 +44,11 @@ $pcData = $sheet->toArray();
 
 // Track which rows have modified Rec Mrgn (light orange background)
 $modifiedRows = [];
+// Track which rows have barcode cells with "Not Found" (bold borders)
+$notFoundBarcodeRows = [];
 $headers = $pcData[0];
 $colRecMrgnIdx = array_search('Rec Mrgn', $headers);
+$colPriceDiffIdx = array_search('PriceDiff', $headers);
 
 if ($colRecMrgnIdx !== false) {
     for ($i = 2; $i <= count($pcData); $i++) { // Start from row 2 (skip header)
@@ -55,6 +58,19 @@ if ($colRecMrgnIdx !== false) {
         // Check if cell has light orange background (FFFFD700)
         if ($fillColor === 'FFFFD700') {
             $modifiedRows[] = $i;
+        }
+    }
+}
+
+// Track barcode rows with "Not Found" in PriceDiff column
+if ($colPriceDiffIdx !== false) {
+    for ($i = 2; $i <= count($pcData); $i++) { // Start from row 2 (skip header)
+        $priceDiffCell = $sheet->getCellByColumnAndRow($colPriceDiffIdx + 1, $i);
+        $priceDiffValue = $priceDiffCell->getValue();
+
+        // Check if PriceDiff column contains "Not Found"
+        if ($priceDiffValue === 'Not Found' || strpos($priceDiffValue, 'Not Found') !== false) {
+            $notFoundBarcodeRows[] = $i;
         }
     }
 }
@@ -384,6 +400,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             opacity: 1;
         }
 
+        /* Bold border for barcodes with "Not Found" in PriceDiff */
+        .not-found-barcode {
+            border: 3px solid #000 !important;
+        }
+
         .copied-notification {
             position: fixed;
             top: 80px;
@@ -626,7 +647,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             <div class="file-info">File: <?= htmlspecialchars($pcFileName) ?> | Shop: <?= htmlspecialchars($shopName) ?></div>
         </div>
         <div>
-            <button type="button" class="recalculate-button" onclick="document.getElementById('recalcForm').submit()">
+            <button type="button" class="recalculate-button" id="recalculateBtn">
                 🔄 Re-calculate Recommended Margin
             </button>
             <form method="POST" style="display: inline;">
@@ -637,17 +658,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
         </div>
     </div>
 
-    <?php if (isset($recalcSuccess)): ?>
-        <?php if ($recalcSuccess > 0): ?>
-            <div class="success-message">
-                ✓ Recommended margins recalculated successfully for <?= $recalcSuccess ?> row<?= $recalcSuccess > 1 ? 's' : '' ?>!
-            </div>
-        <?php else: ?>
-            <div class="success-message" style="background: #fff3cd; border-color: #ffeaa7; color: #856404;">
-                ℹ️ No changes detected. Please modify "Rec Price" values before recalculating.
-            </div>
-        <?php endif; ?>
-    <?php endif; ?>
+    <div id="recalcMessage"></div>
 
     <div class="split-container">
         <!-- LEFT PANEL: CHP Search -->
@@ -656,7 +667,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                 🔎 חיפוש מחירים בשוק
             </div>
             <div class="panel-content">
-                <form method="POST" class="chp-form">
+                <form method="POST" class="chp-form" id="chpSearchForm">
                     <div class="form-group">
                         <label for="city">עיר:</label>
                         <input
@@ -683,6 +694,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                         🔎 חפש במאגר המחירים
                     </button>
                 </form>
+
+                <div id="chpResultsContainer">
 
                 <?php if ($chpError): ?>
                     <div class="error-message">
@@ -759,6 +772,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                         </table>
                     </div>
                 <?php endif; ?>
+                </div>
             </div>
         </div>
 
@@ -786,7 +800,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                                 <tr>
                                     <?php foreach ($row as $colIdx => $cell): ?>
                                         <?php if ($pcData[0][$colIdx] === 'Barcode'): ?>
-                                            <td class="barcode-cell" onclick="copyBarcode('<?= htmlspecialchars($cell) ?>')">
+                                            <?php
+                                            // Check if this barcode row has "Not Found" (row number is $i + 1 in spreadsheet terms)
+                                            $hasNotFound = in_array($i + 1, $notFoundBarcodeRows);
+                                            ?>
+                                            <td class="barcode-cell <?= $hasNotFound ? 'not-found-barcode' : '' ?>" onclick="copyBarcode('<?= htmlspecialchars($cell) ?>')">
                                                 <?= htmlspecialchars($cell) ?>
                                                 <span class="tooltip">לחץ להעתקה</span>
                                             </td>
@@ -856,6 +874,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                 alert('שגיאה בהעתקה: ' + err);
             });
         }
+
+        // Handle CHP search form submission via AJAX
+        document.getElementById('chpSearchForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent page reload
+
+            const formData = new FormData(this);
+            formData.append('chp_search', '1');
+
+            // Show loading indicator
+            const resultsContainer = document.getElementById('chpResultsContainer');
+            resultsContainer.innerHTML = '<div style="text-align: center; padding: 20px;">🔄 מחפש...</div>';
+
+            // Send AJAX request
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Parse the response HTML to extract just the results section
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newResults = doc.getElementById('chpResultsContainer');
+
+                if (newResults) {
+                    resultsContainer.innerHTML = newResults.innerHTML;
+                } else {
+                    resultsContainer.innerHTML = '<div class="error-message">⚠️ שגיאה בטעינת התוצאות</div>';
+                }
+            })
+            .catch(error => {
+                resultsContainer.innerHTML = '<div class="error-message">⚠️ שגיאה בחיפוש: ' + error.message + '</div>';
+            });
+        });
+
+        // Handle recalculate button click via AJAX
+        document.getElementById('recalculateBtn').addEventListener('click', function() {
+            const formData = new FormData(document.getElementById('recalcForm'));
+            formData.append('recalculate', '1');
+
+            // Show loading message
+            const messageDiv = document.getElementById('recalcMessage');
+            messageDiv.innerHTML = '<div style="background: #e3f2fd; border: 2px solid #2196F3; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center;">🔄 Recalculating...</div>';
+
+            // Send AJAX request
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Parse the response to extract the updated table
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newTable = doc.querySelector('#recalcForm table');
+                const oldTable = document.querySelector('#recalcForm table');
+
+                if (newTable && oldTable) {
+                    // Replace the table with updated data
+                    oldTable.innerHTML = newTable.innerHTML;
+
+                    // Show success message
+                    messageDiv.innerHTML = '<div style="background: #d4edda; border: 2px solid #28a745; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center; color: #155724;">✓ Recommended margins recalculated successfully!</div>';
+
+                    // Hide message after 3 seconds
+                    setTimeout(() => {
+                        messageDiv.innerHTML = '';
+                    }, 3000);
+                } else {
+                    messageDiv.innerHTML = '<div style="background: #f8d7da; border: 2px solid #dc3545; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center; color: #721c24;">⚠️ Error updating table</div>';
+                }
+            })
+            .catch(error => {
+                messageDiv.innerHTML = '<div style="background: #f8d7da; border: 2px solid #dc3545; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center; color: #721c24;">⚠️ Error: ' + error.message + '</div>';
+            });
+        });
 
         // Check if we need to continue to NP process
         <?php if (isset($_GET['continueToNP']) && $_GET['continueToNP'] == '1'): ?>

@@ -115,6 +115,12 @@ try {
         $row = $clData[$i];
         $priceDiffValue = $row[$priceDiffColIdx] ?? '';
 
+        // Check if PriceDiff is "No Cost in PL" (should be included in PC file)
+        if (trim($priceDiffValue) === 'No Cost in PL') {
+            $hasRowsExceedingThreshold = true;
+            break;
+        }
+
         // Parse percentage value (remove % sign and convert to number)
         $priceDiffValue = str_replace('%', '', $priceDiffValue);
         $priceDiffValue = str_replace(',', '.', $priceDiffValue);
@@ -274,13 +280,16 @@ try {
 
         $priceDiffValue = $row[$priceDiffColIdx] ?? '';
 
+        // Check if PriceDiff is "No Cost in PL" (special case)
+        $isNoCostInPL = (trim($priceDiffValue) === 'No Cost in PL');
+
         // Parse percentage value (remove % sign and convert to number)
         $priceDiffValue = str_replace('%', '', $priceDiffValue);
         $priceDiffValue = str_replace(',', '.', $priceDiffValue);
         $priceDiffNumeric = floatval($priceDiffValue);
 
-        // Check if absolute value is higher than PCPT
-        if (abs($priceDiffNumeric) > $pcpt) {
+        // Include row if: (1) exceeds PCPT threshold OR (2) has "No Cost in PL"
+        if ($isNoCostInPL || abs($priceDiffNumeric) > $pcpt) {
             // Copy this row to PC file
             $pcSheet->setCellValue('A' . $pcRowIndex, $row[0] ?? '');
             $pcSheet->setCellValue('B' . $pcRowIndex, $row[1] ?? '');
@@ -291,7 +300,14 @@ try {
             $pcSheet->setCellValue('G' . $pcRowIndex, $row[$pcColumnMap['G']] ?? ''); // ItemERPName
             $pcSheet->setCellValue('H' . $pcRowIndex, $row[$pcColumnMap['H']] ?? ''); // Department
             $pcSheet->setCellValue('I' . $pcRowIndex, $row[$pcColumnMap['I']] ?? ''); // SalesPrice
-            $pcSheet->setCellValue('J' . $pcRowIndex, $priceDiffValue . '%'); // PriceDiff with % sign
+
+            // Set PriceDiff value - keep "No Cost in PL" as-is, add % to numeric values
+            if ($isNoCostInPL) {
+                $pcSheet->setCellValue('J' . $pcRowIndex, 'No Cost in PL'); // Keep text as-is
+            } else {
+                $pcSheet->setCellValue('J' . $pcRowIndex, $priceDiffValue . '%'); // PriceDiff with % sign
+            }
+
             $pcSheet->setCellValue('Q' . $pcRowIndex, $invoiceIdentifier); // InvoiceIdentifier
 
             $pcRowIndex++;
@@ -321,10 +337,32 @@ try {
         $salesPrice = floatval($pcSheet->getCell('I' . $row)->getValue());
         $priceDiffStr = $pcSheet->getCell('J' . $row)->getValue();
 
+        // STEP 1: SET RECOMMENDED MARGIN FROM DEPARTMENT DATA (do this first for ALL rows)
+        $departmentMargin = null;
+        if ($departmentData !== null && is_array($departmentData)) {
+            foreach ($departmentData as $dept) {
+                if (isset($dept['DepartmentName']) && $dept['DepartmentName'] == $department) {
+                    if (isset($dept['ExpectedMarginPercentage'])) {
+                        $departmentMargin = floatval($dept['ExpectedMarginPercentage']);
+                        $pcSheet->setCellValue('M' . $row, ($departmentMargin * 100) . '%');
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Check if this is a "No Cost in PL" row
+        if (trim($priceDiffStr) === 'No Cost in PL') {
+            // Skip calculations for "No Cost in PL" rows - leave recommendation columns empty
+            $pcSheet->setCellValue('O' . $row, 'NO - Missing Cost');
+            $pcSheet->setCellValue('R' . $row, 'Cost price missing in price list');
+            continue;
+        }
+
         // Parse PriceDiff percentage
         $priceDiff = floatval(str_replace(['%', ','], ['', '.'], $priceDiffStr)) / 100;
 
-        // STEP 1: CHECK IF PRODUCT IS SUPERVISED
+        // STEP 2: CHECK IF PRODUCT IS SUPERVISED
         $isSupervised = false;
         foreach ($supervisedBarcodes as $supervisedBarcode) {
             // Check if barcode matches (exact match or suffix match)
@@ -347,20 +385,6 @@ try {
         if ($isSupervised) {
             $pcSheet->setCellValue('O' . $row, 'NO. supervised');
             continue; // Skip all calculations for supervised products
-        }
-
-        // STEP 2: SET RECOMMENDED MARGIN FROM DEPARTMENT DATA
-        $departmentMargin = null;
-        if ($departmentData !== null && is_array($departmentData)) {
-            foreach ($departmentData as $dept) {
-                if (isset($dept['DepartmentName']) && $dept['DepartmentName'] == $department) {
-                    if (isset($dept['ExpectedMarginPercentage'])) {
-                        $departmentMargin = floatval($dept['ExpectedMarginPercentage']);
-                        $pcSheet->setCellValue('M' . $row, ($departmentMargin * 100) . '%');
-                    }
-                    break;
-                }
-            }
         }
 
         if ($departmentMargin === null) {

@@ -216,6 +216,15 @@ $cellStylesData = json_encode($cellStyles);
             background: #5a6268;
         }
 
+        .btn-check-linetotal {
+            background: #6f42c1;
+            color: white;
+        }
+
+        .btn-check-linetotal:hover {
+            background: #5a32a3;
+        }
+
         .btn-check-json {
             background: #17a2b8;
             color: white;
@@ -341,6 +350,7 @@ $cellStylesData = json_encode($cellStyles);
     <div class="header">
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
+            <button class="btn btn-check-linetotal" id="checkLineTotalBtn">🔍 Check LineTotal diff</button>
             <button class="btn btn-check-json" id="checkOcrJsonBtn">📋 Check OCRjson file</button>
             <?php if ($sanityMethod === 'LineTotal' || $sanityMethod === 'Discount1'): ?>
             <div id="totalIndicator" class="total-indicator">
@@ -693,6 +703,211 @@ $cellStylesData = json_encode($cellStyles);
                 document.getElementById('saveBtn').disabled = false;
                 document.getElementById('saveBtn').textContent = '💾 Save OCR Sanity';
             });
+        });
+
+        // Check LineTotal diff functionality
+        document.getElementById('checkLineTotalBtn').addEventListener('click', function() {
+            // Get current data from Handsontable
+            const currentData = hot.getData();
+
+            // Build LDC table data
+            const ldcData = [];
+
+            // Add header row
+            ldcData.push(['Index', 'LineTotal', 'Qty*Cost', 'Diff']);
+
+            // Process each data row (skip header row 0)
+            for (let i = 1; i < currentData.length; i++) {
+                const row = currentData[i];
+
+                // Column C (index 2) - Index
+                const index = row[2] || '';
+
+                // Column H (index 7) - LineTotal
+                // Remove commas before parsing
+                const lineTotalStr = String(row[7] || '0').replace(/,/g, '');
+                const lineTotal = parseFloat(lineTotalStr) || 0;
+
+                // Column F (index 5) - Qty
+                const qtyStr = String(row[5] || '0').replace(/,/g, '');
+                const qty = parseFloat(qtyStr) || 0;
+
+                // Column G (index 6) - Cost
+                const costStr = String(row[6] || '0').replace(/,/g, '');
+                const cost = parseFloat(costStr) || 0;
+
+                // Calculate Qty*Cost
+                const qtyCost = qty * cost;
+
+                // Calculate Diff (LineTotal - Qty*Cost)
+                const diff = lineTotal - qtyCost;
+
+                ldcData.push([
+                    index,
+                    lineTotal.toFixed(2),
+                    qtyCost.toFixed(2),
+                    diff.toFixed(2)
+                ]);
+            }
+
+            // Open popup window (75% of screen size)
+            const screenWidth = window.screen.width;
+            const screenHeight = window.screen.height;
+            const popupWidth = Math.floor(screenWidth * 0.75);
+            const popupHeight = Math.floor(screenHeight * 0.75);
+            const left = Math.floor((screenWidth - popupWidth) / 2);
+            const top = Math.floor((screenHeight - popupHeight) / 2);
+
+            const popup = window.open('', 'LineTotalDiffChecker',
+                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+
+            // Write popup content
+            popup.document.write(`
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>LineTotal Diff Check</title>
+                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.css">
+                    <style>
+                        * {
+                            margin: 0;
+                            padding: 0;
+                            box-sizing: border-box;
+                        }
+                        body {
+                            font-family: Arial, sans-serif;
+                            padding: 20px;
+                            background: #f5f5f5;
+                        }
+                        .header {
+                            background: #6f42c1;
+                            color: white;
+                            padding: 15px 20px;
+                            border-radius: 8px;
+                            margin-bottom: 20px;
+                        }
+                        .header h1 {
+                            font-size: 20px;
+                            margin-bottom: 10px;
+                        }
+                        .stats {
+                            display: flex;
+                            gap: 20px;
+                            font-size: 14px;
+                        }
+                        .stats span {
+                            background: rgba(255,255,255,0.2);
+                            padding: 5px 10px;
+                            border-radius: 4px;
+                        }
+                        .container {
+                            background: white;
+                            border-radius: 8px;
+                            padding: 20px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        }
+                        #hot-container {
+                            width: 100%;
+                            height: calc(100vh - 200px);
+                            overflow: hidden;
+                        }
+                        .info {
+                            background: #e7e3fc;
+                            color: #5a32a3;
+                            padding: 10px;
+                            border-radius: 4px;
+                            margin-bottom: 15px;
+                            font-size: 14px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>🔍 LineTotal Diff Check (LDC)</h1>
+                        <div class="stats">
+                            <span>📊 Total Rows: ${ldcData.length - 1}</span>
+                        </div>
+                    </div>
+                    <div class="container">
+                        <div class="info">
+                            💡 This table shows the difference between LineTotal and Qty*Cost for each row. Small differences may be due to rounding. Use this to identify rows with significant discrepancies.
+                        </div>
+                        <div id="hot-container"></div>
+                    </div>
+                    <script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"><\/script>
+                    <script>
+                        const container = document.getElementById('hot-container');
+                        const ldcData = ${JSON.stringify(ldcData)};
+
+                        const hot = new Handsontable(container, {
+                            data: ldcData,
+                            colHeaders: false,
+                            rowHeaders: true,
+                            width: '100%',
+                            height: 'calc(100vh - 220px)',
+                            licenseKey: 'non-commercial-and-evaluation',
+                            contextMenu: true,
+                            manualColumnResize: true,
+                            manualRowResize: true,
+                            stretchH: 'all',
+                            autoWrapRow: true,
+                            autoWrapCol: true,
+                            readOnly: true,
+                            cells: function(row, col) {
+                                const cellProperties = {};
+
+                                // Highlight header row
+                                if (row === 0) {
+                                    cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                        td.style.backgroundColor = '#6f42c1';
+                                        td.style.color = 'white';
+                                        td.style.fontWeight = 'bold';
+                                        td.style.textAlign = 'center';
+                                    };
+                                }
+                                // Column D (Diff) - apply color coding based on value
+                                else if (col === 3) {
+                                    cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                        const diffValue = parseFloat(value);
+
+                                        if (Math.abs(diffValue) < 0.01) {
+                                            // Near zero - green background
+                                            td.style.backgroundColor = '#d4edda';
+                                            td.style.color = '#155724';
+                                        } else if (Math.abs(diffValue) < 0.10) {
+                                            // Small difference - yellow background
+                                            td.style.backgroundColor = '#fff3cd';
+                                            td.style.color = '#856404';
+                                        } else {
+                                            // Significant difference - red background
+                                            td.style.backgroundColor = '#f8d7da';
+                                            td.style.color = '#721c24';
+                                        }
+
+                                        td.style.fontWeight = 'bold';
+                                        td.style.textAlign = 'right';
+                                    };
+                                }
+                                // Numeric columns B and C - right align
+                                else if (col === 1 || col === 2) {
+                                    cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                        td.style.textAlign = 'right';
+                                    };
+                                }
+
+                                return cellProperties;
+                            }
+                        });
+                    <\/script>
+                </body>
+                </html>
+            `);
+            popup.document.close();
         });
 
         // Check OCRjson file functionality

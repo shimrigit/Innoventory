@@ -280,8 +280,19 @@ foreach (range('A', 'F') as $col) {
 }
 
 // Save invoice list
-$writer = new Xlsx($invoiceList);
-$writer->save($invoiceListFile);
+try {
+    $writer = new Xlsx($invoiceList);
+    $writer->save($invoiceListFile);
+} catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+    die("❌ <strong>Error: Unable to save Invoice List file</strong><br><br>" .
+        "📄 <strong>File:</strong> " . htmlspecialchars(basename($invoiceListFile)) . "<br><br>" .
+        "⚠️ <strong>Possible causes:</strong><br>" .
+        "• The file is currently open in Excel or another program<br>" .
+        "• The file is locked by another process<br>" .
+        "• Insufficient disk space or permissions<br><br>" .
+        "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+        "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+}
 
 echo "<p>✅ Invoice list created: <strong>{$invoiceListFile}</strong></p>";
 echo "<p>📊 Total invoices processed: <strong>" . count($clFiles) . "</strong></p>";
@@ -392,11 +403,28 @@ foreach ($clFiles as $clFile) {
 
     // Delete existing file if it exists
     if (file_exists($invoiceToUploadFile)) {
-        unlink($invoiceToUploadFile);
+        if (!@unlink($invoiceToUploadFile)) {
+            die("❌ <strong>Error: Unable to delete existing Invoice to Upload file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($invoiceToUploadFile)) . "<br><br>" .
+                "⚠️ <strong>Possible cause:</strong><br>" .
+                "• The file is currently open in Excel or another program<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.");
+        }
     }
 
-    $writer = new Xlsx($invoiceToUpload);
-    $writer->save($invoiceToUploadFile);
+    try {
+        $writer = new Xlsx($invoiceToUpload);
+        $writer->save($invoiceToUploadFile);
+    } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+        die("❌ <strong>Error: Unable to save Invoice to Upload file</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($invoiceToUploadFile)) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is locked by another process<br>" .
+            "• Insufficient disk space or permissions<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     echo "<p>✅ Invoice to upload created: <strong>invoice_to_upload_{$invoiceSignature}.xlsx</strong></p>";
     $invoicesToUploadCount++;
@@ -426,7 +454,13 @@ if (!isset($shopConfig['Price_change_list_HeadersMapping'])) {
 
     // Delete existing file if it exists
     if (file_exists($priceChangeListFile)) {
-        unlink($priceChangeListFile);
+        if (!@unlink($priceChangeListFile)) {
+            die("❌ <strong>Error: Unable to delete existing Price Change List file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeListFile)) . "<br><br>" .
+                "⚠️ <strong>Possible cause:</strong><br>" .
+                "• The file is currently open in Excel or another program<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.");
+        }
     }
 
     $pcRowIndex = 1; // Row index counter starting at 1
@@ -522,8 +556,19 @@ if (!isset($shopConfig['Price_change_list_HeadersMapping'])) {
     }
 
     // Save Price_change_list file
-    $writer = new Xlsx($priceChangeList);
-    $writer->save($priceChangeListFile);
+    try {
+        $writer = new Xlsx($priceChangeList);
+        $writer->save($priceChangeListFile);
+    } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+        die("❌ <strong>Error: Unable to save Price Change List file</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeListFile)) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is locked by another process<br>" .
+            "• Insufficient disk space or permissions<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     echo "<p>✅ Price change list created: <strong>{$priceChangeListFile}</strong></p>";
     echo "<p>📊 Total price changes: <strong>{$pcTotalRows}</strong></p>";
@@ -553,7 +598,13 @@ if (!isset($shopConfig['New_products_list_HeadersMapping'])) {
 
     // Delete existing file if it exists
     if (file_exists($newProductsListFile)) {
-        unlink($newProductsListFile);
+        if (!@unlink($newProductsListFile)) {
+            die("❌ <strong>Error: Unable to delete existing New Products List file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($newProductsListFile)) . "<br><br>" .
+                "⚠️ <strong>Possible cause:</strong><br>" .
+                "• The file is currently open in Excel or another program<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.");
+        }
     }
 
     $npDestRow = 2; // Start from row 2 in destination
@@ -649,8 +700,19 @@ if (!isset($shopConfig['New_products_list_HeadersMapping'])) {
     }
 
     // Save New_products_list file
-    $writer = new Xlsx($newProductsList);
-    $writer->save($newProductsListFile);
+    try {
+        $writer = new Xlsx($newProductsList);
+        $writer->save($newProductsListFile);
+    } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+        die("❌ <strong>Error: Unable to save New Products List file</strong><br><br>" .
+            "📄 <strong>File:</strong> " . htmlspecialchars(basename($newProductsListFile)) . "<br><br>" .
+            "⚠️ <strong>Possible causes:</strong><br>" .
+            "• The file is currently open in Excel or another program<br>" .
+            "• The file is locked by another process<br>" .
+            "• Insufficient disk space or permissions<br><br>" .
+            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    }
 
     echo "<p>✅ New products list created: <strong>{$newProductsListFile}</strong></p>";
     echo "<p>📊 Total new products: <strong>{$npTotalRows}</strong></p>";

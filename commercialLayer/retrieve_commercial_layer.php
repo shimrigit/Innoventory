@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
 header('Content-Type: application/json');
 
@@ -126,7 +127,12 @@ try {
     $highestRow = $clSheet->getHighestRow();
     $updatedCells = [];
 
-    // Start from row 2 (skip header)
+    // Step 1: Clear all borders from column D (barcode column) before re-matching
+    for ($n = 2; $n <= $highestRow; $n++) {
+        $clSheet->getCell("D{$n}")->getStyle()->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_NONE);
+    }
+
+    // Step 2: Start from row 2 (skip header) and re-match barcodes
     for ($n = 2; $n <= $highestRow; $n++) {
         // Get barcode from column D
         $ib = $clSheet->getCell("D{$n}")->getValue();
@@ -195,6 +201,8 @@ try {
         }
 
         if ($matchFound) {
+            // Borders already cleared at the beginning - no need to clear here
+
             // Copy ItemERPName (PL -> CL column M)
             $itemERPName = $plSheet->getCell("{$plItemERPNameCol}{$matchRow}")->getValue();
             $clSheet->setCellValue("M{$n}", $itemERPName);
@@ -220,7 +228,16 @@ try {
             $priceDiffValue = null;
             $priceDiffBg = null;
 
-            if (is_numeric($actualUnitPrice) && is_numeric($originalUnitPrice) && $originalUnitPrice != 0) {
+            // Check if cost price is missing or empty
+            if (empty($originalUnitPrice) || !is_numeric($originalUnitPrice) || $originalUnitPrice == 0) {
+                // Barcode found but no cost in price list
+                $clSheet->setCellValue("P{$n}", "No Cost in PL");
+                $clSheet->getStyle("P{$n}")->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFFFA500'); // Orange background
+                $priceDiffValue = "No Cost in PL";
+                $priceDiffBg = '#FFA500';
+            } elseif (is_numeric($actualUnitPrice) && is_numeric($originalUnitPrice)) {
                 $priceDiff = (((float)$actualUnitPrice / (float)$originalUnitPrice) - 1) * 100;
                 $priceDiff = round($priceDiff, 2);
 
@@ -276,6 +293,12 @@ try {
             // No match found
             $clSheet->setCellValue("P{$n}", "Not Found");
             $clSheet->getStyle("P{$n}")->getFill()->setFillType(Fill::FILL_NONE);
+
+            // Add bold borders to the barcode cell (column D) to highlight for manual correction
+            $clSheet->getCell("D{$n}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+            $clSheet->getCell("D{$n}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
+            $clSheet->getCell("D{$n}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
+            $clSheet->getCell("D{$n}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
 
             // Clear other columns
             $clSheet->setCellValue("L{$n}", "");
