@@ -1,8 +1,22 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** December 16, 2025
+**Last Updated:** December 18, 2025
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (December 18, 2025)
+
+### OCR Sanity Enhancements
+- **LDC Feature Updates**: Added Qty and UnitPrice columns, made editable with change tracking and re-calculate button
+- **Color-Coded Borders**: Orange borders for diffs ≤0.1 ILS, red for >0.1 ILS (applied to LineTotal column)
+- **UI Improvements**: Removed row headers from LDC and main table displays
+- **Files Modified**: `OCRsanity/verify_ocrsanity.php`, `OCRsanity/process_ocrsanity.php`, `OCRsanity/reverify_ocrsanity.php`, `commercialLayer/get_cell_styles.php`
+
+### Harmonized Flow Fix
+- **PDF Selection**: Fixed file count mismatch by disabling recursive directory search (depth 2→1)
+- **File Modified**: `harmonizedFlow/select_pdf_for_sanity.php`
 
 ---
 

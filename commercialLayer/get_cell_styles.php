@@ -60,13 +60,23 @@ try {
                 $hasStyle = true;
             }
 
-            // Get border styles - check if any border is THICK (bold)
+            // Get border styles - check if any border is THICK (bold) and extract color
             $borders = $cell->getStyle()->getBorders();
             if ($borders->getTop()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
                 $borders->getBottom()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
                 $borders->getLeft()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
                 $borders->getRight()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK) {
                 $styleData['boldBorder'] = true;
+
+                // Extract border color from top border (all borders should have same color)
+                $borderColor = $borders->getTop()->getColor()->getARGB();
+                if (strlen($borderColor) === 8 && substr($borderColor, 0, 2) === 'FF') {
+                    $borderColor = '#' . substr($borderColor, 2);
+                } else {
+                    $borderColor = '#' . $borderColor;
+                }
+                $styleData['borderColor'] = $borderColor;
+
                 $hasStyle = true;
             }
 

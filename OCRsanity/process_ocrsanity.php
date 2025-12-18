@@ -6,6 +6,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Color;
 
 /**
  * Apply sanity verification to the OCRsanity spreadsheet
@@ -123,7 +124,9 @@ function applyBarcodeSanityVerification($sheet, $highestRow) {
 /**
  * LineSum Verification: Check if Qty * UnitPrice = LineTotal
  * For each row: F * G should equal H
- * Invalid rows get bold border on cell H
+ * Invalid rows get colored border on cell H:
+ * - Orange border: diff <= 0.1 ILS
+ * - Red border: diff > 0.1 ILS
  */
 function applyLineSumVerification($sheet, $highestRow) {
     for ($row = 2; $row <= $highestRow; $row++) {
@@ -142,19 +145,32 @@ function applyLineSumVerification($sheet, $highestRow) {
 
         // Check if F and G are numeric
         if (!is_numeric($qty) || !is_numeric($unitPrice)) {
-            // Set bold border on H cell
-            $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+            // Set red border on H cell (invalid data)
+            $lineTotalCell->getStyle()->getBorders()->getOutline()
+                ->setBorderStyle(Border::BORDER_THICK)
+                ->setColor(new Color('FFFF0000')); // Red
             continue;
         }
 
         // Calculate expected line total
         $expectedTotal = round((float)$qty * (float)$unitPrice, 2);
         $actualTotal = round((float)$lineTotal, 2);
+        $diff = abs($expectedTotal - $actualTotal);
 
         // Compare with tolerance for floating point
-        if (abs($expectedTotal - $actualTotal) > 0.01) {
-            // Set bold border on H cell
-            $lineTotalCell->getStyle()->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THICK);
+        if ($diff > 0.01) {
+            // Determine border color based on diff amount
+            if ($diff <= 0.1) {
+                // Orange border for small differences (≤ 0.1 ILS)
+                $lineTotalCell->getStyle()->getBorders()->getOutline()
+                    ->setBorderStyle(Border::BORDER_THICK)
+                    ->setColor(new Color('FFFFA500')); // Orange
+            } else {
+                // Red border for larger differences (> 0.1 ILS)
+                $lineTotalCell->getStyle()->getBorders()->getOutline()
+                    ->setBorderStyle(Border::BORDER_THICK)
+                    ->setColor(new Color('FFFF0000')); // Red
+            }
         }
     }
 }
@@ -162,7 +178,9 @@ function applyLineSumVerification($sheet, $highestRow) {
 /**
  * Discount1Calc Verification: Check if Qty × UnitPrice × (1 - Discount1/100) = LineTotal
  * Formula: F × G × (1 - I/100) = H
- * Invalid rows get bold border on cell H
+ * Invalid rows get colored border on cell H:
+ * - Orange border: diff <= 0.1 ILS
+ * - Red border: diff > 0.1 ILS
  */
 function applyDiscount1CalcVerification($sheet, $highestRow) {
     for ($row = 2; $row <= $highestRow; $row++) {
@@ -183,25 +201,37 @@ function applyDiscount1CalcVerification($sheet, $highestRow) {
 
         // Check if F, G, and I are numeric
         if (!is_numeric($qty) || !is_numeric($unitPrice) || !is_numeric($discount1)) {
-            // Set bold border on H cell explicitly
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
+            // Set red border on H cell explicitly (invalid data)
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
             continue;
         }
 
         // Calculate expected line total with discount: Qty × UnitPrice × (1 - Discount1/100)
         $expectedTotal = round((float)$qty * (float)$unitPrice * (1 - (float)$discount1 / 100), 2);
         $actualTotal = round((float)$lineTotal, 2);
+        $diff = abs($expectedTotal - $actualTotal);
 
         // Compare with tolerance for floating point
-        if (abs($expectedTotal - $actualTotal) > 0.01) {
-            // Set bold border on H cell explicitly
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THICK);
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()->setBorderStyle(Border::BORDER_THICK);
-            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()->setBorderStyle(Border::BORDER_THICK);
+        if ($diff > 0.01) {
+            // Determine border color based on diff amount
+            $borderColor = ($diff <= 0.1) ? 'FFFFA500' : 'FFFF0000'; // Orange or Red
+
+            // Set colored border on H cell explicitly
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
         }
     }
 }

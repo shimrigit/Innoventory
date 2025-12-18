@@ -79,7 +79,7 @@ for ($row = 1; $row <= $highestRow; $row++) {
             $hasStyle = true;
         }
 
-        // Get cell border style (check if any border is thick/bold)
+        // Get cell border style (check if any border is thick/bold and extract color)
         $borders = $cell->getStyle()->getBorders();
         $hasBoldBorder = false;
 
@@ -88,6 +88,16 @@ for ($row = 1; $row <= $highestRow; $row++) {
             $borders->getLeft()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK ||
             $borders->getRight()->getBorderStyle() === \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK) {
             $styleData['boldBorder'] = true;
+
+            // Extract border color from top border (all borders should have same color)
+            $borderColor = $borders->getTop()->getColor()->getARGB();
+            if (strlen($borderColor) === 8 && substr($borderColor, 0, 2) === 'FF') {
+                $borderColor = '#' . substr($borderColor, 2);
+            } else {
+                $borderColor = '#' . $borderColor;
+            }
+            $styleData['borderColor'] = $borderColor;
+
             $hasStyle = true;
         }
 
@@ -446,7 +456,7 @@ $cellStylesData = json_encode($cellStyles);
         const hot = new Handsontable(container, {
             data: excelData,
             colHeaders: true,
-            rowHeaders: true,
+            rowHeaders: false,
             width: '100%',
             height: 'calc(100vh - 200px)',
             licenseKey: 'non-commercial-and-evaluation',
@@ -472,9 +482,10 @@ $cellStylesData = json_encode($cellStyles);
                                 td.style.backgroundColor = styleData.backgroundColor;
                             }
 
-                            // Apply bold border if present
+                            // Apply bold border if present (with color if specified)
                             if (styleData.boldBorder) {
-                                td.style.border = '3px solid #000';
+                                const borderColor = styleData.borderColor || '#000';
+                                td.style.border = `3px solid ${borderColor}`;
                             }
                         }
                     };
@@ -713,8 +724,8 @@ $cellStylesData = json_encode($cellStyles);
             // Build LDC table data
             const ldcData = [];
 
-            // Add header row
-            ldcData.push(['Index', 'LineTotal', 'Qty*Cost', 'Diff']);
+            // Add header row - Updated order: Index, Qty, UnitPrice, Qty*Cost, LineTotal, Diff
+            ldcData.push(['Index', 'Qty', 'UnitPrice', 'Qty*Cost', 'LineTotal', 'Diff']);
 
             // Process each data row (skip header row 0)
             for (let i = 1; i < currentData.length; i++) {
@@ -723,29 +734,31 @@ $cellStylesData = json_encode($cellStyles);
                 // Column C (index 2) - Index
                 const index = row[2] || '';
 
+                // Column F (index 5) - Qty
+                const qtyStr = String(row[5] || '0').replace(/,/g, '');
+                const qty = parseFloat(qtyStr) || 0;
+
+                // Column G (index 6) - UnitPrice (Cost)
+                const unitPriceStr = String(row[6] || '0').replace(/,/g, '');
+                const unitPrice = parseFloat(unitPriceStr) || 0;
+
                 // Column H (index 7) - LineTotal
                 // Remove commas before parsing
                 const lineTotalStr = String(row[7] || '0').replace(/,/g, '');
                 const lineTotal = parseFloat(lineTotalStr) || 0;
 
-                // Column F (index 5) - Qty
-                const qtyStr = String(row[5] || '0').replace(/,/g, '');
-                const qty = parseFloat(qtyStr) || 0;
-
-                // Column G (index 6) - Cost
-                const costStr = String(row[6] || '0').replace(/,/g, '');
-                const cost = parseFloat(costStr) || 0;
-
                 // Calculate Qty*Cost
-                const qtyCost = qty * cost;
+                const qtyCost = qty * unitPrice;
 
                 // Calculate Diff (LineTotal - Qty*Cost)
                 const diff = lineTotal - qtyCost;
 
                 ldcData.push([
                     index,
-                    lineTotal.toFixed(2),
+                    qty.toFixed(2),
+                    unitPrice.toFixed(2),
                     qtyCost.toFixed(2),
+                    lineTotal.toFixed(2),
                     diff.toFixed(2)
                 ]);
             }
@@ -828,11 +841,14 @@ $cellStylesData = json_encode($cellStyles);
                         <h1>🔍 LineTotal Diff Check (LDC)</h1>
                         <div class="stats">
                             <span>📊 Total Rows: ${ldcData.length - 1}</span>
+                            <button id="recalcBtn" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: 20px;">
+                                🔄 Re-calculate
+                            </button>
                         </div>
                     </div>
                     <div class="container">
                         <div class="info">
-                            💡 This table shows the difference between LineTotal and Qty*Cost for each row. Small differences may be due to rounding. Use this to identify rows with significant discrepancies.
+                            💡 This table shows the difference between LineTotal and Qty*Cost for each row. You can edit Qty, UnitPrice, and LineTotal values. Changed cells will be highlighted in light orange. Click "Re-calculate" to update Qty*Cost and Diff based on your edits.
                         </div>
                         <div id="hot-container"></div>
                     </div>
@@ -841,10 +857,13 @@ $cellStylesData = json_encode($cellStyles);
                         const container = document.getElementById('hot-container');
                         const ldcData = ${JSON.stringify(ldcData)};
 
+                        // Track which cells have been manually changed
+                        const changedCells = new Set();
+
                         const hot = new Handsontable(container, {
                             data: ldcData,
                             colHeaders: false,
-                            rowHeaders: true,
+                            rowHeaders: false,
                             width: '100%',
                             height: 'calc(100vh - 220px)',
                             licenseKey: 'non-commercial-and-evaluation',
@@ -854,12 +873,12 @@ $cellStylesData = json_encode($cellStyles);
                             stretchH: 'all',
                             autoWrapRow: true,
                             autoWrapCol: true,
-                            readOnly: true,
                             cells: function(row, col) {
                                 const cellProperties = {};
 
-                                // Highlight header row
+                                // Header row is read-only
                                 if (row === 0) {
+                                    cellProperties.readOnly = true;
                                     cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
                                         Handsontable.renderers.TextRenderer.apply(this, arguments);
                                         td.style.backgroundColor = '#6f42c1';
@@ -867,41 +886,89 @@ $cellStylesData = json_encode($cellStyles);
                                         td.style.fontWeight = 'bold';
                                         td.style.textAlign = 'center';
                                     };
-                                }
-                                // Column D (Diff) - apply color coding based on value
-                                else if (col === 3) {
-                                    cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
-                                        Handsontable.renderers.TextRenderer.apply(this, arguments);
-                                        const diffValue = parseFloat(value);
+                                } else {
+                                    // Make Index, Qty*Cost, and Diff read-only (columns 0, 3, 5)
+                                    if (col === 0 || col === 3 || col === 5) {
+                                        cellProperties.readOnly = true;
+                                    }
 
-                                        if (Math.abs(diffValue) < 0.01) {
-                                            // Near zero - green background
-                                            td.style.backgroundColor = '#d4edda';
-                                            td.style.color = '#155724';
-                                        } else if (Math.abs(diffValue) < 0.10) {
-                                            // Small difference - yellow background
-                                            td.style.backgroundColor = '#fff3cd';
-                                            td.style.color = '#856404';
-                                        } else {
-                                            // Significant difference - red background
-                                            td.style.backgroundColor = '#f8d7da';
-                                            td.style.color = '#721c24';
-                                        }
+                                    // Column F (index 5) - Diff column - apply color coding based on value
+                                    if (col === 5) {
+                                        cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                            Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                            const diffValue = parseFloat(value);
 
-                                        td.style.fontWeight = 'bold';
-                                        td.style.textAlign = 'right';
-                                    };
-                                }
-                                // Numeric columns B and C - right align
-                                else if (col === 1 || col === 2) {
-                                    cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
-                                        Handsontable.renderers.TextRenderer.apply(this, arguments);
-                                        td.style.textAlign = 'right';
-                                    };
+                                            if (Math.abs(diffValue) < 0.01) {
+                                                // Near zero - green background
+                                                td.style.backgroundColor = '#d4edda';
+                                                td.style.color = '#155724';
+                                            } else if (Math.abs(diffValue) < 0.10) {
+                                                // Small difference - yellow background
+                                                td.style.backgroundColor = '#fff3cd';
+                                                td.style.color = '#856404';
+                                            } else {
+                                                // Significant difference - red background
+                                                td.style.backgroundColor = '#f8d7da';
+                                                td.style.color = '#721c24';
+                                            }
+
+                                            td.style.fontWeight = 'bold';
+                                            td.style.textAlign = 'right';
+                                        };
+                                    }
+                                    // Editable columns (Qty, UnitPrice, LineTotal) and calculated columns
+                                    else if (col >= 1 && col <= 4) {
+                                        cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                                            Handsontable.renderers.TextRenderer.apply(this, arguments);
+                                            td.style.textAlign = 'right';
+
+                                            // Check if this cell was manually changed (light orange)
+                                            const cellKey = row + '-' + col;
+                                            if (changedCells.has(cellKey)) {
+                                                td.style.backgroundColor = '#FFE4CC';
+                                            }
+                                        };
+                                    }
                                 }
 
                                 return cellProperties;
+                            },
+                            afterChange: function(changes, source) {
+                                // Track manual changes (ignore initial load and recalculation)
+                                if (source === 'edit') {
+                                    changes.forEach(([row, col, oldValue, newValue]) => {
+                                        if (oldValue !== newValue && row > 0) {
+                                            const cellKey = row + '-' + col;
+                                            changedCells.add(cellKey);
+                                        }
+                                    });
+                                    hot.render();
+                                }
                             }
+                        });
+
+                        // Re-calculate button functionality
+                        document.getElementById('recalcBtn').addEventListener('click', function() {
+                            const data = hot.getData();
+
+                            // Process each row (skip header row 0)
+                            for (let i = 1; i < data.length; i++) {
+                                const qty = parseFloat(data[i][1]) || 0;
+                                const unitPrice = parseFloat(data[i][2]) || 0;
+                                const lineTotal = parseFloat(data[i][4]) || 0;
+
+                                // Calculate Qty*Cost
+                                const qtyCost = qty * unitPrice;
+
+                                // Calculate Diff
+                                const diff = lineTotal - qtyCost;
+
+                                // Update calculated columns (don't add to changedCells)
+                                hot.setDataAtCell(i, 3, qtyCost.toFixed(2), 'recalc');
+                                hot.setDataAtCell(i, 5, diff.toFixed(2), 'recalc');
+                            }
+
+                            hot.render();
                         });
                     <\/script>
                 </body>

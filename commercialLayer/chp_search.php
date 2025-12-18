@@ -19,11 +19,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search'])) {
     } else {
         require_once __DIR__ . '/chp_headless_client.php';
 
+        // Capture output buffer to see scraper console output
+        ob_start();
         $client = new CHPHeadlessClient();
         $results = $client->searchPrices($barcode, $city);
+        $scraperOutput = ob_get_clean();
 
-        if (!$results || empty($results['prices'])) {
-            $error = 'לא נמצאו תוצאות עבור הברקוד והעיר שהוזנו';
+        // Debug: log what we got back
+        error_log("CHP Search Results: " . print_r($results, true));
+        error_log("Scraper Console Output: " . $scraperOutput);
+
+        if (!$results) {
+            $error = '*** DEBUG VERSION 2024 *** CHP returned FALSE';
+            // Always show scraper debug output (even if empty)
+            $error .= '<br><br><strong>Scraper Output Length: ' . strlen($scraperOutput) . ' chars</strong>';
+            $error .= '<br><details open style="margin-top: 10px; background: #fff3cd; padding: 10px;"><summary style="cursor: pointer; font-weight: bold;">📋 Click to see scraper output</summary><pre style="text-align: left; direction: ltr; font-size: 11px; max-height: 300px; overflow: auto; background: #f5f5f5; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap;">';
+            $error .= empty($scraperOutput) ? '[No output from scraper - check if Node.js is installed]' : htmlspecialchars($scraperOutput);
+            $error .= '</pre></details>';
+        } elseif (empty($results['prices'])) {
+            // Product found but no prices - show product info but with a warning
+            $error = 'לא נמצאו מחירים זמינים בחנויות בקריית אונו';
         }
     }
 }
@@ -353,7 +368,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search'])) {
 
         <?php if ($error): ?>
             <div class="error-message">
-                ⚠️ <?= htmlspecialchars($error) ?>
+                ⚠️ <?= $error ?>
+                <?php if ($results): ?>
+                    <br><small style="color: #666; margin-top: 10px; display: block;">
+                        Debug: productInfo = "<?= htmlspecialchars($results['productInfo'] ?? 'NOT SET') ?>" |
+                        productName = "<?= htmlspecialchars($results['productName'] ?? 'NOT SET') ?>" |
+                        prices count = <?= count($results['prices'] ?? []) ?>
+                    </small>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 

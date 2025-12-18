@@ -60,8 +60,8 @@ if (strpos($currentDir, $websiteRoot) !== 0) {
     $currentDir = $websiteRoot . '/uploads';
 }
 
-// Get all PDF files from current directory and subdirectories
-$pdfFiles = getPdfFiles($currentDir, 2);
+// Get all PDF files from current directory only (no subdirectories)
+$pdfFiles = getPdfFiles($currentDir, 1);
 
 // Sort by modification time (newest first)
 usort($pdfFiles, function($a, $b) {
