@@ -8,6 +8,17 @@
 
 ## Recent Updates (December 18, 2025)
 
+### Suppliers Configuration Tool (New)
+- **Location**: `configTools/suppliers_config_setup.php`
+- **Purpose**: Web-based GUI for managing supplier configurations in `suppliers.json`
+- **Features**:
+  - Searchable dropdown with live filtering (Hebrew/English)
+  - Add new suppliers or edit existing ones
+  - Configure: supplierName, OCRsanityMethod, hebrewName
+  - Optional JSON column mapping (Barcode, ItemName, Qty, UnitPrice, LineTotal, Discount1, Discount2)
+  - Field validation with error messages
+  - LTR interface
+
 ### OCR Sanity Enhancements
 - **LDC Feature Updates**: Added Qty and UnitPrice columns, made editable with change tracking and re-calculate button
 - **Color-Coded Borders**: Orange borders for diffs ≤0.1 ILS, red for >0.1 ILS (applied to LineTotal column)
