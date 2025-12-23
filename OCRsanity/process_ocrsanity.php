@@ -480,8 +480,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
             <li>Verify the supplier has a valid 'jsonToOcrSanity' array</li>
             <li>Verify the supplier has a valid 'OCRsanityMethod' (Simple, LineTotal, or Discount1)</li>
             <li>Ensure all required fields are present in jsonToOcrSanity for the selected method</li>
-        </ul>
-        <a href='" . htmlspecialchars($_SERVER['PHP_SELF']) . "' class='back-link'>⬅️ Back to Upload</a>
+        </ul>";
+
+        // Check if we're in harmonized mode to provide correct back link
+        if (isset($_POST['harmonized_mode']) && $_POST['harmonized_mode'] === 'true') {
+            echo "<a href='../harmonizedFlow/step1_upload.php' class='back-link'>⬅️ Back to Upload</a>";
+        } else {
+            echo "<a href='" . htmlspecialchars($_SERVER['PHP_SELF']) . "' class='back-link'>⬅️ Back to Upload</a>";
+        }
+
+        echo "
     </div>
 </body>
 </html>";

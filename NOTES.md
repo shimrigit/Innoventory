@@ -1,12 +1,28 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** December 18, 2025
+**Last Updated:** December 23, 2025
 **Status:** Phase 1 Complete - Ready for Commercial Layer
 
 ---
 
-## Recent Updates (December 23, 2025)
+## Recent Updates (December 23, 2025 - Session 2)
+
+### OCR Sanity Verification Enhancements
+- **Undo/Redo Functionality**: Added undo/redo buttons and keyboard shortcuts (Ctrl+Z, Ctrl+Y) to Handsontable for easy reversal of editing mistakes.
+- **Excel-like Delete Operations**: Implemented delete menu (Ctrl+-) with 4 options: shift cells left/up, delete entire row/column, matching Microsoft Excel behavior.
+- **File Modified**: `OCRsanity/verify_ocrsanity.php`
+
+### Harmonized Flow Improvements
+- **Early Supplier Validation**: Moved supplier configuration validation from step 4 (after cropping) to step 2 (after upload), preventing users from wasting time cropping PDFs for unconfigured suppliers.
+- **Back Button Fix**: Fixed non-functional "Back to Upload" buttons in error pages to correctly redirect to `start_harmonized_flow.php`.
+- **Files Modified**: `harmonizedFlow/step2_crop_launcher.php`, `OCRsanity/process_ocrsanity.php`
+
+### Minor Improvements
+- **Remove Success Alert**: Removed unnecessary "Margins calculated successfully!" popup from Calculate Margins button in Verify New Products screen.
+- **File Modified**: `commercialLayer/verify_new_products.php`
+
+## Recent Updates (December 23, 2025 - Session 1)
 
 ### Clean Numeric Fields Feature (New)
 - **Manual Cleaning Button**: Added "Clean non-numeric" button to OCR sanity verification screen

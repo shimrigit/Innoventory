@@ -314,11 +314,11 @@
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "א ע ייבוא ושיווק",
         "jsonToOcrSanity": {
-            "Barcode": 5,
-            "ItemName": 4,
+            "Barcode": 1,
+            "ItemName": 2,
             "Qty": 3,
-            "UnitPrice": 2,
-            "LineTotal": 1
+            "UnitPrice": 4,
+            "LineTotal": 5
         }
     },
     {
@@ -338,11 +338,11 @@
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "המפיץ",
         "jsonToOcrSanity": {
-            "Barcode": 7,
-            "ItemName": 6,
-            "Qty": 3,
-            "UnitPrice": 2,
-            "LineTotal": 1
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 5,
+            "UnitPrice": 6,
+            "LineTotal": 7
         }
     },
     {
@@ -462,11 +462,11 @@
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "אקרמן",
         "jsonToOcrSanity": {
-            "Barcode": 7,
-            "ItemName": 6,
-            "Qty": 5,
-            "UnitPrice": 2,
-            "LineTotal": 1
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 3,
+            "UnitPrice": 6,
+            "LineTotal": 7
         }
     },
     {

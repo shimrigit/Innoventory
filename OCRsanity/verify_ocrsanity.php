@@ -244,6 +244,77 @@ $cellStylesData = json_encode($cellStyles);
             background: #138496;
         }
 
+        /* Delete dialog styles */
+        .delete-dialog-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-dialog-overlay.active {
+            display: flex;
+        }
+
+        .delete-dialog {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            min-width: 300px;
+        }
+
+        .delete-dialog h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+
+        .delete-dialog-options {
+            margin: 15px 0;
+        }
+
+        .delete-dialog-options label {
+            display: block;
+            margin: 8px 0;
+            cursor: pointer;
+        }
+
+        .delete-dialog-options input[type="radio"] {
+            margin-right: 8px;
+        }
+
+        .delete-dialog-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 15px;
+        }
+
+        .delete-dialog-buttons button {
+            padding: 6px 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .delete-dialog-buttons .btn-ok {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .delete-dialog-buttons .btn-cancel {
+            background: #f8f9fa;
+            color: #333;
+        }
+
         .container {
             display: flex;
             height: calc(100vh - 140px);
@@ -360,6 +431,8 @@ $cellStylesData = json_encode($cellStyles);
     <div class="header">
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
+            <button class="btn btn-undo" id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
+            <button class="btn btn-redo" id="redoBtn" title="Redo (Ctrl+Y)">↷ Redo</button>
             <button class="btn btn-check-linetotal" id="checkLineTotalBtn">🔍 Check LineTotal diff</button>
             <button class="btn btn-clean-numeric" id="cleanNumericBtn">🧹 Clean non-numeric</button>
             <button class="btn btn-check-json" id="checkOcrJsonBtn">📋 Check OCRjson file</button>
@@ -375,7 +448,36 @@ $cellStylesData = json_encode($cellStyles);
     </div>
 
     <div class="instructions">
-        💡 <strong>Instructions:</strong> Edit cells in the spreadsheet on the left. Scroll through the PDF on the right to view all pages. Click on highlighted text in the PDF (numbers shown in green) to copy it to the selected cell. Use arrow keys to navigate between cells. Toggle overlay to show/hide clickable text.
+        💡 <strong>Instructions:</strong> Edit cells in the spreadsheet on the left. Scroll through the PDF on the right to view all pages. Click on highlighted text in the PDF (numbers shown in green) to copy it to the selected cell. Use arrow keys to navigate between cells. Toggle overlay to show/hide clickable text. Press Ctrl+(-) to open delete & shift cells menu.
+    </div>
+
+    <!-- Delete Dialog -->
+    <div class="delete-dialog-overlay" id="deleteDialogOverlay">
+        <div class="delete-dialog">
+            <h3>Delete</h3>
+            <div class="delete-dialog-options">
+                <label>
+                    <input type="radio" name="deleteOption" value="shiftLeft" checked>
+                    Shift cells left
+                </label>
+                <label>
+                    <input type="radio" name="deleteOption" value="shiftUp">
+                    Shift cells up
+                </label>
+                <label>
+                    <input type="radio" name="deleteOption" value="entireRow">
+                    Entire row
+                </label>
+                <label>
+                    <input type="radio" name="deleteOption" value="entireColumn">
+                    Entire column
+                </label>
+            </div>
+            <div class="delete-dialog-buttons">
+                <button class="btn-ok" id="deleteDialogOk">OK</button>
+                <button class="btn-cancel" id="deleteDialogCancel">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -461,13 +563,28 @@ $cellStylesData = json_encode($cellStyles);
             width: '100%',
             height: 'calc(100vh - 200px)',
             licenseKey: 'non-commercial-and-evaluation',
-            contextMenu: ['row_above', 'row_below', 'col_left', 'col_right', 'remove_row', 'remove_col'],
+            contextMenu: [
+                'row_above',
+                'row_below',
+                'remove_row',
+                '---------',
+                'col_left',
+                'col_right',
+                'remove_col',
+                '---------',
+                'undo',
+                'redo',
+                '---------',
+                'cut',
+                'copy'
+            ],
             manualColumnResize: true,
             manualRowResize: true,
             stretchH: 'none',
             autoWrapRow: false,
             autoWrapCol: false,
             readOnly: false,
+            undo: true,
             cells: function(row, col) {
                 const cellProperties = {};
                 const key = `${row}-${col}`;
@@ -651,6 +768,122 @@ $cellStylesData = json_encode($cellStyles);
         document.getElementById('toggle-overlay').addEventListener('click', function() {
             overlayVisible = !overlayVisible;
             renderAllPages();
+        });
+
+        // Undo/Redo functionality
+        document.getElementById('undoBtn').addEventListener('click', function() {
+            hot.undo();
+        });
+
+        document.getElementById('redoBtn').addEventListener('click', function() {
+            hot.redo();
+        });
+
+        // Delete dialog functionality
+        let pendingDeleteSelection = null;
+
+        function showDeleteDialog() {
+            document.getElementById('deleteDialogOverlay').classList.add('active');
+        }
+
+        function hideDeleteDialog() {
+            document.getElementById('deleteDialogOverlay').classList.remove('active');
+            pendingDeleteSelection = null;
+        }
+
+        document.getElementById('deleteDialogCancel').addEventListener('click', hideDeleteDialog);
+
+        document.getElementById('deleteDialogOk').addEventListener('click', function() {
+            const selectedOption = document.querySelector('input[name="deleteOption"]:checked').value;
+            const selection = pendingDeleteSelection;
+
+            if (!selection) {
+                hideDeleteDialog();
+                return;
+            }
+
+            const [startRow, startCol, endRow, endCol] = selection;
+
+            if (selectedOption === 'shiftLeft') {
+                // Shift cells left
+                for (let row = startRow; row <= endRow; row++) {
+                    for (let col = startCol; col <= endCol; col++) {
+                        // Get all cells to the right in this row
+                        const rowData = hot.getDataAtRow(row);
+                        // Remove the selected cells and shift left
+                        rowData.splice(col, endCol - startCol + 1);
+                        // Fill with empty values at the end
+                        for (let i = 0; i < (endCol - startCol + 1); i++) {
+                            rowData.push('');
+                        }
+                        // Update the row
+                        for (let c = 0; c < rowData.length; c++) {
+                            hot.setDataAtCell(row, c, rowData[c]);
+                        }
+                    }
+                }
+            } else if (selectedOption === 'shiftUp') {
+                // Shift cells up
+                for (let col = startCol; col <= endCol; col++) {
+                    const columnData = hot.getDataAtCol(col);
+                    // Remove selected cells
+                    columnData.splice(startRow, endRow - startRow + 1);
+                    // Fill with empty values at the end
+                    for (let i = 0; i < (endRow - startRow + 1); i++) {
+                        columnData.push('');
+                    }
+                    // Update the column
+                    for (let r = 0; r < columnData.length; r++) {
+                        hot.setDataAtCell(r, col, columnData[r]);
+                    }
+                }
+            } else if (selectedOption === 'entireRow') {
+                // Delete entire rows
+                hot.alter('remove_row', startRow, endRow - startRow + 1);
+            } else if (selectedOption === 'entireColumn') {
+                // Delete entire columns
+                hot.alter('remove_col', startCol, endCol - startCol + 1);
+            }
+
+            hideDeleteDialog();
+        });
+
+        // Keyboard shortcuts for undo/redo and delete
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Z or Cmd+Z for undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                hot.undo();
+            }
+            // Ctrl+Y or Cmd+Shift+Z for redo
+            if (((e.ctrlKey || e.metaKey) && e.key === 'y') ||
+                ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z')) {
+                e.preventDefault();
+                hot.redo();
+            }
+            // Ctrl+Minus to show delete dialog
+            if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+                e.preventDefault();
+                const selected = hot.getSelected();
+                if (selected && selected.length > 0) {
+                    pendingDeleteSelection = selected[0];
+                    showDeleteDialog();
+                }
+            }
+            // Delete key to clear cell contents (not shift)
+            if (e.key === 'Delete') {
+                const selected = hot.getSelected();
+                if (selected) {
+                    // Clear all selected cells
+                    selected.forEach(([startRow, startCol, endRow, endCol]) => {
+                        for (let row = startRow; row <= endRow; row++) {
+                            for (let col = startCol; col <= endCol; col++) {
+                                hot.setDataAtCell(row, col, '');
+                            }
+                        }
+                    });
+                }
+            }
         });
 
         // Save functionality

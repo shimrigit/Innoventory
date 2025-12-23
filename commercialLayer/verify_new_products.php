@@ -1009,7 +1009,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                         dir: 'rtl'
                     });
 
-                    alert('✅ Margins calculated successfully!');
+                    // Margins calculated successfully - no popup needed
                 } else {
                     alert('⚠️ Error updating table');
                 }
