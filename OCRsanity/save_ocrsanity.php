@@ -58,13 +58,17 @@ try {
     $writer = new Xlsx($spreadsheet);
     $writer->save($filePath);
 
-    // Delete temporary PDF file if exists
+    // Delete temporary PDF file if exists (unless skipPdfDelete flag is set)
     // The temp PDF has same name as Excel file but with .pdf extension
-    $baseFileName = str_replace('.xlsx', '', $filename);
-    $tempPdfPath = __DIR__ . '/sanity_files/temp_' . $baseFileName . '.xlsx.pdf';
+    $skipPdfDelete = isset($data['skipPdfDelete']) && $data['skipPdfDelete'] === true;
 
-    if (file_exists($tempPdfPath)) {
-        unlink($tempPdfPath);
+    if (!$skipPdfDelete) {
+        $baseFileName = str_replace('.xlsx', '', $filename);
+        $tempPdfPath = __DIR__ . '/sanity_files/temp_' . $baseFileName . '.xlsx.pdf';
+
+        if (file_exists($tempPdfPath)) {
+            unlink($tempPdfPath);
+        }
     }
 
     echo json_encode(['success' => true, 'message' => 'File saved successfully']);

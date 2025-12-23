@@ -6,6 +6,15 @@
 
 ---
 
+## Recent Updates (December 23, 2025)
+
+### Clean Numeric Fields Feature (New)
+- **Manual Cleaning Button**: Added "Clean non-numeric" button to OCR sanity verification screen
+- **Purpose**: Remove non-numeric characters from columns D, F, G, H, I, J (keeps only digits, dot, minus)
+- **Workflow**: Saves current edits → cleans numeric fields → reloads with cleaned data
+- **Files**: `OCRsanity/clean_numeric_fields.php` (new), `OCRsanity/verify_ocrsanity.php`, `OCRsanity/save_ocrsanity.php`
+- **ItemName Truncation**: Increased from 15 to 60 characters in `OCRsanity/process_ocrsanity.php`
+
 ## Recent Updates (December 18, 2025)
 
 ### Suppliers Configuration Tool (New)

@@ -72,7 +72,16 @@
     {
         "supplierName": "Osem",
         "OCRsanityMethod": "Discount2",
-        "hebrewName": "אסם"
+        "hebrewName": "אסם",
+        "jsonToOcrSanity": {
+            "Barcode": 9,
+            "ItemName": 8,
+            "Qty": 5,
+            "UnitPrice": 4,
+            "LineTotal": 1,
+            "Discount1": 3,
+            "Discount2": 2
+        }
     },
     {
         "supplierName": "Berman",
@@ -198,7 +207,14 @@
     {
         "supplierName": "AFS",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "AFS"
+        "hebrewName": "AFS",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 3,
+            "UnitPrice": 4,
+            "LineTotal": 5
+        }
     },
     {
         "supplierName": "NASL",
@@ -235,7 +251,14 @@
     {
         "supplierName": "AllMeat",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "כל בשר"
+        "hebrewName": "כל בשר",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 4,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Sano",
@@ -289,7 +312,14 @@
     {
         "supplierName": "Ays",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "א ע ייבוא ושיווק"
+        "hebrewName": "א ע ייבוא ושיווק",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 4,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "FarmaDeal",
@@ -306,7 +336,14 @@
     {
         "supplierName": "Hamefitz",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "המפיץ"
+        "hebrewName": "המפיץ",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Hwine",
@@ -391,7 +428,14 @@
     {
         "supplierName": "BetterChoice",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "בטר צויס"
+        "hebrewName": "בטר צויס",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 5,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Shipka",
@@ -416,7 +460,14 @@
     {
         "supplierName": "Akerman",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "אקרמן"
+        "hebrewName": "אקרמן",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 5,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Ida",

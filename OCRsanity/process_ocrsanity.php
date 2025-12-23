@@ -619,9 +619,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
                         $value = $rowObject[$propertyKey];
 
-                        // Special handling for ItemName - truncate to 15 characters
+                        // Special handling for ItemName - truncate to 60 characters
                         if ($columnName === 'ItemName') {
-                            $value = mb_substr($value, 0, 15);
+                            $value = mb_substr($value, 0, 60);
                         }
 
                         // Determine Excel column based on column name

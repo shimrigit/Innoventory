@@ -361,6 +361,7 @@ $cellStylesData = json_encode($cellStyles);
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
             <button class="btn btn-check-linetotal" id="checkLineTotalBtn">🔍 Check LineTotal diff</button>
+            <button class="btn btn-clean-numeric" id="cleanNumericBtn">🧹 Clean non-numeric</button>
             <button class="btn btn-check-json" id="checkOcrJsonBtn">📋 Check OCRjson file</button>
             <?php if ($sanityMethod === 'LineTotal' || $sanityMethod === 'Discount1'): ?>
             <div id="totalIndicator" class="total-indicator">
@@ -1204,6 +1205,67 @@ $cellStylesData = json_encode($cellStyles);
                 alert('❌ Error: ' + error);
                 document.getElementById('reverifyBtn').disabled = false;
                 document.getElementById('reverifyBtn').textContent = '🔄 Re-verify';
+            });
+        });
+
+        // Clean non-numeric functionality
+        document.getElementById('cleanNumericBtn').addEventListener('click', function() {
+            if (!confirm('האם לנקות ערכים לא-נומריים מעמודות D, F, G, H, I, J?\nניקוי ישמור רק ספרות, נקודה (.) ומינוס (-).')) {
+                return;
+            }
+
+            // Disable button while processing
+            const cleanBtn = this;
+            cleanBtn.disabled = true;
+            cleanBtn.textContent = '🔄 שומר...';
+
+            // Step 1: Save current Handsontable data first (without deleting PDF)
+            const updatedData = hot.getData();
+
+            fetch('save_ocrsanity.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filename: excelFileName,
+                    data: updatedData,
+                    skipPdfDelete: true  // Don't delete PDF during cleaning
+                })
+            })
+            .then(response => response.json())
+            .then(saveResult => {
+                if (!saveResult.success) {
+                    throw new Error('Failed to save: ' + saveResult.message);
+                }
+
+                // Step 2: Now clean the numeric fields
+                cleanBtn.textContent = '🔄 מנקה...';
+
+                return fetch('clean_numeric_fields.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'file=' + encodeURIComponent(excelFileName)
+                });
+            })
+            .then(response => response.json())
+            .then(cleanResult => {
+                if (cleanResult.success) {
+                    alert(cleanResult.message);
+                    // Reload page to show cleaned data (force reload from server)
+                    location.reload(true);
+                } else {
+                    alert('שגיאה: ' + cleanResult.message);
+                    cleanBtn.disabled = false;
+                    cleanBtn.textContent = '🧹 Clean non-numeric';
+                }
+            })
+            .catch(error => {
+                alert('שגיאה: ' + error.message);
+                cleanBtn.disabled = false;
+                cleanBtn.textContent = '🧹 Clean non-numeric';
             });
         });
     </script>
