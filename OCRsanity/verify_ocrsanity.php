@@ -435,8 +435,9 @@ $cellStylesData = json_encode($cellStyles);
             <button class="btn btn-redo" id="redoBtn" title="Redo (Ctrl+Y)">↷ Redo</button>
             <button class="btn btn-check-linetotal" id="checkLineTotalBtn">🔍 Check LineTotal diff</button>
             <button class="btn btn-clean-numeric" id="cleanNumericBtn">🧹 Clean non-numeric</button>
+            <button class="btn btn-positive-discounts" id="positiveDiscountsBtn">➕ Positive discount values</button>
             <button class="btn btn-check-json" id="checkOcrJsonBtn">📋 Check OCRjson file</button>
-            <?php if ($sanityMethod === 'LineTotal' || $sanityMethod === 'Discount1'): ?>
+            <?php if ($sanityMethod === 'LineTotal' || $sanityMethod === 'Discount1' || $sanityMethod === 'Discount2'): ?>
             <div id="totalIndicator" class="total-indicator">
                 <span class="indicator-label">Total Equality Indicator:</span>
                 <span class="indicator-value" id="indicatorValue">0</span>
@@ -548,8 +549,8 @@ $cellStylesData = json_encode($cellStyles);
             }
         }
 
-        // Initialize indicator on page load (if LineTotal or Discount1 method)
-        if (sanityMethod === 'LineTotal' || sanityMethod === 'Discount1') {
+        // Initialize indicator on page load (if LineTotal, Discount1, or Discount2 method)
+        if (sanityMethod === 'LineTotal' || sanityMethod === 'Discount1' || sanityMethod === 'Discount2') {
             updateTotalIndicator(totalDifference);
         }
 
@@ -958,8 +959,8 @@ $cellStylesData = json_encode($cellStyles);
             // Build LDC table data
             const ldcData = [];
 
-            // Add header row - Updated order: Index, Qty, UnitPrice, Qty*Cost, LineTotal, Diff
-            ldcData.push(['Index', 'Qty', 'UnitPrice', 'Qty*Cost', 'LineTotal', 'Diff']);
+            // Add header row - New order: Index, Qty, UnitPrice, Discount1, Discount2, Formula, LineTotal, Diff
+            ldcData.push(['Index', 'Qty', 'UnitPrice', 'Discount1', 'Discount2', 'Qty×Price/(1-D1%/100)/(1-D2%/100)', 'LineTotal', 'Diff']);
 
             // Process each data row (skip header row 0)
             for (let i = 1; i < currentData.length; i++) {
@@ -981,17 +982,27 @@ $cellStylesData = json_encode($cellStyles);
                 const lineTotalStr = String(row[7] || '0').replace(/,/g, '');
                 const lineTotal = parseFloat(lineTotalStr) || 0;
 
-                // Calculate Qty*Cost
-                const qtyCost = qty * unitPrice;
+                // Column I (index 8) - Discount1
+                const discount1Str = String(row[8] || '0').replace(/,/g, '');
+                const discount1 = parseFloat(discount1Str) || 0;
 
-                // Calculate Diff (LineTotal - Qty*Cost)
-                const diff = lineTotal - qtyCost;
+                // Column J (index 9) - Discount2
+                const discount2Str = String(row[9] || '0').replace(/,/g, '');
+                const discount2 = parseFloat(discount2Str) || 0;
+
+                // Calculate Formula: Qty × UnitPrice / (1 - Discount1/100) / (1 - Discount2/100)
+                const formulaResult = qty * unitPrice / (1 - discount1 / 100) / (1 - discount2 / 100);
+
+                // Calculate Diff (Formula - LineTotal)
+                const diff = formulaResult - lineTotal;
 
                 ldcData.push([
                     index,
                     qty.toFixed(2),
                     unitPrice.toFixed(2),
-                    qtyCost.toFixed(2),
+                    discount1.toFixed(2),
+                    discount2.toFixed(2),
+                    formulaResult.toFixed(2),
                     lineTotal.toFixed(2),
                     diff.toFixed(2)
                 ]);
@@ -1082,7 +1093,7 @@ $cellStylesData = json_encode($cellStyles);
                     </div>
                     <div class="container">
                         <div class="info">
-                            💡 This table shows the difference between LineTotal and Qty*Cost for each row. You can edit Qty, UnitPrice, and LineTotal values. Changed cells will be highlighted in light orange. Click "Re-calculate" to update Qty*Cost and Diff based on your edits.
+                            💡 This table shows the difference between LineTotal and the Discount2 formula for each row. You can edit Qty, UnitPrice, Discount1, Discount2, and LineTotal values. Changed cells will be highlighted in light orange. Click "Re-calculate" to update the Formula and Diff based on your edits.
                         </div>
                         <div id="hot-container"></div>
                     </div>
@@ -1121,13 +1132,13 @@ $cellStylesData = json_encode($cellStyles);
                                         td.style.textAlign = 'center';
                                     };
                                 } else {
-                                    // Make Index, Qty*Cost, and Diff read-only (columns 0, 3, 5)
-                                    if (col === 0 || col === 3 || col === 5) {
+                                    // Make Index, Formula, and Diff read-only (columns 0, 5, 7)
+                                    if (col === 0 || col === 5 || col === 7) {
                                         cellProperties.readOnly = true;
                                     }
 
-                                    // Column F (index 5) - Diff column - apply color coding based on value
-                                    if (col === 5) {
+                                    // Column 7 - Diff column - apply color coding based on value
+                                    if (col === 7) {
                                         cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
                                             Handsontable.renderers.TextRenderer.apply(this, arguments);
                                             const diffValue = parseFloat(value);
@@ -1189,17 +1200,19 @@ $cellStylesData = json_encode($cellStyles);
                             for (let i = 1; i < data.length; i++) {
                                 const qty = parseFloat(data[i][1]) || 0;
                                 const unitPrice = parseFloat(data[i][2]) || 0;
-                                const lineTotal = parseFloat(data[i][4]) || 0;
+                                const discount1 = parseFloat(data[i][3]) || 0;
+                                const discount2 = parseFloat(data[i][4]) || 0;
+                                const lineTotal = parseFloat(data[i][6]) || 0;
 
-                                // Calculate Qty*Cost
-                                const qtyCost = qty * unitPrice;
+                                // Calculate Formula: Qty × UnitPrice / (1 - Discount1/100) / (1 - Discount2/100)
+                                const formulaResult = qty * unitPrice / (1 - discount1 / 100) / (1 - discount2 / 100);
 
-                                // Calculate Diff
-                                const diff = lineTotal - qtyCost;
+                                // Calculate Diff (Formula - LineTotal)
+                                const diff = formulaResult - lineTotal;
 
                                 // Update calculated columns (don't add to changedCells)
-                                hot.setDataAtCell(i, 3, qtyCost.toFixed(2), 'recalc');
-                                hot.setDataAtCell(i, 5, diff.toFixed(2), 'recalc');
+                                hot.setDataAtCell(i, 5, formulaResult.toFixed(2), 'recalc');
+                                hot.setDataAtCell(i, 7, diff.toFixed(2), 'recalc');
                             }
 
                             hot.render();
@@ -1403,8 +1416,8 @@ $cellStylesData = json_encode($cellStyles);
                         styleMap.set(key, style);
                     });
 
-                    // Update total indicator if LineTotal or Discount1 method
-                    if ((sanityMethod === 'LineTotal' || sanityMethod === 'Discount1') && data.totalDifference !== undefined) {
+                    // Update total indicator if LineTotal, Discount1, or Discount2 method
+                    if ((sanityMethod === 'LineTotal' || sanityMethod === 'Discount1' || sanityMethod === 'Discount2') && data.totalDifference !== undefined) {
                         console.log('Updating indicator with:', data.totalDifference); // Debug log
                         updateTotalIndicator(data.totalDifference);
                     }
@@ -1499,6 +1512,67 @@ $cellStylesData = json_encode($cellStyles);
                 alert('שגיאה: ' + error.message);
                 cleanBtn.disabled = false;
                 cleanBtn.textContent = '🧹 Clean non-numeric';
+            });
+        });
+
+        // Positive discount values functionality
+        document.getElementById('positiveDiscountsBtn').addEventListener('click', function() {
+            if (!confirm('האם להמיר ערכי הנחה שליליים לחיוביים בעמודות Discount1 ו-Discount2?\nסימן המינוס (-) יוסר מכל ערכי ההנחה.')) {
+                return;
+            }
+
+            // Disable button while processing
+            const posBtn = this;
+            posBtn.disabled = true;
+            posBtn.textContent = '🔄 שומר...';
+
+            // Step 1: Save current Handsontable data first (without deleting PDF)
+            const updatedData = hot.getData();
+
+            fetch('save_ocrsanity.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filename: excelFileName,
+                    data: updatedData,
+                    skipPdfDelete: true  // Don't delete PDF during conversion
+                })
+            })
+            .then(response => response.json())
+            .then(saveResult => {
+                if (!saveResult.success) {
+                    throw new Error('Failed to save: ' + saveResult.message);
+                }
+
+                // Step 2: Now convert negative discounts to positive
+                posBtn.textContent = '🔄 ממיר...';
+
+                return fetch('positive_discount_values.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'file=' + encodeURIComponent(excelFileName)
+                });
+            })
+            .then(response => response.json())
+            .then(convertResult => {
+                if (convertResult.success) {
+                    alert(convertResult.message);
+                    // Reload page to show converted data (force reload from server)
+                    location.reload(true);
+                } else {
+                    alert('שגיאה: ' + convertResult.message);
+                    posBtn.disabled = false;
+                    posBtn.textContent = '➕ Positive discount values';
+                }
+            })
+            .catch(error => {
+                alert('שגיאה: ' + error.message);
+                posBtn.disabled = false;
+                posBtn.textContent = '➕ Positive discount values';
             });
         });
     </script>

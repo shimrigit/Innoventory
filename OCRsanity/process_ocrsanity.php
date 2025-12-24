@@ -41,9 +41,15 @@ function applySanityVerification($sheet, $method) {
             $totalDifference = applyTotalSumVerification($sheet, $highestRow);
             break;
 
+        case 'Discount2':
+            applyDataTypeVerification($sheet, $highestRow);
+            applyBarcodeSanityVerification($sheet, $highestRow);
+            applyDiscount2CalcVerification($sheet, $highestRow);
+            $totalDifference = applyTotalSumVerification($sheet, $highestRow);
+            break;
+
         // Future methods will be added here
         case 'NoLineTotal':
-        case 'Discount2':
             // To be implemented
             break;
     }
@@ -237,6 +243,69 @@ function applyDiscount1CalcVerification($sheet, $highestRow) {
 }
 
 /**
+ * Discount2Calc Verification: Check if Qty × UnitPrice / (1 - Discount1/100) / (1 - Discount2/100) = LineTotal
+ * Formula: F × G / (1 - I/100) / (1 - J/100) = H
+ * Invalid rows get colored border on cell H:
+ * - Orange border: diff <= 0.1 ILS
+ * - Red border: diff > 0.1 ILS
+ */
+function applyDiscount2CalcVerification($sheet, $highestRow) {
+    for ($row = 2; $row <= $highestRow; $row++) {
+        $qtyCell = $sheet->getCell("F{$row}");
+        $unitPriceCell = $sheet->getCell("G{$row}");
+        $lineTotalCell = $sheet->getCell("H{$row}");
+        $discount1Cell = $sheet->getCell("I{$row}");
+        $discount2Cell = $sheet->getCell("J{$row}");
+
+        $qty = $qtyCell->getValue();
+        $unitPrice = $unitPriceCell->getValue();
+        $lineTotal = $lineTotalCell->getValue();
+        $discount1 = $discount1Cell->getValue();
+        $discount2 = $discount2Cell->getValue();
+
+        // Skip empty rows
+        if (($qty === null || $qty === '') && ($unitPrice === null || $unitPrice === '') && ($lineTotal === null || $lineTotal === '')) {
+            continue;
+        }
+
+        // Check if F, G, I, and J are numeric
+        if (!is_numeric($qty) || !is_numeric($unitPrice) || !is_numeric($discount1) || !is_numeric($discount2)) {
+            // Set red border on H cell explicitly (invalid data)
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color('FFFF0000'));
+            continue;
+        }
+
+        // Calculate expected line total with both discounts: Qty × UnitPrice / (1 - Discount1/100) / (1 - Discount2/100)
+        $expectedTotal = round((float)$qty * (float)$unitPrice / (1 - (float)$discount1 / 100) / (1 - (float)$discount2 / 100), 2);
+        $actualTotal = round((float)$lineTotal, 2);
+        $diff = abs($expectedTotal - $actualTotal);
+
+        // Compare with tolerance for floating point
+        if ($diff > 0.01) {
+            // Determine border color based on diff amount
+            $borderColor = ($diff <= 0.1) ? 'FFFFA500' : 'FFFF0000'; // Orange or Red
+
+            // Set colored border on H cell explicitly
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getTop()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getBottom()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getLeft()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+            $sheet->getCell("H{$row}")->getStyle()->getBorders()->getRight()
+                ->setBorderStyle(Border::BORDER_THICK)->setColor(new Color($borderColor));
+        }
+    }
+}
+
+/**
  * TotalSum Verification: Check if sum of column H equals B4
  * Returns the difference for display indicator
  */
@@ -380,7 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         // Validation 3: Check if sanity method is valid/implemented
         else {
             $sanityMethod = $supplierConfig['OCRsanityMethod'] ?? 'Simple';
-            $validMethods = ['Simple', 'LineTotal', 'Discount1'];
+            $validMethods = ['Simple', 'LineTotal', 'Discount1', 'Discount2'];
 
             if (!in_array($sanityMethod, $validMethods)) {
                 $validationError = "Error: OCRsanityMethod '{$sanityMethod}' for supplier {$supplierName} is not implemented. Valid methods: " . implode(', ', $validMethods);
@@ -400,6 +469,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
                     case 'Discount1':
                         $requiredFields = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'];
                         // Note: Discount1 is optional - will be auto-filled with 0 if missing
+                        break;
+                    case 'Discount2':
+                        $requiredFields = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'];
+                        // Note: Discount1 and Discount2 are optional - will be auto-filled with 0 if missing
                         break;
                 }
 

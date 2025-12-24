@@ -192,7 +192,7 @@ if (!$clFileName) {
 
             // Get file information from URL parameters
             const urlParams = new URLSearchParams(window.location.search);
-            const clFile = urlParams.get('cl');
+            const clFile = urlParams.get('cl') || urlParams.get('id'); // Try both 'cl' and 'id' parameter
             const shopName = urlParams.get('shop');
 
             // Build cleanup URL with file parameters

@@ -6,7 +6,16 @@
  * after the harmonized flow is complete.
  */
 
+// Prevent any output before JSON
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ob_start();
+
 session_start();
+
+// Clear any output that might have occurred
+ob_end_clean();
+
 header('Content-Type: application/json');
 
 try {

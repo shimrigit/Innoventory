@@ -1,8 +1,161 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** December 23, 2025
+**Last Updated:** December 24, 2025
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (December 24, 2025)
+
+### Discount2 Verification Method Implementation
+
+#### Overview
+Implemented a new verification method **Discount2** for suppliers that use two sequential discount percentages (like Osem). This method verifies that the LineTotal matches the calculation: `Qty × UnitPrice / (1 - Discount1/100) / (1 - Discount2/100)`.
+
+#### Key Implementation Details
+
+**Formula**: `Qty × UnitPrice / (1 - Discount1/100) / (1 - Discount2/100) = LineTotal`
+- Division formula (not multiplication) - discounts reduce the base price
+- ActualUnitPrice for Discount2: Direct copy of UnitPrice (no discount applied to column K)
+- Total Equality Indicator: Works same as other methods (sum of LineTotal vs Invoice Total)
+
+#### Files Modified
+
+1. **process_ocrsanity.php** (`OCRsanity/`)
+   - Added `applyDiscount2CalcVerification()` function (lines 245-306)
+   - Updated validation to include 'Discount2' in `$validMethods` array (line 452)
+   - Added Discount2 case in required fields validation (lines 473-476)
+   - Added Discount2 case in main switch statement (lines 44-49)
+   - Added total indicator condition for Discount2
+
+2. **reverify_ocrsanity.php** (`OCRsanity/`)
+   - Added 'Discount2' to `$validMethods` array (line 90)
+   - Updated ActualUnitPrice calculation: Discount2 uses direct UnitPrice copy (lines 135-140)
+   - Added Discount2 case in `applySanityVerification()` switch (lines 275-280)
+   - Added `applyDiscount2CalcVerification()` function (lines 450-504)
+
+3. **verify_ocrsanity.php** (`OCRsanity/`)
+   - **LDC Screen Updates**: Added Discount1 and Discount2 columns (4th and 5th columns)
+   - Changed formula column header from "Qty*Cost" to "Qty×Price/(1-D1%/100)/(1-D2%/100)"
+   - Updated column structure: Index, Qty, UnitPrice, Discount1, Discount2, Formula, LineTotal, Diff (8 columns)
+   - Updated Diff calculation: `Formula - LineTotal` (previously `LineTotal - Qty*Cost`)
+   - Modified read-only columns to 0, 5, 7 (Index, Formula, Diff)
+   - Updated Re-calculate button to use Discount2 formula
+   - Fixed Total Equality Indicator initialization for Discount2 (line 553)
+   - Fixed Total Equality Indicator update after re-verify for Discount2 (line 1420)
+
+4. **positive_discount_values.php** (`OCRsanity/`) - NEW FILE
+   - Created backend processor to convert negative discount values to positive
+   - Removes minus (-) signs from Discount1 (column I) and Discount2 (column J)
+   - Returns count of converted values
+   - Used for Osem invoices where discounts come with minus signs
+
+5. **step2_crop_launcher.php** (`harmonizedFlow/`)
+   - Added 'Discount2' to validation array (line 101)
+   - Updated error page to mention Discount2 as valid method (line 254)
+
+#### UI Changes
+
+**Positive Discount Values Button**:
+- Location: OCR Sanity verification screen
+- Purpose: Remove minus signs from Discount1 and Discount2 columns
+- Workflow: Save → Convert → Reload (with skipPdfDelete flag)
+- Hebrew message: "המרה הושלמה בהצלחה! X ערכי הנחה הומרו לחיוביים."
+
+**LDC Screen Enhancements**:
+- Now shows Discount1 and Discount2 values for analysis
+- Formula column displays calculated result based on Discount2 formula
+- Diff shows difference between formula and LineTotal
+- All discount-related columns are editable for testing scenarios
+
+#### Configuration Example
+
+```json
+{
+    "supplierName": "Osem",
+    "OCRsanityMethod": "Discount2",
+    "hebrewName": "אסם",
+    "jsonToOcrSanity": {
+        "Barcode": 9,
+        "ItemName": 8,
+        "Qty": 5,
+        "UnitPrice": 4,
+        "LineTotal": 1,
+        "Discount1": 3,
+        "Discount2": 2
+    }
+}
+```
+
+---
+
+### Checklist for Adding New Sanity Methods
+
+When implementing a new verification method (e.g., "Discount3", "TaxBased", etc.), update the following files and locations:
+
+#### 1. Backend Verification Logic
+
+**File: `OCRsanity/process_ocrsanity.php`**
+- [ ] Line ~452: Add method to `$validMethods` array
+- [ ] Lines ~462-476: Add method case in required fields validation switch
+- [ ] Lines ~40-50: Add method case in main verification switch statement
+- [ ] Create new verification function (e.g., `applyDiscount3CalcVerification()`)
+- [ ] Line ~440: Update total indicator display condition if needed
+
+**File: `OCRsanity/reverify_ocrsanity.php`**
+- [ ] Line ~90: Add method to `$validMethods` array
+- [ ] Lines ~134-164: Add method case in ActualUnitPrice calculation switch
+- [ ] Lines ~265-291: Add method case in `applySanityVerification()` switch
+- [ ] Create corresponding verification function matching process_ocrsanity.php
+
+#### 2. Frontend UI Updates
+
+**File: `OCRsanity/verify_ocrsanity.php`**
+- [ ] Line ~440: Update total indicator condition if method uses LineTotal verification
+- [ ] Line ~553: Add method to indicator initialization condition
+- [ ] Line ~1420: Add method to indicator update condition after re-verify
+- [ ] Update LDC screen if formula changes:
+  - [ ] Lines ~963: Update header row with new column names
+  - [ ] Lines ~966-1009: Extract required columns and calculate formula
+  - [ ] Lines ~1135-1141: Update read-only columns
+  - [ ] Lines ~1195-1219: Update Re-calculate button logic
+
+#### 3. Harmonized Flow Validation
+
+**File: `harmonizedFlow/step2_crop_launcher.php`**
+- [ ] Line ~101: Add method to validation array
+- [ ] Line ~254: Update error message to include new method
+
+#### 4. Configuration Tool
+
+**File: `configTools/suppliers_config_setup.php`**
+- No changes needed - automatically supports any method name
+
+#### 5. Additional Files (if needed)
+
+- [ ] Create helper processor if method requires special data transformation (like `positive_discount_values.php`)
+- [ ] Add method-specific button to `verify_ocrsanity.php` if needed
+- [ ] Update suppliers.json with example configuration
+
+#### 6. Testing Checklist
+
+- [ ] Test initial OCR sanity file creation with new method
+- [ ] Test Re-verify button functionality
+- [ ] Test Total Equality Indicator (if applicable)
+- [ ] Test LDC screen with new formula
+- [ ] Test ActualUnitPrice calculation in column K
+- [ ] Test validation error messages
+- [ ] Test with supplier that has jsonToOcrSanity mapping
+- [ ] Test with supplier without jsonToOcrSanity mapping
+- [ ] Test early validation in harmonized flow step 2
+
+#### 7. Documentation
+
+- [ ] Add implementation details to NOTES.md
+- [ ] Document formula and special behavior
+- [ ] Provide configuration example
+- [ ] Note any UI additions (buttons, indicators, etc.)
 
 ---
 
