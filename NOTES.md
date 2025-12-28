@@ -3168,6 +3168,157 @@ preg_match('/^OCRsanity_(.+?)_(\d{2}-\d{2}-\d{4})_([A-Z])_(\d{8})_(\d{6})\.xlsx$
 
 ---
 
-**Last Updated:** December 18, 2025
-**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete
+---
+
+#### 9. AI Enhancer (AIE) - Experimental LLM OCR Testing Tool (December 28, 2025)
+
+**Purpose:**
+A completely separate experimental testing tool for improving OCR accuracy using OpenAI's GPT models. Allows rapid iteration on prompts, models, and approaches without affecting the production harmonized OCR process.
+
+**Key Features:**
+
+**Complete Isolation:**
+- Separate directory: `AIocr/AIE/`
+- Own configuration: `AIE_config.json` (editable prompts & model settings)
+- Separate data directories:
+  - `invoice_pdf/` - Test PDF invoices
+  - `crops/` - PNG crop files
+  - `ocr_extracted/` - JSON output files
+- All AIE directories added to `.gitignore` (lines 5-7)
+- Changes to AIE do NOT affect production harmonized process
+
+**Two Input Methods:**
+
+1. **PDF Upload & Crop:**
+   - Upload PDF or select from existing `invoice_pdf/` directory
+   - Interactive crop viewer (`aie_crop_viewer.html`) - draw rectangles on PDF
+   - Auto-labeled crops: InvoiceNo, Date, Table1-TableN, Total
+   - Saves crops to `AIE/crops/` directory
+
+2. **Pre-Cropped PNG Upload:**
+   - Upload ready-made PNG crop files (minimum 4 files)
+   - Files must contain keywords: InvoiceNo, Date, Table1, Total
+   - Selected files displayed in blue info box with filenames list
+   - Example naming: `Osem_22-12-25_A_InvoiceNo.png`
+
+**Processing Features:**
+
+**Unified Workflow:**
+- Both PDF and PNG methods redirect to same processing page
+- Identical UX and results display
+- Loading screen with animated spinner and live timer
+- Shows progress while waiting for OpenAI response (20-30 seconds)
+
+**Comprehensive Metrics Display:**
+- Total Processing Time
+- OpenAI Response Time
+- Model Used (configurable in AIE_config.json)
+- Crops Processed count
+- Tables Found count
+- **Prompt Tokens** (sent to OpenAI)
+- **Completion Tokens** (received from OpenAI)
+- **Total Tokens** (for cost tracking)
+- API errors/warnings section (if any)
+
+**Output:**
+- JSON files saved to: `AIE/ocr_extracted/`
+- Filename format: `AIE_OCRjson_{basename}_{timestamp}.json`
+  - Example: `AIE_OCRjson_Osem_22-12-25_A_27122025_143022.json`
+- **Hebrew text properly displayed** using `JSON_UNESCAPED_UNICODE` flag
+- Downloadable JSON with download button
+- Pretty-printed JSON displayed on screen
+
+**Configuration (`AIE_config.json`):**
+```json
+{
+  "model_settings": {
+    "model": "gpt-4.1-mini",
+    "max_tokens": 16000,
+    "temperature": 0,
+    "top_p": 1.0,
+    "store": true,
+    "response_format": {"type": "json_object"}
+  },
+  "prompt_config": {
+    "system_prompt_part1": "...",
+    "system_prompt_table_single": "...",
+    "system_prompt_table_multiple_prefix": "...",
+    "system_prompt_table_multiple_suffix": "...",
+    "system_prompt_part2": "..."
+  }
+}
+```
+
+**Technical Implementation:**
+
+**File Structure:**
+- `enhancer_ai.php` - Main interface with dual input modes
+- `crop_tool.php` - PDF cropping wrapper page
+- `aie_crop_viewer.html` - Interactive crop drawing tool
+- `save_crops_aie.php` - Crop save handler for PDF workflow
+- `process_crops_from_pdf.php` - Unified processing & results page
+- `process_with_openai.php` - Legacy reference (no longer used)
+- `AIE_config.json` - Editable configuration file
+- `README.md` - AIE documentation
+
+**Key Technical Features:**
+- **Header redirect fix**: PNG upload handling moved before HTML output (lines 18-75 in enhancer_ai.php)
+- **PostMessage API**: Iframe-to-parent communication for loading overlay
+- **Session management**: Stores crop files, names, and basename between pages
+- **Loading overlay**: JavaScript timer with animated spinner and dots
+- **File validation**: Checks for minimum 4 PNG files with required keywords
+- **Token extraction**: Parses OpenAI response for usage metrics
+- **API timing**: Measures total processing time and OpenAI response time
+- **Error handling**: Displays API errors in dedicated warning section
+
+**Usage Workflow:**
+
+**Testing New Prompts:**
+1. Edit `AIE_config.json` with new prompt/model settings
+2. Process test invoice through AIE (PDF or PNG method)
+3. Review JSON output and metrics
+4. Check token usage and response time
+5. Iterate on prompt until satisfied
+6. **Then** implement changes in production harmonized process
+
+**File Naming Conventions:**
+
+**PDF Files (Recommended):**
+- Format: `XXXX dd-mm-yy Z.pdf`
+- Example: `Osem 22-12-25 A.pdf`
+- Naming preserved in all generated files
+
+**PNG Crop Files:**
+- Must contain: InvoiceNo, Date, Table1, Total
+- Recommended: `XXXX_dd-mm-yy_Z_InvoiceNo.png`
+- Minimum: `anything_InvoiceNo.png`
+
+**Use Cases:**
+- Test new prompt strategies for better OCR accuracy
+- Experiment with different OpenAI models (GPT-4, GPT-4-mini, etc.)
+- Debug OCR accuracy issues with specific suppliers
+- Compare results with different configurations
+- Test table extraction improvements for multi-page invoices
+- Measure token costs before production deployment
+
+**Important Notes:**
+- Uses same OpenAI API key from `AIocr/config.json`
+- No supplier configuration required (testing only)
+- All test data ignored by Git
+- Completely separate from production harmonized process
+- Perfect for rapid prompt iteration and experimentation
+
+**Files Updated:**
+- `AIocr/AIE/enhancer_ai.php` (main interface)
+- `AIocr/AIE/crop_tool.php` (PDF wrapper)
+- `AIocr/AIE/aie_crop_viewer.html` (crop viewer)
+- `AIocr/AIE/save_crops_aie.php` (crop saver)
+- `AIocr/AIE/process_crops_from_pdf.php` (unified processor)
+- `AIocr/AIE/README.md` (documentation)
+- `.gitignore` (added AIE directories)
+
+---
+
+**Last Updated:** December 28, 2025
+**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete | ✅ AI Enhancer Tool Ready
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard

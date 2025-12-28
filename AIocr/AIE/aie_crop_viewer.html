@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AIE - Multi-Rectangle Crop Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    #controls {
+      margin-bottom: 10px;
+    }
+
+    #canvas-container {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 30px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border: 1px solid black;
+    }
+
+    #pdf-canvas {
+      z-index: 1;
+    }
+
+    #overlay-canvas {
+      z-index: 2;
+      pointer-events: auto;
+    }
+
+    #result-container {
+      margin-top: 20px;
+    }
+
+    .cropped-block {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      gap: 10px;
+    }
+
+    .cropped-image {
+      border: 1px solid #999;
+      display: block;
+      max-width: 100%;
+    }
+
+    .label-dropdown {
+      font-size: 14px;
+    }
+
+    #save-images {
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Draw Rectangles on PDF and View Crops</h2>
+
+  <div id="controls">
+    <input type="file" id="pdf-file" accept="application/pdf">
+    <button id="show-results" disabled>Save and Show All Selected Rectangles</button>
+  </div>
+
+  <div id="canvas-container">
+    <canvas id="pdf-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <h3 id="crop-label" style="display: none;">Cropped Rectangles:</h3>
+  <div id="result-container"></div>
+
+  <button id="save-images" style="display: none;">Save Cropped Images to Server</button>
+
+  <script>
+    const pdfCanvas = document.getElementById('pdf-canvas');
+    const pdfCtx = pdfCanvas.getContext('2d');
+
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+
+    const rectangles = [];
+    let startX, startY, endX, endY, isDrawing = false;
+    let pdfImage;
+    let originalFileName = '';
+
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+
+    // Check if PDF URL is provided in query parameters (AIE mode)
+    const urlParams = new URLSearchParams(window.location.search);
+    const pdfUrl = urlParams.get('pdf');
+
+    // Function to load and render PDF
+    async function loadAndRenderPDF(source, fileName) {
+      originalFileName = fileName ? fileName.replace(/\.[^/.]+$/, "") : "invoice";
+
+      pdfjsLib.getDocument(source).promise.then(async pdf => {
+          const numPages = pdf.numPages;
+          const scale = 1.5;
+
+          // Get all pages and calculate total height
+          const pagePromises = [];
+          for (let i = 1; i <= numPages; i++) {
+            pagePromises.push(pdf.getPage(i));
+          }
+
+          const pages = await Promise.all(pagePromises);
+          const viewports = pages.map(page => page.getViewport({ scale }));
+
+          // Calculate canvas dimensions (same width, sum of heights)
+          const maxWidth = Math.max(...viewports.map(vp => vp.width));
+          const totalHeight = viewports.reduce((sum, vp) => sum + vp.height, 0);
+
+          pdfCanvas.width = overlayCanvas.width = maxWidth;
+          pdfCanvas.height = overlayCanvas.height = totalHeight;
+
+          document.getElementById('canvas-container').style.width = maxWidth + 'px';
+          document.getElementById('canvas-container').style.height = totalHeight + 'px';
+
+          // Render all pages sequentially, stacking them vertically
+          let currentY = 0;
+          for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
+            const viewport = viewports[i];
+
+            // Save canvas state
+            pdfCtx.save();
+
+            // Translate to the correct Y position for this page
+            pdfCtx.translate(0, currentY);
+
+            const renderContext = {
+              canvasContext: pdfCtx,
+              viewport: viewport
+            };
+
+            await page.render(renderContext).promise;
+
+            // Restore canvas state
+            pdfCtx.restore();
+
+            currentY += viewport.height;
+          }
+
+          // After all pages are rendered, create the image
+          pdfImage = new Image();
+          pdfImage.src = pdfCanvas.toDataURL("image/png");
+          document.getElementById("show-results").disabled = false;
+        });
+    }
+
+    // Manual file selection handler
+    document.getElementById('pdf-file').addEventListener('change', function(e) {
+      const pdfFile = e.target.files[0];
+      const fileName = pdfFile.name;
+
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const typedarray = new Uint8Array(this.result);
+        loadAndRenderPDF(typedarray, fileName);
+      };
+      fileReader.readAsArrayBuffer(pdfFile);
+    });
+
+    // Auto-load PDF if URL parameter is provided (AIE mode)
+    if (pdfUrl) {
+      // Hide file input in AIE mode
+      document.getElementById('pdf-file').style.display = 'none';
+
+      // Extract filename from URL
+      const fileName = decodeURIComponent(pdfUrl.split('/').pop());
+
+      // Load PDF from URL
+      loadAndRenderPDF(pdfUrl, fileName);
+    }
+
+    overlayCanvas.addEventListener('mousedown', function(e) {
+      const rect = overlayCanvas.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      isDrawing = true;
+    });
+
+    overlayCanvas.addEventListener('mousemove', function(e) {
+      if (!isDrawing) return;
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      const x = Math.min(startX, endX);
+      const y = Math.min(startY, endY);
+      const width = Math.abs(endX - startX);
+      const height = Math.abs(endY - startY);
+
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+      for (const r of rectangles) {
+        overlayCtx.strokeStyle = 'red';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(r.x, r.y, r.width, r.height);
+      }
+
+      overlayCtx.strokeStyle = 'blue';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.strokeRect(x, y, width, height);
+    });
+
+    overlayCanvas.addEventListener('mouseup', function(e) {
+      if (!isDrawing) return;
+      isDrawing = false;
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      const x = Math.min(startX, endX);
+      const y = Math.min(startY, endY);
+      const width = Math.abs(endX - startX);
+      const height = Math.abs(endY - startY);
+
+      rectangles.push({ x, y, width, height });
+
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      for (const r of rectangles) {
+        overlayCtx.strokeStyle = 'red';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(r.x, r.y, r.width, r.height);
+      }
+    });
+
+    document.getElementById('show-results').addEventListener('click', function() {
+      // Show label and save button
+      document.getElementById("crop-label").style.display = "block";
+      document.getElementById("save-images").style.display = "inline-block";
+
+      const resultContainer = document.getElementById('result-container');
+      resultContainer.innerHTML = '';
+
+      const totalRects = rectangles.length;
+
+      rectangles.forEach((rect, index) => {
+        const { x, y, width, height } = rect;
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(pdfImage, x, y, width, height, 0, 0, width, height);
+
+        const img = new Image();
+        img.src = tempCanvas.toDataURL("image/png");
+        img.className = 'cropped-image';
+
+        const dropdown = document.createElement('select');
+        dropdown.className = 'label-dropdown';
+        const options = ['Date', 'InvoiceNo', 'Table', 'Total'];
+
+        options.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt;
+          option.textContent = opt;
+          dropdown.appendChild(option);
+        });
+
+        if (index === 0) dropdown.value = 'Date';
+        else if (index === 1) dropdown.value = 'InvoiceNo';
+        else if (index === totalRects - 1) dropdown.value = 'Total';
+        else dropdown.value = 'Table';
+
+        const block = document.createElement('div');
+        block.className = 'cropped-block';
+        block.appendChild(img);
+        block.appendChild(dropdown);
+
+        resultContainer.appendChild(block);
+      });
+    });
+
+    // AIE-specific save handler
+    document.getElementById("save-images").addEventListener("click", async () => {
+      const blocks = document.querySelectorAll(".cropped-block");
+
+      const crops = [];
+      let tableIndex = 1;
+
+      blocks.forEach(block => {
+        const img = block.querySelector("img");
+        const dropdown = block.querySelector("select");
+        let label = dropdown.value;
+
+        // Auto-number table crops
+        if (label === 'Table') {
+          label = `Table${tableIndex}`;
+          tableIndex++;
+        }
+
+        crops.push({
+          label: label,
+          image: img.src
+        });
+      });
+
+      // Send message to parent window to show loading overlay
+      if (window.parent) {
+        window.parent.postMessage('showLoading', '*');
+      }
+
+      // Send to AIE save handler
+      try {
+        const response = await fetch('save_crops_aie.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ crops: crops })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // Redirect parent window to OpenAI processing page
+          window.parent.location.href = 'process_crops_from_pdf.php';
+        } else {
+          alert('Error saving images: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>

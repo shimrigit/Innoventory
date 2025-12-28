@@ -2,6 +2,9 @@ AIocr/crops/
 AIocr/ocr_extracted/
 AIocr/prompts/
 AIocr/config.json
+AIocr/AIE/crops/
+AIocr/AIE/invoice_pdf/
+AIocr/AIE/ocr_extracted/
 commercialLayer/commercial_invoice_files/
 commercialLayer/price_list_files/
 configDir/test_config.json
