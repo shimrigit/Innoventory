@@ -8,6 +8,15 @@
 
 session_start();
 
+// Load config to get model name for display
+$configFile = __DIR__ . '/AIE_config.json';
+if (file_exists($configFile)) {
+    $aieConfig = json_decode(file_get_contents($configFile), true);
+    $modelName = $aieConfig['model_settings']['model'] ?? 'OpenAI';
+} else {
+    $modelName = 'OpenAI';
+}
+
 $pdfFile = $_GET['pdf'] ?? '';
 
 if (empty($pdfFile)) {
@@ -174,7 +183,7 @@ $_SESSION['aie_mode'] = true; // Flag to indicate we're in AIE mode
             <div class="spinner"></div>
             <h3>🧪 AI Enhancer<span class="loading-badge">EXPERIMENTAL</span></h3>
             <p>Processing invoice with OpenAI<span class="dots" id="dots">...</span></p>
-            <p>Please wait while GPT-4.1-mini analyzes your cropped images</p>
+            <p>Please wait while <?php echo htmlspecialchars($modelName); ?> analyzes your cropped images</p>
             <div class="timer" id="timer">0s</div>
         </div>
     </div>

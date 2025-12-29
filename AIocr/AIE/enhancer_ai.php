@@ -15,6 +15,15 @@
 
 session_start();
 
+// Load config to get model name for display
+$configFile = __DIR__ . '/AIE_config.json';
+if (file_exists($configFile)) {
+    $aieConfig = json_decode(file_get_contents($configFile), true);
+    $modelName = $aieConfig['model_settings']['model'] ?? 'OpenAI';
+} else {
+    $modelName = 'OpenAI';
+}
+
 // Handle PNG crops upload FIRST - before any HTML output (to allow header redirects)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['cropFiles']) && !empty($_FILES['cropFiles']['name'][0])) {
     // Save uploaded PNG files to crops directory
@@ -324,7 +333,7 @@ $step = $_GET['step'] ?? 'upload';
             <div class="spinner"></div>
             <h3>🧪 AI Enhancer<span class="badge">EXPERIMENTAL</span></h3>
             <p>Processing invoice with OpenAI<span class="dots" id="dots">...</span></p>
-            <p>Please wait while GPT-4.1-mini analyzes your cropped images</p>
+            <p>Please wait while <?php echo htmlspecialchars($modelName); ?> analyzes your cropped images</p>
             <div class="timer" id="timer">0s</div>
         </div>
     </div>

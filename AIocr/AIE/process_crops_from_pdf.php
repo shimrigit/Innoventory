@@ -18,6 +18,15 @@ if (!isset($_SESSION['aie_crop_files']) || empty($_SESSION['aie_crop_files'])) {
     die('Error: No crops found in session. Please crop the PDF first.');
 }
 
+// Load config to get model name for display
+$configFile = __DIR__ . '/AIE_config.json';
+if (!file_exists($configFile)) {
+    die('Error: AIE_config.json not found');
+}
+
+$aieConfig = json_decode(file_get_contents($configFile), true);
+$modelName = $aieConfig['model_settings']['model'] ?? 'OpenAI';
+
 // Display loading screen immediately
 ?>
 <!DOCTYPE html>
@@ -127,7 +136,7 @@ if (!isset($_SESSION['aie_crop_files']) || empty($_SESSION['aie_crop_files'])) {
             Processing invoice with OpenAI<span class="dots" id="dots">...</span>
         </div>
         <div class="progress-text">
-            Please wait while GPT-4.1-mini analyzes your cropped images
+            Please wait while <?php echo htmlspecialchars($modelName); ?> analyzes your cropped images
         </div>
         <div class="timer" id="timer">0s</div>
     </div>
@@ -141,14 +150,7 @@ ob_start(); // Start output buffering for the rest
 $cropFiles = $_SESSION['aie_crop_files'];
 $cropNames = $_SESSION['aie_crop_names'];
 
-// Load config
-$configFile = __DIR__ . '/AIE_config.json';
-if (!file_exists($configFile)) {
-    die('Error: AIE_config.json not found');
-}
-
-$aieConfig = json_decode(file_get_contents($configFile), true);
-
+// Config already loaded above for display
 // Load API key from parent config
 $apiConfigFile = __DIR__ . '/../config.json';
 if (!file_exists($apiConfigFile)) {
@@ -440,6 +442,53 @@ $resultsHtml = ob_get_clean();
             line-height: 1.6;
         }
 
+        .table-section {
+            margin-top: 30px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .data-table th,
+        .data-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .data-table th {
+            background: #2a5298;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            position: sticky;
+            top: 0;
+        }
+
+        .data-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .data-table tr:hover {
+            background: #e3f2fd;
+        }
+
+        .data-table td {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
         .actions {
             margin-top: 30px;
             text-align: center;
@@ -560,6 +609,55 @@ $resultsHtml = ob_get_clean();
             <p><strong>Saved to:</strong> <code><?php echo htmlspecialchars($savedFileName); ?></code></p>
             <pre><?php echo htmlspecialchars(json_encode($parsedJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
         </div>
+
+        <?php if (isset($parsedJson['table']) && is_array($parsedJson['table']) && count($parsedJson['table']) > 0): ?>
+        <div class="table-section">
+            <h2>📊 Table Data Visualization</h2>
+            <p><strong>Rows:</strong> <?php echo count($parsedJson['table']); ?></p>
+
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Row</th>
+                            <?php
+                            // Find the maximum number of columns across all rows
+                            $maxColumns = 0;
+                            foreach ($parsedJson['table'] as $row) {
+                                // Get all numeric keys (column numbers)
+                                $columnKeys = array_filter(array_keys($row), function($key) {
+                                    return is_numeric($key) || ctype_digit($key);
+                                });
+                                $maxInRow = count($columnKeys) > 0 ? max(array_map('intval', $columnKeys)) : 0;
+                                $maxColumns = max($maxColumns, $maxInRow);
+                            }
+
+                            // Generate column headers 1, 2, 3, etc.
+                            for ($col = 1; $col <= $maxColumns; $col++) {
+                                echo "<th>{$col}</th>";
+                            }
+                            ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($parsedJson['table'] as $row): ?>
+                        <tr>
+                            <td style="font-weight: bold; background: #f0f0f0; text-align: center;">
+                                <?php echo isset($row['index']) ? htmlspecialchars($row['index']) : '—'; ?>
+                            </td>
+                            <?php
+                            for ($col = 1; $col <= $maxColumns; $col++) {
+                                $value = isset($row[(string)$col]) ? $row[(string)$col] : '';
+                                echo '<td>' . htmlspecialchars($value) . '</td>';
+                            }
+                            ?>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="actions">
             <a href="enhancer_ai.php" class="btn btn-primary">🔄 Process Another Invoice</a>
