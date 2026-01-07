@@ -70,11 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['cropFiles']) && !emp
     }
 
     if (!empty($savedCrops)) {
+        // Get OCR engine selection (coe or goe)
+        $ocrEngine = $_POST['ocrEngine'] ?? 'coe'; // default to COE if not specified
+
         // Store in session for processing
         $_SESSION['aie_crop_files'] = $cropFilesPaths;
         $_SESSION['aie_crop_names'] = $savedCrops;
         $_SESSION['aie_pdf_basename'] = $baseName;
         $_SESSION['aie_mode'] = true;
+        $_SESSION['aie_ocr_engine'] = $ocrEngine; // Store engine selection
 
         // Redirect to unified processing page
         header('Location: process_crops_from_pdf.php');
@@ -378,6 +382,23 @@ $step = $_GET['step'] ?? 'upload';
                 </div>
             </div>
 
+            <!-- OCR Engine Selection -->
+            <div class="form-group">
+                <label>⚙️ Select OCR Engine:</label>
+
+                <div class="upload-option selected" onclick="selectEngine('coe')">
+                    <input type="radio" name="ocrEngine" value="coe" id="engine_coe" checked required>
+                    <label for="engine_coe" style="display: inline; cursor: pointer; font-weight: bold;">🔤 COE - Classic OCR Engine</label>
+                    <p style="margin: 8px 0 0 30px; font-size: 13px; color: #666;">Model directly outputs structured table with ordered columns (uses AIE_config.json)</p>
+                </div>
+
+                <div class="upload-option" onclick="selectEngine('goe')">
+                    <input type="radio" name="ocrEngine" value="goe" id="engine_goe" required>
+                    <label for="engine_goe" style="display: inline; cursor: pointer; font-weight: bold;">📐 GOE - Geometric OCR Engine</label>
+                    <p style="margin: 8px 0 0 30px; font-size: 13px; color: #666;">Model returns tokens with bounding boxes; geometry engine builds columns (uses GOE_config.json)</p>
+                </div>
+            </div>
+
             <!-- PDF Upload Section -->
             <div id="pdfSection" class="content-section active">
                 <!-- PDF Source Selection -->
@@ -477,8 +498,12 @@ $step = $_GET['step'] ?? 'upload';
             $pdfPath = $invoicePdfDir . $pdfFileName;
 
             if (file_exists($pdfPath)) {
-                // Store PDF info in session
+                // Get OCR engine selection (coe or goe)
+                $ocrEngine = $_POST['ocrEngine'] ?? 'coe'; // default to COE if not specified
+
+                // Store PDF info and engine selection in session
                 $_SESSION['aie_pdf_file'] = $pdfFileName;
+                $_SESSION['aie_ocr_engine'] = $ocrEngine;
 
                 echo "<div class='success-box'>";
                 echo "<p><strong>✅ PDF Selected!</strong></p>";
@@ -514,8 +539,12 @@ $step = $_GET['step'] ?? 'upload';
             $pdfPath = $invoicePdfDir . $pdfFileName;
 
             if (move_uploaded_file($tmpName, $pdfPath)) {
-                // Store PDF info in session
+                // Get OCR engine selection (coe or goe)
+                $ocrEngine = $_POST['ocrEngine'] ?? 'coe'; // default to COE if not specified
+
+                // Store PDF info and engine selection in session
                 $_SESSION['aie_pdf_file'] = $pdfFileName;
+                $_SESSION['aie_ocr_engine'] = $ocrEngine;
 
                 echo "<div class='success-box'>";
                 echo "<p><strong>✅ PDF Uploaded Successfully!</strong></p>";
@@ -558,13 +587,27 @@ $step = $_GET['step'] ?? 'upload';
     </div>
 
     <script>
+        function selectEngine(engine) {
+            // Update radio buttons
+            document.getElementById('engine_coe').checked = (engine === 'coe');
+            document.getElementById('engine_goe').checked = (engine === 'goe');
+
+            // Update visual selection
+            const engineOptions = event.currentTarget.parentElement.querySelectorAll('.upload-option');
+            engineOptions.forEach(option => {
+                option.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
         function selectMode(mode) {
             // Update radio buttons
             document.getElementById('mode_pdf').checked = (mode === 'pdf');
             document.getElementById('mode_crops').checked = (mode === 'crops');
 
             // Update visual selection
-            document.querySelectorAll('.upload-option').forEach(option => {
+            const modeOptions = event.currentTarget.parentElement.querySelectorAll('.upload-option');
+            modeOptions.forEach(option => {
                 option.classList.remove('selected');
             });
             event.currentTarget.classList.add('selected');

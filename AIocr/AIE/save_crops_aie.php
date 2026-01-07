@@ -82,9 +82,20 @@ foreach ($crops as $crop) {
         continue;
     }
 
-    // Create filename
-    $filename = $baseName . '_' . $suffix . '.png';
+    // Create filename with versioning if file already exists
+    $baseFilename = $baseName . '_' . $suffix;
+    $filename = $baseFilename . '.png';
     $filepath = $cropsDir . $filename;
+
+    // If file exists, add (1), (2), (3), etc. suffix
+    if (file_exists($filepath)) {
+        $version = 1;
+        while (file_exists($cropsDir . $baseFilename . ' (' . $version . ').png')) {
+            $version++;
+        }
+        $filename = $baseFilename . ' (' . $version . ').png';
+        $filepath = $cropsDir . $filename;
+    }
 
     // Save file
     if (file_put_contents($filepath, $decodedImage) !== false) {

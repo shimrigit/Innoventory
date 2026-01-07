@@ -18,10 +18,13 @@ if (!isset($_SESSION['aie_crop_files']) || empty($_SESSION['aie_crop_files'])) {
     die('Error: No crops found in session. Please crop the PDF first.');
 }
 
-// Load config to get model name for display
-$configFile = __DIR__ . '/AIE_config.json';
+// Detect OCR engine mode (COE or GOE)
+$ocrEngine = $_SESSION['aie_ocr_engine'] ?? 'coe';
+
+// Load appropriate config file based on engine mode
+$configFile = __DIR__ . '/' . ($ocrEngine === 'goe' ? 'GOE_config.json' : 'AIE_config.json');
 if (!file_exists($configFile)) {
-    die('Error: AIE_config.json not found');
+    die('Error: Config file not found: ' . basename($configFile));
 }
 
 $aieConfig = json_decode(file_get_contents($configFile), true);
@@ -203,81 +206,142 @@ if (!$invoiceNoFile || !$dateFile || empty($tableFiles) || !$totalFile) {
 $promptConfig = $aieConfig['prompt'];
 $tableCount = count($tableFiles);
 
-$systemPrompt = $promptConfig['system_prompt_part1'];
-
-// Add table description based on count
-if ($tableCount > 1) {
-    $additional = '';
-    if ($tableCount > 2) {
-        $additional .= ', Table3';
-    }
-    if ($tableCount > 3) {
-        $additional .= ', Table4';
-    }
-    if ($tableCount > 4) {
-        $additional .= ', Table5';
-    }
-
-    $tableSection = str_replace('{tableCount}', $tableCount, $promptConfig['system_prompt_table_multiple_suffix']);
-    $tableSection = str_replace('{additional}', $additional, $tableSection);
-    $systemPrompt .= $promptConfig['system_prompt_table_multiple_prefix'] . ($tableCount + 2) . $tableSection;
+// GOE uses simple single-part prompt, COE uses complex multi-part structure
+if ($ocrEngine === 'goe') {
+    $systemPrompt = $promptConfig['system_prompt'];
 } else {
-    $systemPrompt .= $promptConfig['system_prompt_table_single'];
-}
+    // COE: Build multi-part prompt
+    $systemPrompt = $promptConfig['system_prompt_part1'];
 
-$systemPrompt .= $promptConfig['system_prompt_part2'];
+    // Add table description based on count
+    if ($tableCount > 1) {
+        $additional = '';
+        if ($tableCount > 2) {
+            $additional .= ', Table3';
+        }
+        if ($tableCount > 3) {
+            $additional .= ', Table4';
+        }
+        if ($tableCount > 4) {
+            $additional .= ', Table5';
+        }
+
+        $tableSection = str_replace('{tableCount}', $tableCount, $promptConfig['system_prompt_table_multiple_suffix']);
+        $tableSection = str_replace('{additional}', $additional, $tableSection);
+        $systemPrompt .= $promptConfig['system_prompt_table_multiple_prefix'] . ($tableCount + 2) . $tableSection;
+    } else {
+        $systemPrompt .= $promptConfig['system_prompt_table_single'];
+    }
+
+    $systemPrompt .= $promptConfig['system_prompt_part2'];
+}
 
 // Build user content array
-$userContent = [
-    [
-        "type" => "text",
-        "text" => "Image 1 (InvoiceNo):"
-    ],
-    [
-        "type" => "image_url",
-        "image_url" => [
-            "url" => "data:image/png;base64," . base64_encode(file_get_contents($invoiceNoFile))
+// GOE expects simple labels, COE expects numbered labels
+if ($ocrEngine === 'goe') {
+    // GOE: Simple filenames for model to recognize
+    $userContent = [
+        [
+            "type" => "text",
+            "text" => "Cropped_Invoiceno.png:"
+        ],
+        [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . base64_encode(file_get_contents($invoiceNoFile))
+            ]
+        ],
+        [
+            "type" => "text",
+            "text" => "Cropped_Date.png:"
+        ],
+        [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . base64_encode(file_get_contents($dateFile))
+            ]
         ]
-    ],
-    [
-        "type" => "text",
-        "text" => "Image 2 (Date):"
-    ],
-    [
-        "type" => "image_url",
-        "image_url" => [
-            "url" => "data:image/png;base64," . base64_encode(file_get_contents($dateFile))
-        ]
-    ]
-];
+    ];
 
-// Add table images
-foreach ($tableFiles as $i => $tableFile) {
-    $tableNum = $i + 1;
+    // Add table images with GOE naming
+    foreach ($tableFiles as $i => $tableFile) {
+        $tableNum = $i + 1;
+        $userContent[] = [
+            "type" => "text",
+            "text" => "Cropped_Table{$tableNum}.png:"
+        ];
+        $userContent[] = [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . base64_encode(file_get_contents($tableFile))
+            ]
+        ];
+    }
+
+    // Add total image
     $userContent[] = [
         "type" => "text",
-        "text" => "Image " . ($i + 3) . " (Table{$tableNum}):"
+        "text" => "Cropped_Total.png:"
     ];
     $userContent[] = [
         "type" => "image_url",
         "image_url" => [
-            "url" => "data:image/png;base64," . base64_encode(file_get_contents($tableFile))
+            "url" => "data:image/png;base64," . base64_encode(file_get_contents($totalFile))
+        ]
+    ];
+} else {
+    // COE: Numbered image labels
+    $userContent = [
+        [
+            "type" => "text",
+            "text" => "Image 1 (InvoiceNo):"
+        ],
+        [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . base64_encode(file_get_contents($invoiceNoFile))
+            ]
+        ],
+        [
+            "type" => "text",
+            "text" => "Image 2 (Date):"
+        ],
+        [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . base64_encode(file_get_contents($dateFile))
+            ]
+        ]
+    ];
+
+    // Add table images
+    foreach ($tableFiles as $i => $tableFile) {
+        $tableNum = $i + 1;
+        $userContent[] = [
+            "type" => "text",
+            "text" => "Image " . ($i + 3) . " (Table{$tableNum}):"
+        ];
+        $userContent[] = [
+            "type" => "image_url",
+            "image_url" => [
+                "url" => "data:image/png;base64," . base64_encode(file_get_contents($tableFile))
+            ]
+        ];
+    }
+
+    // Add total image
+    $totalImageNum = count($tableFiles) + 3;
+    $userContent[] = [
+        "type" => "text",
+        "text" => "Image {$totalImageNum} (Total):"
+    ];
+    $userContent[] = [
+        "type" => "image_url",
+        "image_url" => [
+            "url" => "data:image/png;base64," . base64_encode(file_get_contents($totalFile))
         ]
     ];
 }
-
-// Add total image
-$totalImageNum = count($tableFiles) + 3;
-$userContent[] = [
-    "type" => "text",
-    "text" => "Image {$totalImageNum} (Total):"
-];
-$userContent[] = [
-    "type" => "image_url",
-    "image_url" => [
-        "url" => "data:image/png;base64," . base64_encode(file_get_contents($totalFile))
-    ]
-];
 
 // Prepare API request
 $modelSettings = $aieConfig['model_settings'];
@@ -339,6 +403,15 @@ if (isset($result['error'])) {
 $jsonResponse = $result['choices'][0]['message']['content'] ?? '';
 $parsedJson = json_decode($jsonResponse, true);
 
+// Apply geometry engine processing for GOE mode
+if ($ocrEngine === 'goe') {
+    // Include geometry engine
+    require_once __DIR__ . '/geometry_engine.php';
+
+    // Transform bbox tokens into structured table
+    $parsedJson = build_invoice_json($parsedJson);
+}
+
 // Generate output filename with PDF basename
 $timestamp = date('dmY_His');
 $savedFileName = "AIE_OCRjson_{$pdfBaseName}_{$timestamp}.json";
@@ -357,6 +430,7 @@ unset($_SESSION['aie_crop_files']);
 unset($_SESSION['aie_crop_names']);
 unset($_SESSION['aie_pdf_basename']);
 unset($_SESSION['aie_mode']);
+unset($_SESSION['aie_ocr_engine']);
 
 // Get the buffered results
 $resultsHtml = ob_get_clean();
