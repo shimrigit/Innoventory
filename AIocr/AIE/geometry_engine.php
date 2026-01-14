@@ -96,77 +96,135 @@ function group_into_rows(array $tokens): array {
 }
 
 /**
- * Detect column centers (cx clusters) from tokens.
- * Returns sorted array of column centers (floats).
+ * Detect column boundaries using vertical alignment clustering.
+ * Fast algorithm: clusters centers that are vertically aligned across rows.
+ * Returns array of column definitions: [['x_min' => float, 'x_max' => float, 'center' => float], ...]
  */
-function detect_columns(array $tokens): array {
+function detect_column_boundaries(array $tokens): array {
     if (count($tokens) === 0) return [];
 
-    $cxs = array_map(fn($t) => $t['cx'], $tokens);
-    sort($cxs);
-
     $medW = median(array_map(fn($t) => $t['w'], $tokens));
-    $colThreshold = max(4.0, 0.80 * $medW); // tune if needed
 
-    $centers = [];
-    $cluster = [];
+    // Collect all token centers
+    $allCenters = [];
+    foreach ($tokens as $t) {
+        $allCenters[] = $t['cx'];
+    }
 
-    foreach ($cxs as $x) {
-        if (count($cluster) === 0) {
-            $cluster = [$x];
-            continue;
-        }
-        $m = mean($cluster);
-        if (abs($x - $m) <= $colThreshold) {
-            $cluster[] = $x;
+    if (count($allCenters) === 0) return [];
+    sort($allCenters);
+
+    // Strategy: Look for large gaps in the sorted centers
+    // A large gap indicates a missing column (empty column with no data)
+
+    $columnCenters = [];
+    $cluster = [$allCenters[0]];
+
+    // Threshold for same column: balanced clustering (0.6x median width)
+    // Balance between avoiding over-separation and keeping distinct columns separate
+    $sameColThreshold = max(10.0, 0.6 * $medW);
+
+    // Threshold for detecting a skipped column: larger gap (3.0x median width)
+    // Increased from 2.0x to be more conservative about inferring empty columns
+    $skipColThreshold = max(30.0, 3.0 * $medW);
+
+    for ($i = 1; $i < count($allCenters); $i++) {
+        $gap = $allCenters[$i] - $allCenters[$i-1];
+
+        if ($gap <= $sameColThreshold) {
+            // Same column - add to current cluster
+            $cluster[] = $allCenters[$i];
         } else {
-            $centers[] = mean($cluster);
-            $cluster = [$x];
+            // Different column - save current cluster
+            $columnCenters[] = mean($cluster);
+
+            // Check if this is a very large gap (indicates skipped/empty column)
+            // If gap is huge, we might need to infer an empty column in between
+            if ($gap > $skipColThreshold) {
+                // Large gap detected - might indicate an empty column
+                // Add an inferred column center in the middle of the gap
+                $inferredCenter = ($allCenters[$i-1] + $allCenters[$i]) / 2.0;
+                $columnCenters[] = $inferredCenter;
+            }
+
+            $cluster = [$allCenters[$i]];
         }
     }
-    if (count($cluster)) $centers[] = mean($cluster);
+    $columnCenters[] = mean($cluster);
 
-    sort($centers);
+    // Define column boundaries
+    $columns = [];
+    $minX = min(array_map(fn($t) => $t['x1'], $tokens));
+    $maxX = max(array_map(fn($t) => $t['x2'], $tokens));
 
-    // Optional: merge too-close centers to avoid "column explosion"
-    $merged = [];
-    foreach ($centers as $c) {
-        if (count($merged) === 0) { $merged[] = $c; continue; }
-        $last = $merged[count($merged)-1];
-        if (abs($c - $last) < ($colThreshold * 0.55)) {
-            // merge by averaging
-            $merged[count($merged)-1] = ($last + $c) / 2.0;
+    for ($i = 0; $i < count($columnCenters); $i++) {
+        $center = $columnCenters[$i];
+
+        if ($i === 0) {
+            $xMin = $minX;
         } else {
-            $merged[] = $c;
+            $xMin = ($columnCenters[$i-1] + $center) / 2.0;
         }
+
+        if ($i === count($columnCenters) - 1) {
+            $xMax = $maxX;
+        } else {
+            $xMax = ($center + $columnCenters[$i+1]) / 2.0;
+        }
+
+        $columns[] = [
+            'x_min' => $xMin,
+            'x_max' => $xMax,
+            'center' => $center
+        ];
     }
 
-    return $merged;
-}
-
-function nearest_col_index(float $cx, array $colCenters): int {
-    $best = 0;
-    $bestD = INF;
-    foreach ($colCenters as $i => $c) {
-        $d = abs($cx - $c);
-        if ($d < $bestD) { $bestD = $d; $best = $i; }
-    }
-    return $best;
+    return $columns;
 }
 
 /**
- * Build row objects { "1": "...", ..., "N": "..." } from row tokens using fixed col centers.
+ * Calculate overlap between token X-range and column X-range.
+ * Returns overlap width (0 if no overlap).
+ */
+function calculate_overlap(float $tokenX1, float $tokenX2, float $colX1, float $colX2): float {
+    $overlapStart = max($tokenX1, $colX1);
+    $overlapEnd = min($tokenX2, $colX2);
+    return max(0.0, $overlapEnd - $overlapStart);
+}
+
+/**
+ * Find which column a token belongs to based on spatial overlap.
+ * Returns column index (0-based) with maximum overlap.
+ */
+function assign_token_to_column(array $token, array $columns): int {
+    $bestCol = 0;
+    $maxOverlap = 0.0;
+
+    foreach ($columns as $i => $col) {
+        $overlap = calculate_overlap($token['x1'], $token['x2'], $col['x_min'], $col['x_max']);
+        if ($overlap > $maxOverlap) {
+            $maxOverlap = $overlap;
+            $bestCol = $i;
+        }
+    }
+
+    return $bestCol;
+}
+
+/**
+ * Build row objects { "1": "...", ..., "N": "..." } from row tokens using fixed column boundaries.
+ * Assigns tokens based on spatial overlap with column X-ranges.
  * Joins multiple tokens in same cell with a space.
  */
-function rows_to_grid(array $rows, array $colCenters): array {
-    $N = count($colCenters);
+function rows_to_grid(array $rows, array $columns): array {
+    $N = count($columns);
     if ($N === 0) return [];
 
     $gridRows = [];
     foreach ($rows as $r) {
         $cells = array_fill(0, $N, []);
         foreach ($r as $t) {
-            $ci = nearest_col_index($t['cx'], $colCenters);
+            $ci = assign_token_to_column($t, $columns);
             $cells[$ci][] = $t['text'];
         }
         $rowObj = [];
@@ -244,7 +302,7 @@ function build_invoice_json(array $raw): array {
         ];
     }
 
-    // Detect columns from the FIRST table image tokens (most stable)
+    // Detect column boundaries from the FIRST table image tokens (most stable)
     // If first part is too sparse, fallback to all tokens.
     $colSourceTokens = $normParts[0]['tokens'];
     if (count($colSourceTokens) < 10) {
@@ -252,14 +310,14 @@ function build_invoice_json(array $raw): array {
         foreach ($normParts as $p) $all = array_merge($all, $p['tokens']);
         $colSourceTokens = $all;
     }
-    $colCenters = detect_columns($colSourceTokens);
-    $colCount = count($colCenters);
+    $columns = detect_column_boundaries($colSourceTokens);
+    $colCount = count($columns);
 
-    // Build grid rows for each part using same columns
+    // Build grid rows for each part using same column boundaries
     $partsGrid = [];
     foreach ($normParts as $p) {
         $rows = group_into_rows($p['tokens']);
-        $gridRows = rows_to_grid($rows, $colCenters);
+        $gridRows = rows_to_grid($rows, $columns);
 
         // Optional: remove obviously empty rows (all "" across columns)
         $gridRows = array_values(array_filter($gridRows, function($r) {

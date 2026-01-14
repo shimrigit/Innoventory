@@ -403,6 +403,12 @@ if (isset($result['error'])) {
 $jsonResponse = $result['choices'][0]['message']['content'] ?? '';
 $parsedJson = json_decode($jsonResponse, true);
 
+// Save raw OpenAI response for GOE debug display
+$rawOpenAIResponse = null;
+if ($ocrEngine === 'goe') {
+    $rawOpenAIResponse = $parsedJson; // Save before geometry processing
+}
+
 // Apply geometry engine processing for GOE mode
 if ($ocrEngine === 'goe') {
     // Include geometry engine
@@ -678,8 +684,16 @@ $resultsHtml = ob_get_clean();
         </div>
         <?php endif; ?>
 
+        <?php if ($rawOpenAIResponse !== null): ?>
         <div class="json-section">
-            <h2>📄 Extracted JSON Output</h2>
+            <h2>🔬 Raw OpenAI Response (Before Geometry Processing)</h2>
+            <p style="color: #666; font-style: italic;">This is the unprocessed output from OpenAI with bbox tokens. The geometry engine will transform this into structured rows/columns below.</p>
+            <pre><?php echo htmlspecialchars(json_encode($rawOpenAIResponse, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+        </div>
+        <?php endif; ?>
+
+        <div class="json-section">
+            <h2>📄 <?php echo ($rawOpenAIResponse !== null) ? 'Final Processed JSON Output (After Geometry Engine)' : 'Extracted JSON Output'; ?></h2>
             <p><strong>Saved to:</strong> <code><?php echo htmlspecialchars($savedFileName); ?></code></p>
             <pre><?php echo htmlspecialchars(json_encode($parsedJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
         </div>
