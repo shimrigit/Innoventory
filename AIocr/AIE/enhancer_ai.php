@@ -48,20 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['cropFiles']) && !emp
     }
 
     // Save all uploaded files to crops directory
+    // Use original filenames as-is (no prefix manipulation)
     for ($i = 0; $i < $fileCount; $i++) {
         if ($uploadedFiles['error'][$i] === UPLOAD_ERR_OK) {
             $fileName = $uploadedFiles['name'][$i];
             $tmpName = $uploadedFiles['tmp_name'][$i];
 
-            // Use original filename or add basename prefix if missing
-            if (strpos($fileName, $baseName) === 0) {
-                $targetFileName = $fileName;
-            } else {
-                $targetFileName = $baseName . '_' . $fileName;
-            }
-
+            // Use original filename without modification
+            $targetFileName = $fileName;
             $targetPath = $cropsDir . $targetFileName;
 
+            // Overwrite if file exists
             if (move_uploaded_file($tmpName, $targetPath)) {
                 $savedCrops[] = $targetFileName;
                 $cropFilesPaths[] = $targetPath;

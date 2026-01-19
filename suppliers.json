@@ -418,7 +418,14 @@
     {
         "supplierName": "PastaCasa",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "פסטה דה לה קזה"
+        "hebrewName": "פסטה דה לה קזה",
+        "jsonToOcrSanity": {
+            "Barcode": 8,
+            "ItemName": 7,
+            "Qty": 6,
+            "UnitPrice": 3,
+            "LineTotal": 2
+        }
     },
     {
         "supplierName": "AHtiv",
