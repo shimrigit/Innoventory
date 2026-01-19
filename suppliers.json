@@ -420,7 +420,7 @@
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "פסטה דה לה קזה",
         "jsonToOcrSanity": {
-            "Barcode": 8,
+            "Barcode": 9,
             "ItemName": 7,
             "Qty": 6,
             "UnitPrice": 3,
