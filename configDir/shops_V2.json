@@ -2,6 +2,7 @@
   {
     "ShopName": "CountryMZ",
     "BackOfficeType": "Comax",
+    "ReplaceBarcodeToERP": "YES",
     "PriceListColumns": {
       "ItemERPName": 2,
       "Barcode": 3,

@@ -112,7 +112,8 @@ foreach ($allFiles as $file) {
 
     // Check if file matches the shop and date pattern
     // Format: OCRsanity_{Supplier}_{dd-mm-yyyy}...
-    if (preg_match('/^OCRsanity_([A-Za-z]+)_(\d{2}-\d{2}-\d{4})/', $file, $matches)) {
+    // Note: Supplier name can contain letters and numbers (e.g., TnuvaMeat2)
+    if (preg_match('/^OCRsanity_([A-Za-z0-9]+)_(\d{2}-\d{2}-\d{4})/', $file, $matches)) {
         $fileSupplier = $matches[1];
         $fileDate = $matches[2];
 
@@ -307,7 +308,8 @@ $invoicesToUploadCount = 0;
 foreach ($clFiles as $clFile) {
     // Extract invoice signature from filename
     // Format: OCRsanity_{Supplier}_{dd-mm-yyyy}_{Letter}_ddmmyy_hhmmss_CL_ddmmyy_hhmmss.xlsx
-    if (preg_match('/OCRsanity_([A-Za-z]+_\d{2}-\d{2}-\d{4}_[A-Z])/', $clFile['name'], $matches)) {
+    // Note: Supplier name can contain letters and numbers (e.g., TnuvaMeat2)
+    if (preg_match('/OCRsanity_([A-Za-z0-9]+_\d{2}-\d{2}-\d{4}_[A-Z])/', $clFile['name'], $matches)) {
         $invoiceSignature = $matches[1];
     } else {
         echo "<p>⚠️ Warning: Could not extract invoice signature from {$clFile['name']}</p>";

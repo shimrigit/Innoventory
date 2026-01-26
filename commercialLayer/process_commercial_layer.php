@@ -147,35 +147,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $clHighestRow = $sheet->getHighestRow();
     $plHighestRow = $priceListSheet->getHighestRow();
 
+    // Get ReplaceBarcodeToERP setting from shop config (default to NO)
+    $replaceBarcodeToERP = isset($shopConfig['ReplaceBarcodeToERP']) && strtoupper($shopConfig['ReplaceBarcodeToERP']) === 'YES';
+
     // Iterate through CL file rows (starting from row 2)
     for ($n = 2; $n <= $clHighestRow; $n++) {
         // Get invoice barcode (IB) from column D
-        $ib = $sheet->getCell("D{$n}")->getValue();
+        $ibOriginal = $sheet->getCell("D{$n}")->getValue();
 
         // Skip empty rows
-        if ($ib === null || $ib === '') {
+        if ($ibOriginal === null || $ibOriginal === '') {
             continue;
         }
 
-        // Convert to string and remove any non-numeric characters
-        $ib = (string)$ib;
+        // Convert to string and remove any non-numeric characters for matching
+        $ib = (string)$ibOriginal;
         $ib = preg_replace('/[^0-9]/', '', $ib);
 
         $matchFound = false;
         $matchRow = null;
         $matchType = null; // 'A' or 'B'
+        $matchedERPBarcode = null; // Store the matched ERP barcode
 
         // Search for matching barcode in Price List
         for ($m = 2; $m <= $plHighestRow; $m++) {
-            $plb = $priceListSheet->getCell("{$plBarcodeCol}{$m}")->getValue();
+            $plbOriginal = $priceListSheet->getCell("{$plBarcodeCol}{$m}")->getValue();
 
             // Skip empty barcodes
-            if ($plb === null || $plb === '') {
+            if ($plbOriginal === null || $plbOriginal === '') {
                 continue;
             }
 
-            // Convert to string and remove any non-numeric characters
-            $plb = (string)$plb;
+            // Convert to string and remove any non-numeric characters for matching
+            $plb = (string)$plbOriginal;
             $plb = preg_replace('/[^0-9]/', '', $plb);
 
             // Matching logic
@@ -187,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($ib === $plb) {
                     $matchFound = true;
                     $matchRow = $m;
+                    $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                     break;
                 }
             }
@@ -197,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (substr($plb, -$ibLen) === $ib) {
                         $matchFound = true;
                         $matchRow = $m;
+                        $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                         break;
                     }
                 } else {
@@ -204,6 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (substr($ib, -$plbLen) === $plb) {
                         $matchFound = true;
                         $matchRow = $m;
+                        $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                         break;
                     }
                 }
@@ -215,6 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (substr($plb, -6) === $ibPadded) {
                         $matchFound = true;
                         $matchRow = $m;
+                        $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                         break;
                     }
                 }
@@ -223,6 +231,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($matchFound) {
             // Match found - copy data from Price List row $matchRow to CL row $n
+
+            // Check if we should replace the invoice barcode with ERP barcode
+            if ($replaceBarcodeToERP && $ib !== $matchedERPBarcode) {
+                // Barcodes are different - replace with ERP barcode and highlight
+                $sheet->setCellValueExplicit("D{$n}", $matchedERPBarcode, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                // Apply light brown background color (tan/wheat color)
+                $sheet->getStyle("D{$n}")->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFD2B48C'); // Light brown/tan color
+            }
 
             // Copy ItemERPName (PL column B -> CL column M)
             $itemERPName = $priceListSheet->getCell("{$plItemERPNameCol}{$matchRow}")->getValue();

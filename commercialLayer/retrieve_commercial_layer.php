@@ -52,6 +52,9 @@ try {
 
     $priceListColumns = $shopConfig['PriceListColumns'];
 
+    // Get ReplaceBarcodeToERP setting from shop config (default to NO)
+    $replaceBarcodeToERP = isset($shopConfig['ReplaceBarcodeToERP']) && strtoupper($shopConfig['ReplaceBarcodeToERP']) === 'YES';
+
     // Find the price list file for this shop
     $priceListDir = __DIR__ . '/price_list_files/';
     $priceListFiles = glob($priceListDir . $shopName . '*.xlsx');
@@ -135,14 +138,14 @@ try {
     // Step 2: Start from row 2 (skip header) and re-match barcodes
     for ($n = 2; $n <= $highestRow; $n++) {
         // Get barcode from column D
-        $ib = $clSheet->getCell("D{$n}")->getValue();
+        $ibOriginal = $clSheet->getCell("D{$n}")->getValue();
 
-        if (empty($ib)) {
+        if (empty($ibOriginal)) {
             continue;
         }
 
-        // Convert to string and remove any non-numeric characters
-        $ib = (string)$ib;
+        // Convert to string and remove any non-numeric characters for matching
+        $ib = (string)$ibOriginal;
         $ib = preg_replace('/[^0-9]/', '', $ib);
 
         if (empty($ib)) {
@@ -152,12 +155,13 @@ try {
         // Search for matching barcode in Price List
         $matchFound = false;
         $matchRow = null;
+        $matchedERPBarcode = null; // Store the matched ERP barcode
 
         for ($m = 2; $m <= $plHighestRow; $m++) {
-            $plb = $plSheet->getCell("{$plBarcodeCol}{$m}")->getValue();
+            $plbOriginal = $plSheet->getCell("{$plBarcodeCol}{$m}")->getValue();
 
-            // Convert to string and remove any non-numeric characters
-            $plb = (string)$plb;
+            // Convert to string and remove any non-numeric characters for matching
+            $plb = (string)$plbOriginal;
             $plb = preg_replace('/[^0-9]/', '', $plb);
 
             $ibLen = strlen($ib);
@@ -168,6 +172,7 @@ try {
                 if ($ib === $plb) {
                     $matchFound = true;
                     $matchRow = $m;
+                    $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                     break;
                 }
             }
@@ -177,12 +182,14 @@ try {
                     if (substr($plb, -$ibLen) === $ib) {
                         $matchFound = true;
                         $matchRow = $m;
+                        $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                         break;
                     }
                 } else {
                     if (substr($ib, -$plbLen) === $plb) {
                         $matchFound = true;
                         $matchRow = $m;
+                        $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                         break;
                     }
                 }
@@ -194,6 +201,7 @@ try {
                     if (substr($plb, -6) === $ibPadded) {
                         $matchFound = true;
                         $matchRow = $m;
+                        $matchedERPBarcode = $plb; // Store the normalized ERP barcode
                         break;
                     }
                 }
@@ -202,6 +210,24 @@ try {
 
         if ($matchFound) {
             // Borders already cleared at the beginning - no need to clear here
+
+            // Check if we should replace the invoice barcode with ERP barcode
+            if ($replaceBarcodeToERP && $ib !== $matchedERPBarcode) {
+                // Barcodes are different - replace with ERP barcode and highlight
+                $clSheet->setCellValueExplicit("D{$n}", $matchedERPBarcode, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                // Apply light brown background color (tan/wheat color)
+                $clSheet->getStyle("D{$n}")->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFD2B48C'); // Light brown/tan color
+
+                // Track the barcode update for the response
+                $updatedCells[] = [
+                    'row' => $n - 1, // 0-indexed for Handsontable
+                    'col' => 3, // Column D (barcode)
+                    'value' => $matchedERPBarcode,
+                    'background' => '#D2B48C'
+                ];
+            }
 
             // Copy ItemERPName (PL -> CL column M)
             $itemERPName = $plSheet->getCell("{$plItemERPNameCol}{$matchRow}")->getValue();

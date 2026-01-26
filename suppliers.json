@@ -17,7 +17,14 @@
     {
         "supplierName": "Globrands",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "גלוברנדס"
+        "hebrewName": "גלוברנדס",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 5,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Dubek",
@@ -103,7 +110,14 @@
     {
         "supplierName": "StraussCool",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "שטראוס חלב"
+        "hebrewName": "שטראוס חלב",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 4,
+            "UnitPrice": 3,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "StraussSnacks",
@@ -383,7 +397,13 @@
     {
         "supplierName": "Angel",
         "OCRsanityMethod": "Simple",
-        "hebrewName": "מאפיית אנגל"
+        "hebrewName": "מאפיית אנגל",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 3,
+            "Qty": 2,
+            "UnitPrice": 1
+        }
     },
     {
         "supplierName": "Oshri",
@@ -413,7 +433,14 @@
     {
         "supplierName": "PhilipMorris",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "פיליפ מוריס"
+        "hebrewName": "פיליפ מוריס",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 5,
+            "Qty": 4,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "PastaCasa",
@@ -479,11 +506,31 @@
     {
         "supplierName": "Ida",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "עידה"
+        "hebrewName": "עידה",
+        "jsonToOcrSanity": {
+            "Barcode": 8,
+            "ItemName": 7,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Tavili",
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "תביא-לי"
+    },
+    {
+        "supplierName": "TnuvaMeat2",
+        "OCRsanityMethod": "Discount1",
+        "hebrewName": "תנובה בשר 2",
+        "jsonToOcrSanity": {
+            "Barcode": 11,
+            "ItemName": 9,
+            "Qty": 7,
+            "UnitPrice": 5,
+            "LineTotal": 1,
+            "Discount1": 2
+        }
     }
 ]

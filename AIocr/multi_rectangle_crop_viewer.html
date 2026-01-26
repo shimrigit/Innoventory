@@ -9,10 +9,17 @@
       margin-bottom: 10px;
     }
 
-    #canvas-container {
-      position: relative;
-      display: inline-block;
+    #canvas-wrapper {
       margin-bottom: 30px;
+      overflow: visible;
+      position: relative;
+    }
+
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
     }
 
     canvas {
@@ -45,7 +52,10 @@
     .cropped-image {
       border: 1px solid #999;
       display: block;
-      max-width: 100%;
+      max-width: 600px;
+      max-height: 400px;
+      width: auto;
+      height: auto;
     }
 
     .label-dropdown {
@@ -62,12 +72,24 @@
 
   <div id="controls">
     <input type="file" id="pdf-file" accept="application/pdf">
+    <button id="rotate-btn" disabled>Rotate 90°</button>
+    <button id="zoom-out-btn" disabled>Zoom Out (-)</button>
+    <button id="zoom-in-btn" disabled>Zoom In (+)</button>
+    <span id="zoom-level" style="margin-left: 10px; font-weight: bold;">100%</span>
     <button id="show-results" disabled>Save and Show All Selected Rectangles</button>
   </div>
 
-  <div id="canvas-container">
-    <canvas id="pdf-canvas"></canvas>
-    <canvas id="overlay-canvas"></canvas>
+  <div id="canvas-wrapper">
+    <div id="canvas-container">
+      <canvas id="pdf-canvas"></canvas>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
+  </div>
+
+  <div id="debug-info" style="margin-top: 10px; font-family: monospace; font-size: 14px;">
+    Mouse: <span id="mouse-coords">-</span> |
+    Rect Start: <span id="rect-start">-</span> |
+    Rect End: <span id="rect-end">-</span>
   </div>
 
   <h3 id="crop-label" style="display: none;">Cropped Rectangles:</h3>
@@ -99,6 +121,12 @@
     const pdfUrl = urlParams.get('pdf');
     const harmonizedMode = urlParams.get('harmonized') === 'true';
 
+    // Track display scale for coordinate conversion
+    let displayScale = 1;
+    let baseDisplayScale = 1; // Store the initial auto-calculated scale
+    let zoomLevel = 1.0; // User zoom multiplier (1.0 = 100%)
+    let currentRotation = 0; // Track rotation in degrees (0, 90, 180, 270)
+
     // Function to load and render PDF
     async function loadAndRenderPDF(source, fileName) {
       const baseName = fileName ? fileName.replace(/\.[^/.]+$/, "") : "invoice";
@@ -106,7 +134,9 @@
 
       pdfjsLib.getDocument(source).promise.then(async pdf => {
           const numPages = pdf.numPages;
-          const scale = 1.5;
+
+          // Use high render scale for quality crops (1.5 is good baseline)
+          const renderScale = 1.5;
 
           // Get all pages and calculate total height
           const pagePromises = [];
@@ -115,7 +145,7 @@
           }
 
           const pages = await Promise.all(pagePromises);
-          const viewports = pages.map(page => page.getViewport({ scale }));
+          const viewports = pages.map(page => page.getViewport({ scale: renderScale }));
 
           // Calculate canvas dimensions (same width, sum of heights)
           const maxWidth = Math.max(...viewports.map(vp => vp.width));
@@ -124,8 +154,26 @@
           pdfCanvas.width = overlayCanvas.width = maxWidth;
           pdfCanvas.height = overlayCanvas.height = totalHeight;
 
-          document.getElementById('canvas-container').style.width = maxWidth + 'px';
-          document.getElementById('canvas-container').style.height = totalHeight + 'px';
+          // Calculate base display scale to fit screen (target ~900px width)
+          const targetDisplayWidth = Math.min(900, window.innerWidth - 50);
+          baseDisplayScale = targetDisplayWidth / maxWidth;
+          displayScale = baseDisplayScale * zoomLevel;
+
+          // Apply CSS transform to scale display (keeps canvas at full resolution)
+          const container = document.getElementById('canvas-container');
+          container.style.transform = `scale(${displayScale}) rotate(${currentRotation}deg)`;
+
+          // Adjust container's layout dimensions to match visual size
+          container.style.width = maxWidth + 'px';
+          container.style.height = totalHeight + 'px';
+
+          // Set wrapper dimensions to match the scaled visual size
+          const wrapper = document.getElementById('canvas-wrapper');
+          wrapper.style.minWidth = (maxWidth * displayScale) + 'px';
+          wrapper.style.minHeight = (totalHeight * displayScale) + 'px';
+
+          // Update zoom level display
+          document.getElementById('zoom-level').textContent = Math.round(zoomLevel * 100) + '%';
 
           // Render all pages sequentially, stacking them vertically
           let currentY = 0;
@@ -156,6 +204,9 @@
           pdfImage = new Image();
           pdfImage.src = pdfCanvas.toDataURL("image/png");
           document.getElementById("show-results").disabled = false;
+          document.getElementById("rotate-btn").disabled = false;
+          document.getElementById("zoom-in-btn").disabled = false;
+          document.getElementById("zoom-out-btn").disabled = false;
         });
     }
 
@@ -187,10 +238,117 @@
       loadAndRenderPDF(pdfUrl, fileName);
     }
 
+    // Helper function to update the transform and wrapper dimensions
+    function updateViewTransform() {
+      displayScale = baseDisplayScale * zoomLevel;
+
+      const w = pdfCanvas.width * displayScale;
+      const h = pdfCanvas.height * displayScale;
+
+      // Calculate translation based on rotation
+      let translateX = 0;
+      let translateY = 0;
+
+      if (currentRotation === 0) {
+        translateX = 0;
+        translateY = 0;
+      } else if (currentRotation === 90) {
+        translateX = h;
+        translateY = 0;
+      } else if (currentRotation === 180) {
+        translateX = w;
+        translateY = h;
+      } else if (currentRotation === 270) {
+        translateX = 0;
+        translateY = w;
+      }
+
+      // Apply transform
+      const container = document.getElementById('canvas-container');
+      container.style.transform = `scale(${displayScale}) translate(${translateX / displayScale}px, ${translateY / displayScale}px) rotate(${currentRotation}deg)`;
+
+      // Adjust wrapper dimensions based on rotation
+      const wrapper = document.getElementById('canvas-wrapper');
+
+      if (currentRotation === 90 || currentRotation === 270) {
+        wrapper.style.minWidth = (pdfCanvas.height * displayScale) + 'px';
+        wrapper.style.minHeight = (pdfCanvas.width * displayScale) + 'px';
+      } else {
+        wrapper.style.minWidth = (pdfCanvas.width * displayScale) + 'px';
+        wrapper.style.minHeight = (pdfCanvas.height * displayScale) + 'px';
+      }
+
+      // Update zoom level display
+      document.getElementById('zoom-level').textContent = Math.round(zoomLevel * 100) + '%';
+    }
+
+    // Zoom In button handler
+    document.getElementById('zoom-in-btn').addEventListener('click', function() {
+      // Increase zoom by 25%, max 400%
+      if (zoomLevel < 4.0) {
+        zoomLevel = Math.min(4.0, zoomLevel + 0.25);
+        updateViewTransform();
+      }
+    });
+
+    // Zoom Out button handler
+    document.getElementById('zoom-out-btn').addEventListener('click', function() {
+      // Decrease zoom by 25%, min 25%
+      if (zoomLevel > 0.25) {
+        zoomLevel = Math.max(0.25, zoomLevel - 0.25);
+        updateViewTransform();
+      }
+    });
+
+    // Rotate button handler
+    document.getElementById('rotate-btn').addEventListener('click', function() {
+      // Increment rotation by 90 degrees
+      currentRotation = (currentRotation + 90) % 360;
+
+      // Update the view
+      updateViewTransform();
+
+      // Clear any existing rectangles as coordinates need recalculation
+      rectangles.length = 0;
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    });
+
     overlayCanvas.addEventListener('mousedown', function(e) {
+      // Get mouse position relative to the page
       const rect = overlayCanvas.getBoundingClientRect();
-      startX = e.clientX - rect.left;
-      startY = e.clientY - rect.top;
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      // The bounding rect changes with rotation, so we need to convert coordinates
+      // based on the current rotation to get the actual canvas pixel position
+      const w = pdfCanvas.width;
+      const h = pdfCanvas.height;
+
+      let canvasX, canvasY;
+
+      if (currentRotation === 0) {
+        canvasX = clientX / displayScale;
+        canvasY = clientY / displayScale;
+      } else if (currentRotation === 90) {
+        // After 90° rotation, the bounding box is rotated
+        // Visual top-left is actually canvas top-right
+        canvasX = clientY / displayScale;
+        canvasY = h - (clientX / displayScale);
+      } else if (currentRotation === 180) {
+        canvasX = w - (clientX / displayScale);
+        canvasY = h - (clientY / displayScale);
+      } else if (currentRotation === 270) {
+        canvasX = w - (clientY / displayScale);
+        canvasY = clientX / displayScale;
+      }
+
+      startX = canvasX;
+      startY = canvasY;
+
+      // Debug output
+      document.getElementById('mouse-coords').textContent = `Client:(${Math.round(clientX)}, ${Math.round(clientY)})`;
+      document.getElementById('rect-start').textContent = `Canvas:(${Math.round(startX)}, ${Math.round(startY)})`;
+
       isDrawing = true;
     });
 
@@ -198,8 +356,35 @@
       if (!isDrawing) return;
 
       const rect = overlayCanvas.getBoundingClientRect();
-      endX = e.clientX - rect.left;
-      endY = e.clientY - rect.top;
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      // Convert coordinates based on rotation
+      const w = pdfCanvas.width;
+      const h = pdfCanvas.height;
+
+      let canvasX, canvasY;
+
+      if (currentRotation === 0) {
+        canvasX = clientX / displayScale;
+        canvasY = clientY / displayScale;
+      } else if (currentRotation === 90) {
+        canvasX = clientY / displayScale;
+        canvasY = h - (clientX / displayScale);
+      } else if (currentRotation === 180) {
+        canvasX = w - (clientX / displayScale);
+        canvasY = h - (clientY / displayScale);
+      } else if (currentRotation === 270) {
+        canvasX = w - (clientY / displayScale);
+        canvasY = clientX / displayScale;
+      }
+
+      endX = canvasX;
+      endY = canvasY;
+
+      // Debug output
+      document.getElementById('mouse-coords').textContent = `Client:(${Math.round(clientX)}, ${Math.round(clientY)})`;
+      document.getElementById('rect-end').textContent = `Canvas:(${Math.round(endX)}, ${Math.round(endY)})`;
 
       const x = Math.min(startX, endX);
       const y = Math.min(startY, endY);
@@ -208,14 +393,17 @@
 
       overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
+      // Scale line width inversely to display scale for consistent visual thickness
+      const visualLineWidth = 2 / displayScale;
+
       for (const r of rectangles) {
         overlayCtx.strokeStyle = 'red';
-        overlayCtx.lineWidth = 2;
+        overlayCtx.lineWidth = visualLineWidth;
         overlayCtx.strokeRect(r.x, r.y, r.width, r.height);
       }
 
       overlayCtx.strokeStyle = 'blue';
-      overlayCtx.lineWidth = 2;
+      overlayCtx.lineWidth = visualLineWidth;
       overlayCtx.strokeRect(x, y, width, height);
     });
 
@@ -224,8 +412,31 @@
       isDrawing = false;
 
       const rect = overlayCanvas.getBoundingClientRect();
-      endX = e.clientX - rect.left;
-      endY = e.clientY - rect.top;
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      // Convert coordinates based on rotation
+      const w = pdfCanvas.width;
+      const h = pdfCanvas.height;
+
+      let canvasX, canvasY;
+
+      if (currentRotation === 0) {
+        canvasX = clientX / displayScale;
+        canvasY = clientY / displayScale;
+      } else if (currentRotation === 90) {
+        canvasX = clientY / displayScale;
+        canvasY = h - (clientX / displayScale);
+      } else if (currentRotation === 180) {
+        canvasX = w - (clientX / displayScale);
+        canvasY = h - (clientY / displayScale);
+      } else if (currentRotation === 270) {
+        canvasX = w - (clientY / displayScale);
+        canvasY = clientX / displayScale;
+      }
+
+      endX = canvasX;
+      endY = canvasY;
 
       const x = Math.min(startX, endX);
       const y = Math.min(startY, endY);
@@ -234,10 +445,13 @@
 
       rectangles.push({ x, y, width, height });
 
+      // Scale line width inversely to display scale for consistent visual thickness
+      const visualLineWidth = 2 / displayScale;
+
       overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
       for (const r of rectangles) {
         overlayCtx.strokeStyle = 'red';
-        overlayCtx.lineWidth = 2;
+        overlayCtx.lineWidth = visualLineWidth;
         overlayCtx.strokeRect(r.x, r.y, r.width, r.height);
       }
     });

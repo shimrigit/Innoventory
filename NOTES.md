@@ -3319,6 +3319,22 @@ A completely separate experimental testing tool for improving OCR accuracy using
 
 ---
 
-**Last Updated:** December 28, 2025
+## PDF Rectangle Crop Viewer Enhancements (January 26, 2026)
+
+Added zoom in/out buttons (25%-400% range) to the PDF crop viewer. Fixed mouse coordinate mapping for all rotation orientations (0°, 90°, 180°, 270°) so rectangles draw exactly where the mouse pointer is positioned.
+
+**Files Updated:** `AIocr/multi_rectangle_crop_viewer.html`
+
+---
+
+## Commercial Layer - ERP Barcode Replacement (January 26, 2026)
+
+Added configurable `ReplaceBarcodeToERP` parameter in shops_V2.json. When set to "YES", short invoice barcodes are automatically replaced with full ERP barcodes from the price list (when matched via suffix rules), and the cell is highlighted with light brown background (#D2B48C).
+
+**Files Updated:** `configDir/shops_V2.json`, `commercialLayer/process_commercial_layer.php`, `commercialLayer/retrieve_commercial_layer.php`
+
+---
+
+**Last Updated:** January 26, 2026
 **Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete | ✅ AI Enhancer Tool Ready
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard
