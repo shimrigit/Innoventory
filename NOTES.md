@@ -1589,7 +1589,7 @@ commercialLayer/
 - `BackOfficeType`: Back-office system type ("comax", "priority", etc.)
 - `shopDefaultCity`: City for CHP price search (e.g., "Beer Sheva", "Tel Aviv")
 - `Departments`: Array of department objects with margin expectations
-- `Invoice_to_upload_HeadersMapping`: Mapping configuration for generating ERP-compatible invoice files from CL files
+- `Invoice_to_upload_HeadersMapping_Comax`: Mapping configuration for generating ERP-compatible invoice files from CL files
 
 ---
 
@@ -1597,11 +1597,11 @@ commercialLayer/
 
 **Purpose:** Configurable mapping system to transform Commercial Layer (CL) files into ERP-specific invoice upload formats.
 
-**Location:** `shops_V2.json` → `Invoice_to_upload_HeadersMapping`
+**Location:** `shops_V2.json` → `Invoice_to_upload_HeadersMapping_Comax`
 
 **Structure:**
 ```json
-"Invoice_to_upload_HeadersMapping": {
+"Invoice_to_upload_HeadersMapping_Comax": {
   "DestinationColumn": ["Header", "OriginColumn", "DataType"],
   ...
 }
@@ -1618,7 +1618,7 @@ commercialLayer/
 
 **Example Configuration (CountryMZ - Comax):**
 ```json
-"Invoice_to_upload_HeadersMapping": {
+"Invoice_to_upload_HeadersMapping_Comax": {
   "A": ["שורה", 0, 0],
   "B": ["פריט", "D", "T"],
   "C": ["שם פריט", 0, 0],
@@ -1651,7 +1651,7 @@ commercialLayer/
 **Processing Logic:**
 
 1. **Load CL File:** Read Commercial Layer Excel file (columns A-P)
-2. **Load Mapping:** Get `Invoice_to_upload_HeadersMapping` from shop config
+2. **Load Mapping:** Get `Invoice_to_upload_HeadersMapping_Comax` from shop config
 3. **Create Destination File:** New Excel spreadsheet for ERP upload
 4. **Set Headers:** Write header text to row 1 based on mapping
 5. **Process Data Rows:**
@@ -2244,11 +2244,11 @@ if (preg_match('/_PRICE-CHANGE_\d{6}_\d{6}\.xlsx$/', $file)) {
 
 **File Name:** `invoice_to_upload_X.xlsx` (X = sequential counter starting at 1)
 
-**Configuration:** Uses `Invoice_to_upload_HeadersMapping` from `shops_V2.json`
+**Configuration:** Uses `Invoice_to_upload_HeadersMapping_Comax` from `shops_V2.json`
 
 **Mapping Structure:**
 ```json
-"Invoice_to_upload_HeadersMapping": {
+"Invoice_to_upload_HeadersMapping_Comax": {
   "A": ["שורה", 0, 0],           // Row index (origin=0 means auto-generated)
   "B": ["ברקוד", "D", "T"],      // Barcode from CL column D, Text type
   "C": ["כמות", "F", "I"],       // Quantity from CL column F, Integer type
@@ -2279,11 +2279,11 @@ if (preg_match('/_PRICE-CHANGE_\d{6}_\d{6}\.xlsx$/', $file)) {
 
 **File Name:** `price_change_list_ddmmyy.xlsx`
 
-**Configuration:** Uses `Price_change_list_HeadersMapping` from `shops_V2.json`
+**Configuration:** Uses `Price_change_list_HeadersMapping_Comax` from `shops_V2.json`
 
 **Mapping Structure:**
 ```json
-"Price_change_list_HeadersMapping": {
+"Price_change_list_HeadersMapping_Comax": {
   "A": ["שורה", 0, 0],
   "B": ["ברקוד", "D", "T"],
   "C": ["מחיר ישן", "I", "D"],
@@ -2324,11 +2324,11 @@ $sheet->getStyle($cell)->getNumberFormat()->setFormatCode('0.00%');
 
 **File Name:** `new_products_list_ddmmyy.xlsx`
 
-**Configuration:** Uses `New_products_list_HeadersMapping` from `shops_V2.json`
+**Configuration:** Uses `New_products_list_HeadersMapping_Comax` from `shops_V2.json`
 
 **Mapping Structure:**
 ```json
-"New_products_list_HeadersMapping": {
+"New_products_list_HeadersMapping_Comax": {
   "A": ["מס פריט", "D", "T"],      // Item number from column D
   "B": ["שם פריט", "F", "T"],      // Item name from column F
   "C": ["ברקוד", "D", "T"],        // Barcode from column D
@@ -2381,16 +2381,16 @@ if ($originCol === 0) {
 
 **Three Mapping Types:**
 
-**1. Invoice_to_upload_HeadersMapping**
+**1. Invoice_to_upload_HeadersMapping_Comax**
 - Maps CL file columns to ERP upload format
 - Row index auto-generated (origin=0)
 
-**2. Price_change_list_HeadersMapping**
+**2. Price_change_list_HeadersMapping_Comax**
 - Maps PC file columns to consolidated format
 - Supports percentage data type ("P")
 - Row index auto-generated (origin=0)
 
-**3. New_products_list_HeadersMapping**
+**3. New_products_list_HeadersMapping_Comax**
 - Maps NP file columns to consolidated format
 - Special handling for Supplier/Department codes (origin=0)
 - Row index NOT auto-generated (uses source data)
@@ -2399,18 +2399,18 @@ if ($originCol === 0) {
 ```json
 {
   "ShopName": "CountryMZ",
-  "Invoice_to_upload_HeadersMapping": {
+  "Invoice_to_upload_HeadersMapping_Comax": {
     "A": ["שורה", 0, 0],
     "B": ["ברקוד", "D", "T"],
     "C": ["כמות", "F", "I"],
     "D": ["מחיר יחידה", "K", "D"]
   },
-  "Price_change_list_HeadersMapping": {
+  "Price_change_list_HeadersMapping_Comax": {
     "A": ["שורה", 0, 0],
     "B": ["ברקוד", "D", "T"],
     "F": ["שינוי עלות", "J", "P"]
   },
-  "New_products_list_HeadersMapping": {
+  "New_products_list_HeadersMapping_Comax": {
     "A": ["מס פריט", "D", "T"],
     "E": ["ספק", 0, "I"],
     "G": ["מחלקה", 0, "I"]
@@ -2455,19 +2455,19 @@ new_products_list_261125.xlsx
 **Step 3: Invoice Processing**
 1. Generate `invoice_list_ddmmyy.xlsx` from all CL files
 2. Generate `invoice_to_upload_X.xlsx` for each CL file
-3. Apply Invoice_to_upload_HeadersMapping
+3. Apply Invoice_to_upload_HeadersMapping_Comax
 4. Auto-number rows starting at 1
 
 **Step 4: Price Change Processing**
 1. Load all PC files for the date
-2. Apply Price_change_list_HeadersMapping
+2. Apply Price_change_list_HeadersMapping_Comax
 3. Handle percentage formatting
 4. Generate consolidated `price_change_list_ddmmyy.xlsx`
 5. Skip empty rows
 
 **Step 5: New Products Processing**
 1. Load all NP files for the date
-2. Apply New_products_list_HeadersMapping
+2. Apply New_products_list_HeadersMapping_Comax
 3. Handle special origin=0 columns (Supplier, Department codes)
 4. Generate consolidated `new_products_list_ddmmyy.xlsx`
 5. Skip empty rows
@@ -2520,7 +2520,7 @@ Error: No CL files found for shop 'ShopName' and date 'dd-mm-yyyy'
 
 **Missing Mapping Configuration:**
 ```
-Warning: Invoice_to_upload_HeadersMapping not found in shop config.
+Warning: Invoice_to_upload_HeadersMapping_Comax not found in shop config.
 Skipping invoice upload file generation.
 ```
 - Check shops_V2.json for shop configuration
