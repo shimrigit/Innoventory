@@ -129,8 +129,8 @@
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "תנובה",
         "jsonToOcrSanity": {
-            "Barcode": 4,
-            "ItemName": 5,
+            "Barcode": 5,
+            "ItemName": 4,
             "Qty": 3,
             "UnitPrice": 2,
             "LineTotal": 1
@@ -372,7 +372,14 @@
     {
         "supplierName": "Yehiam",
         "OCRsanityMethod": "LineTotal",
-        "hebrewName": "יחיעם"
+        "hebrewName": "יחיעם",
+        "jsonToOcrSanity": {
+            "Barcode": 6,
+            "ItemName": 5,
+            "Qty": 4,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     },
     {
         "supplierName": "Shufersal",

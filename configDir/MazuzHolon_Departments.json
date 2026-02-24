@@ -1,0 +1,477 @@
+[
+    {
+        "DepartmentNumber": 101,
+        "DepartmentName": "מוצרי יסוד",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 102,
+        "DepartmentName": "לחמים",
+        "ExpectedMarginPercentage": 0.3
+    },
+    {
+        "DepartmentNumber": 103,
+        "DepartmentName": "מוצרי חלב",
+        "ExpectedMarginPercentage": 0.25
+    },
+    {
+        "DepartmentNumber": 104,
+        "DepartmentName": "משקאות",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 105,
+        "DepartmentName": "משקאות אלכוהול",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 106,
+        "DepartmentName": "קפה תה",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 107,
+        "DepartmentName": "מאפים עוגות ועוגיות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 108,
+        "DepartmentName": "ממתקים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 109,
+        "DepartmentName": "חטיפים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 110,
+        "DepartmentName": "דגני בוקר",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 111,
+        "DepartmentName": "גלידות ושלגונים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 112,
+        "DepartmentName": "שימורים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 113,
+        "DepartmentName": "פיצוחים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 114,
+        "DepartmentName": "תבלינים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 115,
+        "DepartmentName": "אבקות ומרקים",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 116,
+        "DepartmentName": "ממרחים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 117,
+        "DepartmentName": "מוצרי אפיה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 118,
+        "DepartmentName": "סיגריות",
+        "ExpectedMarginPercentage": 0.12
+    },
+    {
+        "DepartmentNumber": 119,
+        "DepartmentName": "קולינרי",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 120,
+        "DepartmentName": "סויה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 121,
+        "DepartmentName": "אמריקאים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 123,
+        "DepartmentName": "מאפיה",
+        "ExpectedMarginPercentage": 0.45
+    },
+    {
+        "DepartmentNumber": 150,
+        "DepartmentName": "פיצוחים אדר זכיינות",
+        "ExpectedMarginPercentage": 0.45
+    },
+    {
+        "DepartmentNumber": 151,
+        "DepartmentName": "פיצוחים ללא מע\"מ אדר זכיינות",
+        "ExpectedMarginPercentage": 0.45
+    },
+    {
+        "DepartmentNumber": 158,
+        "DepartmentName": "הכוורת המתוקה זכיינות",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 159,
+        "DepartmentName": "הכוורת המתוקה זכיינות ללא מע\"מ",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 160,
+        "DepartmentName": "ללא גלוטן",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 161,
+        "DepartmentName": "מחלקת פיצוחים- פיצוחי אמונה",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 162,
+        "DepartmentName": "מחלקת פיצוחים ללא מעמ- פיצוחי אמונה",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 199,
+        "DepartmentName": "סיגריות אלקטרוניות",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 201,
+        "DepartmentName": "ירקות ופירות ללא מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 202,
+        "DepartmentName": "ירקות חייב מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 204,
+        "DepartmentName": "פירות יבשים זכיין חייב מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 205,
+        "DepartmentName": "פירות יבשים זכיין ללא מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 206,
+        "DepartmentName": "פיצוחים ופירות יבשים ללא מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 207,
+        "DepartmentName": "פירות יבשים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 208,
+        "DepartmentName": "סלטים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 209,
+        "DepartmentName": "קפואים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 210,
+        "DepartmentName": "דגים",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 211,
+        "DepartmentName": "בשרים ועופות טרי",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 212,
+        "DepartmentName": "מזון מוכן",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 213,
+        "DepartmentName": "פירות/ ירקות מוכנים במגש ללא מעמ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 214,
+        "DepartmentName": "בשרים ועופות קפוא",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 255,
+        "DepartmentName": "דגים טרי מעדניה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 256,
+        "DepartmentName": "מעובדים עוף ירושלים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 257,
+        "DepartmentName": "עוף טרי מעדניה/ זכיינות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 258,
+        "DepartmentName": "בקר טרי מעדניה/ זכיינות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 259,
+        "DepartmentName": "עוף ירושלים קצביה זכיינות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 260,
+        "DepartmentName": "עוף ירושלים קפוא",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 261,
+        "DepartmentName": "עוף ירושלים טרי ארוז",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 262,
+        "DepartmentName": "בלדי עד\"ח עוף טרי/ מצונן זכיינות",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 263,
+        "DepartmentName": "בלדי חב\"ד יורקוביץ זכיינות לכל הרשת",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 264,
+        "DepartmentName": "דגים קפוא עוף ירושלים זכיינות",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 266,
+        "DepartmentName": "עוף ירושלים טרי ארוז שארית/רובין/ לנדא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 267,
+        "DepartmentName": "עוף ירושלים עוף קפוא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 268,
+        "DepartmentName": "עוף ירושלים בקר קפוא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 269,
+        "DepartmentName": "עוף ירושלים זכיינות בעדני בשר קפוא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 270,
+        "DepartmentName": "בלדי לנדא/ אחדות זכיינות לכל הרשת",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 271,
+        "DepartmentName": "בלדי עוף/ הודו קפוא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 272,
+        "DepartmentName": "בלדי בקר קפוא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 273,
+        "DepartmentName": "בלדי בקר טרי קצביה",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 274,
+        "DepartmentName": "בלדי ירקות/ פירות/ בצקים קפואים",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 275,
+        "DepartmentName": "בלדי דגים קפוא",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 276,
+        "DepartmentName": "בלדי דגים מעושנים/ סלטים",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 277,
+        "DepartmentName": "בלדי דגים טרי",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 278,
+        "DepartmentName": "בלדי עוף טרי קצביה",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 279,
+        "DepartmentName": "בלדי עוף טרי תפזורת",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 280,
+        "DepartmentName": "מעובדים בשרי",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 301,
+        "DepartmentName": "מוצרים לבית",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 302,
+        "DepartmentName": "חד פעמי",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 303,
+        "DepartmentName": "מוצרי הדלקה",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 304,
+        "DepartmentName": "עיתונים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 305,
+        "DepartmentName": "צעצועים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 306,
+        "DepartmentName": "אביזרי סלולר",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 307,
+        "DepartmentName": "מוצרי כתיבה",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 308,
+        "DepartmentName": "אריזות ומשטחים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 309,
+        "DepartmentName": "אריזה ללא מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 310,
+        "DepartmentName": "אופנה וביגוד",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 311,
+        "DepartmentName": "מוצרי חשמל",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 312,
+        "DepartmentName": "חגים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 313,
+        "DepartmentName": "קישוטי סוכה",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 314,
+        "DepartmentName": "פרחים טריים",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 315,
+        "DepartmentName": "כרטיסים לפעילות ברשת",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 401,
+        "DepartmentName": "חומרי ניקוי",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 402,
+        "DepartmentName": "היגיינה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 403,
+        "DepartmentName": "תינוקות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 404,
+        "DepartmentName": "מוצרי נייר",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 405,
+        "DepartmentName": "מוצרי ניילון",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 406,
+        "DepartmentName": "משלימים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 407,
+        "DepartmentName": "מוצרי שירות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 408,
+        "DepartmentName": "מוצרי אריזה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 1001,
+        "DepartmentName": "כללי",
+        "ExpectedMarginPercentage": 0.3
+    },
+    {
+        "DepartmentNumber": 1002,
+        "DepartmentName": "לארכיון",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 1008,
+        "DepartmentName": "תחזוקה",
+        "ExpectedMarginPercentage": 0.0
+    },
+    {
+        "DepartmentNumber": 10001,
+        "DepartmentName": "ירקות",
+        "ExpectedMarginPercentage": 0.0
+    }
+]

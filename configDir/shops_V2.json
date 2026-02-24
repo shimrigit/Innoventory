@@ -13,7 +13,7 @@
     "PriceChangePercentageThreshold": 3,
     "MarginTolerancePercentage": 15,
     "shopDefaultCity": "תל אביב",
-    "Invoice_to_upload_HeadersMapping": {
+    "Invoice_to_upload_HeadersMapping_Comax": {
       "A": ["שורה", 0, 0],
       "B": ["פריט", "D", "T"],
       "C": ["שם פריט", 0, 0],
@@ -22,7 +22,7 @@
       "F": ["הנחה", 0, 0],
       "G": ["מחיר", "K", "D"]
     },
-    "Price_change_list_HeadersMapping": {
+    "Price_change_list_HeadersMapping_Comax": {
       "A": ["שורה", 0, 0],
       "B": ["ברקוד", "D", "T"],
       "C": ["מחיר חדש", "N", "D"],
@@ -40,7 +40,66 @@
       "O": ["סיבת השינוי", "R", "T"],
       "P": ["מרווח אחרי שינוי", "P", "P"]
     },
-    "New_products_list_HeadersMapping": {
+    "New_products_list_HeadersMapping_Comax": {
+      "A": ["מס פריט", "D", "T"],
+      "B": ["שם פריט", "F", "T"],
+      "C": ["ברקוד", "D", "T"],
+      "D": ["מחיר קניה", "G", "D"],
+      "E": ["ספק", 0, "I"],
+      "F": ["מחיר מכירה", "K", "D"],
+      "G": ["מחלקה", 0, "I"],
+      "H": ["שורה מקורית", "C", "I"],
+      "I": ["מזהה חשבונית", "M", "T"],
+      "J": ["שם ספק", "H", "T"],
+      "K": ["שם מחלקה", "I", "T"],
+      "L": ["רווח גולמי", "L", "P"]
+    }
+  },
+  {
+    "ShopName": "MazuzHolon",
+    "BackOfficeType": "All4shops",
+    "ReplaceBarcodeToERP": "NO",
+    "PriceListColumns": {
+      "ItemERPName": 2,
+      "Barcode": 3,
+      "Department": 5,
+      "CostPrice": 9,
+      "SalesPrice": 7
+    },
+    "PriceChangePercentageThreshold": 3,
+    "MarginTolerancePercentage": 15,
+    "shopDefaultCity": "חולון",
+    "Invoice_to_upload_HeadersMapping_All4shops": {
+      "A": ["שורה", 0, 0],
+      "B": ["Code/Barcode", "D", "T"],
+      "C": ["Qty", "F", "D"],
+      "D": ["fldsaleprice", "K", "D"]
+    },
+    "Price_change_list_HeadersMapping_All4shops_Data": {
+      "A": ["שורה", 0, 0],
+      "B": ["ברקוד", "D", "T"],
+      "C": ["מחיר חדש", "N", "D"],
+      "D": ["שם פריט", "G", "T"],
+      "E": ["מחלקה", "H", "T"],
+      "F": ["שינוי עלות", "J", "P"],
+      "G": ["מרווח נוכחי", "K", "P"],
+      "H": ["מרווח מומלץ", "M", "P"],
+      "I": ["מרווח תיאורטי", "L", "P"],
+      "J": ["מחיר מכירה מקורי", "I", "D"],
+      "K": ["עלות חדשה", "E", "D"],
+      "L": ["מזהה חשבונית", "Q", "T"],
+      "M": ["שורה מקורית", "C", "I"],
+      "N": ["שינוי מחיר", "O", "T"],
+      "O": ["סיבת השינוי", "R", "T"],
+      "P": ["מרווח אחרי שינוי", "P", "P"]
+    },
+    "Price_change_list_HeadersMapping_All4shops_Upload": {
+      "A": ["ID", 0, 0],
+      "B": ["Code/Barcode", "D", "T"],
+      "C": ["Qty", 0, 0],
+      "D": ["fldsaleprice", "N", "D"]
+    },
+    "New_products_list_HeadersMapping_All4shops": {
       "A": ["מס פריט", "D", "T"],
       "B": ["שם פריט", "F", "T"],
       "C": ["ברקוד", "D", "T"],
