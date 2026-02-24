@@ -13,6 +13,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Writer\Csv;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
@@ -61,6 +62,9 @@ foreach ($shopsConfig as $shop) {
 if (!$shopConfig) {
     die("Error: Shop '{$shopName}' not found in configuration.");
 }
+
+// Get BackOfficeType (Comax or All4shops)
+$backOfficeType = isset($shopConfig['BackOfficeType']) ? $shopConfig['BackOfficeType'] : 'Comax';
 
 // Load supplier codes for this shop
 $supplierCodesPath = __DIR__ . "/../configDir/{$shopName}_suppliers.json";
@@ -338,8 +342,12 @@ foreach ($clFiles as $clFile) {
     $invoiceToUpload = new Spreadsheet();
     $uploadSheet = $invoiceToUpload->getActiveSheet();
 
-    // Get mapping configuration
-    $mapping = $shopConfig['Invoice_to_upload_HeadersMapping'];
+    // Get mapping configuration based on BackOfficeType
+    if ($backOfficeType === 'All4shops') {
+        $mapping = $shopConfig['Invoice_to_upload_HeadersMapping_All4shops'];
+    } else {
+        $mapping = $shopConfig['Invoice_to_upload_HeadersMapping_Comax'];
+    }
 
     // Set headers and process data
     $destRow = 1;
@@ -400,8 +408,12 @@ foreach ($clFiles as $clFile) {
         $uploadSheet->getColumnDimension($col)->setAutoSize(true);
     }
 
-    // Save Invoice_to_upload file
-    $invoiceToUploadFile = $outputDir . "/invoice_to_upload_{$invoiceSignature}.xlsx";
+    // Determine file extension and writer based on BackOfficeType
+    if ($backOfficeType === 'All4shops') {
+        $invoiceToUploadFile = $outputDir . "/invoice_to_upload_{$invoiceSignature}.csv";
+    } else {
+        $invoiceToUploadFile = $outputDir . "/invoice_to_upload_{$invoiceSignature}.xlsx";
+    }
 
     // Delete existing file if it exists
     if (file_exists($invoiceToUploadFile)) {
@@ -415,8 +427,17 @@ foreach ($clFiles as $clFile) {
     }
 
     try {
-        $writer = new Xlsx($invoiceToUpload);
-        $writer->save($invoiceToUploadFile);
+        if ($backOfficeType === 'All4shops') {
+            $writer = new Csv($invoiceToUpload);
+            $writer->setDelimiter(',');
+            $writer->setEnclosure('"');
+            $writer->setLineEnding("\r\n");
+            $writer->setSheetIndex(0);
+            $writer->save($invoiceToUploadFile);
+        } else {
+            $writer = new Xlsx($invoiceToUpload);
+            $writer->save($invoiceToUploadFile);
+        }
     } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
         die("❌ <strong>Error: Unable to save Invoice to Upload file</strong><br><br>" .
             "📄 <strong>File:</strong> " . htmlspecialchars(basename($invoiceToUploadFile)) . "<br><br>" .
@@ -428,152 +449,356 @@ foreach ($clFiles as $clFile) {
             "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
     }
 
-    echo "<p>✅ Invoice to upload created: <strong>invoice_to_upload_{$invoiceSignature}.xlsx</strong></p>";
+    $fileExt = ($backOfficeType === 'All4shops') ? 'csv' : 'xlsx';
+    echo "<p>✅ Invoice to upload created: <strong>invoice_to_upload_{$invoiceSignature}.{$fileExt}</strong></p>";
     $invoicesToUploadCount++;
 }
 
 echo "<hr>";
 
 // ============================================
-// STEP 3: Generate Price_change_list file
+// STEP 3: Generate Price_change_list file(s)
 // ============================================
 
-$priceChangeListFile = $outputDir . "/price_change_list_{$processDateShort}.xlsx";
-$priceChangeList = new Spreadsheet();
-$priceChangeSheet = $priceChangeList->getActiveSheet();
+$pcTotalRows = 0;
 
-// Get Price_change_list mapping
-if (!isset($shopConfig['Price_change_list_HeadersMapping'])) {
-    echo "<p>⚠️ Warning: Price_change_list_HeadersMapping not found in shop config. Skipping price change list generation.</p>";
-} else {
-    $pcMapping = $shopConfig['Price_change_list_HeadersMapping'];
+if ($backOfficeType === 'All4shops') {
+    // All4shops: Generate TWO files - data (xlsx) and upload (csv)
+    $priceChangeDataFile = $outputDir . "/sale_price_change_data_{$processDateShort}.xlsx";
+    $priceChangeUploadFile = $outputDir . "/sale_price_change_upload_{$processDateShort}.csv";
 
-    // Set headers
-    foreach ($pcMapping as $destCol => $config) {
-        $header = $config[0];
-        $priceChangeSheet->setCellValue("{$destCol}1", $header);
-    }
+    // Check if mappings exist
+    if (!isset($shopConfig['Price_change_list_HeadersMapping_All4shops_Data']) ||
+        !isset($shopConfig['Price_change_list_HeadersMapping_All4shops_Upload'])) {
+        echo "<p>⚠️ Warning: Price_change_list_HeadersMapping_All4shops_Data or _Upload not found in shop config. Skipping price change list generation.</p>";
+    } else {
+        $pcDataMapping = $shopConfig['Price_change_list_HeadersMapping_All4shops_Data'];
+        $pcUploadMapping = $shopConfig['Price_change_list_HeadersMapping_All4shops_Upload'];
 
-    // Delete existing file if it exists
-    if (file_exists($priceChangeListFile)) {
-        if (!@unlink($priceChangeListFile)) {
-            die("❌ <strong>Error: Unable to delete existing Price Change List file</strong><br><br>" .
-                "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeListFile)) . "<br><br>" .
-                "⚠️ <strong>Possible cause:</strong><br>" .
-                "• The file is currently open in Excel or another program<br><br>" .
-                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.");
+        // Create Data spreadsheet (xlsx)
+        $priceChangeDataList = new Spreadsheet();
+        $priceChangeDataSheet = $priceChangeDataList->getActiveSheet();
+
+        // Create Upload spreadsheet (csv)
+        $priceChangeUploadList = new Spreadsheet();
+        $priceChangeUploadSheet = $priceChangeUploadList->getActiveSheet();
+
+        // Set headers for Data file
+        foreach ($pcDataMapping as $destCol => $config) {
+            $header = $config[0];
+            $priceChangeDataSheet->setCellValue("{$destCol}1", $header);
         }
-    }
 
-    $pcRowIndex = 1; // Row index counter starting at 1
-    $pcDestRow = 2; // Start from row 2 in destination
-    $pcTotalRows = 0;
+        // Set headers for Upload file
+        foreach ($pcUploadMapping as $destCol => $config) {
+            $header = $config[0];
+            $priceChangeUploadSheet->setCellValue("{$destCol}1", $header);
+        }
 
-    // Process each PC file
-    foreach ($pcFiles as $pcFile) {
-        // Load PC file
+        // Delete existing files if they exist
+        foreach ([$priceChangeDataFile, $priceChangeUploadFile] as $fileToDelete) {
+            if (file_exists($fileToDelete)) {
+                if (!@unlink($fileToDelete)) {
+                    die("❌ <strong>Error: Unable to delete existing Price Change file</strong><br><br>" .
+                        "📄 <strong>File:</strong> " . htmlspecialchars(basename($fileToDelete)) . "<br><br>" .
+                        "⚠️ <strong>Possible cause:</strong><br>" .
+                        "• The file is currently open in Excel or another program<br><br>" .
+                        "💡 <strong>Solution:</strong> Please close the file in Excel and try again.");
+                }
+            }
+        }
+
+        $pcRowIndex = 1; // Row index counter starting at 1
+        $pcDestRow = 2; // Start from row 2 in destination
+
+        // Process each PC file
+        foreach ($pcFiles as $pcFile) {
+            // Load PC file
+            try {
+                $pcSpreadsheet = IOFactory::load($pcFile['path']);
+                $pcSheet = $pcSpreadsheet->getActiveSheet();
+            } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+                die("❌ <strong>Error: Unable to read PC file</strong><br><br>" .
+                    "📄 <strong>File:</strong> " . htmlspecialchars(basename($pcFile['path'])) . "<br><br>" .
+                    "⚠️ <strong>Possible causes:</strong><br>" .
+                    "• The file is currently open in Excel or another program<br>" .
+                    "• The file is corrupted or not a valid Excel file<br>" .
+                    "• The file is locked by another process<br><br>" .
+                    "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+                    "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+            }
+            $highestRow = $pcSheet->getHighestRow();
+
+            // Process each row in PC file (starting from row 2)
+            for ($sourceRow = 2; $sourceRow <= $highestRow; $sourceRow++) {
+                // Check if row is empty (check first few columns)
+                $isEmpty = true;
+                foreach (['A', 'B', 'C', 'D'] as $col) {
+                    if (!empty($pcSheet->getCell($col . $sourceRow)->getValue())) {
+                        $isEmpty = false;
+                        break;
+                    }
+                }
+
+                if ($isEmpty) {
+                    continue; // Skip empty rows
+                }
+
+                // Process Data file mapping
+                foreach ($pcDataMapping as $destCol => $config) {
+                    $header = $config[0];
+                    $originCol = $config[1];
+                    $dataType = $config[2];
+
+                    if ($originCol === 0) {
+                        if ($destCol === 'A') {
+                            $priceChangeDataSheet->setCellValue("{$destCol}{$pcDestRow}", $pcRowIndex);
+                        }
+                        continue;
+                    }
+
+                    $value = $pcSheet->getCell("{$originCol}{$sourceRow}")->getValue();
+
+                    if ($dataType === 'T') {
+                        $priceChangeDataSheet->setCellValueExplicit("{$destCol}{$pcDestRow}", $value, DataType::TYPE_STRING);
+                    } elseif ($dataType === 'D') {
+                        $priceChangeDataSheet->setCellValue("{$destCol}{$pcDestRow}", (float)$value);
+                        $priceChangeDataSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
+                    } elseif ($dataType === 'I') {
+                        $priceChangeDataSheet->setCellValue("{$destCol}{$pcDestRow}", (int)$value);
+                        $priceChangeDataSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                    } elseif ($dataType === 'P') {
+                        $percentValue = str_replace('%', '', $value);
+                        $percentValue = str_replace(',', '.', $percentValue);
+                        $percentDecimal = floatval($percentValue) / 100;
+                        $priceChangeDataSheet->setCellValue("{$destCol}{$pcDestRow}", $percentDecimal);
+                        $priceChangeDataSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode('0.00%');
+                    } else {
+                        $priceChangeDataSheet->setCellValue("{$destCol}{$pcDestRow}", $value);
+                    }
+                }
+
+                // Process Upload file mapping
+                foreach ($pcUploadMapping as $destCol => $config) {
+                    $header = $config[0];
+                    $originCol = $config[1];
+                    $dataType = $config[2];
+
+                    if ($originCol === 0) {
+                        if ($destCol === 'A') {
+                            $priceChangeUploadSheet->setCellValue("{$destCol}{$pcDestRow}", $pcRowIndex);
+                        }
+                        // Column C (Qty) is 0 in mapping - leave empty or set to 0
+                        continue;
+                    }
+
+                    $value = $pcSheet->getCell("{$originCol}{$sourceRow}")->getValue();
+
+                    if ($dataType === 'T') {
+                        $priceChangeUploadSheet->setCellValueExplicit("{$destCol}{$pcDestRow}", $value, DataType::TYPE_STRING);
+                    } elseif ($dataType === 'D') {
+                        $priceChangeUploadSheet->setCellValue("{$destCol}{$pcDestRow}", (float)$value);
+                        $priceChangeUploadSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
+                    } elseif ($dataType === 'I') {
+                        $priceChangeUploadSheet->setCellValue("{$destCol}{$pcDestRow}", (int)$value);
+                        $priceChangeUploadSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                    } else {
+                        $priceChangeUploadSheet->setCellValue("{$destCol}{$pcDestRow}", $value);
+                    }
+                }
+
+                $pcRowIndex++;
+                $pcDestRow++;
+                $pcTotalRows++;
+            }
+        }
+
+        // Auto-size all columns in Data file
+        foreach (array_keys($pcDataMapping) as $col) {
+            $priceChangeDataSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Auto-size all columns in Upload file
+        foreach (array_keys($pcUploadMapping) as $col) {
+            $priceChangeUploadSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Save Data file (xlsx)
         try {
-            $pcSpreadsheet = IOFactory::load($pcFile['path']);
-            $pcSheet = $pcSpreadsheet->getActiveSheet();
-        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
-            die("❌ <strong>Error: Unable to read PC file</strong><br><br>" .
-                "📄 <strong>File:</strong> " . htmlspecialchars(basename($pcFile['path'])) . "<br><br>" .
+            $writer = new Xlsx($priceChangeDataList);
+            $writer->save($priceChangeDataFile);
+        } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+            die("❌ <strong>Error: Unable to save Price Change Data file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeDataFile)) . "<br><br>" .
                 "⚠️ <strong>Possible causes:</strong><br>" .
                 "• The file is currently open in Excel or another program<br>" .
-                "• The file is corrupted or not a valid Excel file<br>" .
-                "• The file is locked by another process<br><br>" .
+                "• The file is locked by another process<br>" .
+                "• Insufficient disk space or permissions<br><br>" .
                 "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
                 "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
         }
-        $highestRow = $pcSheet->getHighestRow();
 
-        // Process each row in PC file (starting from row 2)
-        for ($sourceRow = 2; $sourceRow <= $highestRow; $sourceRow++) {
-            // Check if row is empty (check first few columns)
-            $isEmpty = true;
-            foreach (['A', 'B', 'C', 'D'] as $col) {
-                if (!empty($pcSheet->getCell($col . $sourceRow)->getValue())) {
-                    $isEmpty = false;
-                    break;
-                }
-            }
-
-            if ($isEmpty) {
-                continue; // Skip empty rows
-            }
-
-            foreach ($pcMapping as $destCol => $config) {
-                $header = $config[0];
-                $originCol = $config[1];
-                $dataType = $config[2];
-
-                // Handle origin column = 0 (special cases)
-                if ($originCol === 0) {
-                    // Column A: Auto-generate row number
-                    if ($destCol === 'A') {
-                        $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $pcRowIndex);
-                    }
-                    continue;
-                }
-
-                // Get value from PC file
-                $cellAddress = "{$originCol}{$sourceRow}";
-                $value = $pcSheet->getCell($cellAddress)->getValue();
-
-                // Apply data type formatting
-                if ($dataType === 'T') {
-                    // Text
-                    $priceChangeSheet->setCellValueExplicit("{$destCol}{$pcDestRow}", $value, DataType::TYPE_STRING);
-                } elseif ($dataType === 'D') {
-                    // Double
-                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", (float)$value);
-                    $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
-                } elseif ($dataType === 'I') {
-                    // Integer
-                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", (int)$value);
-                    $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
-                } elseif ($dataType === 'P') {
-                    // Percentage
-                    // Remove % sign if present and convert to decimal
-                    $percentValue = str_replace('%', '', $value);
-                    $percentValue = str_replace(',', '.', $percentValue);
-                    $percentDecimal = floatval($percentValue) / 100;
-                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $percentDecimal);
-                    $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode('0.00%');
-                } else {
-                    // No specific formatting
-                    $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $value);
-                }
-            }
-
-            $pcRowIndex++;
-            $pcDestRow++;
-            $pcTotalRows++;
+        // Save Upload file (csv)
+        try {
+            $writer = new Csv($priceChangeUploadList);
+            $writer->setDelimiter(',');
+            $writer->setEnclosure('"');
+            $writer->setLineEnding("\r\n");
+            $writer->setSheetIndex(0);
+            $writer->save($priceChangeUploadFile);
+        } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+            die("❌ <strong>Error: Unable to save Price Change Upload file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeUploadFile)) . "<br><br>" .
+                "⚠️ <strong>Possible causes:</strong><br>" .
+                "• The file is currently open in Excel or another program<br>" .
+                "• The file is locked by another process<br>" .
+                "• Insufficient disk space or permissions<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+                "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
         }
-    }
 
-    // Auto-size all columns
-    foreach (array_keys($pcMapping) as $col) {
-        $priceChangeSheet->getColumnDimension($col)->setAutoSize(true);
+        echo "<p>✅ Price change data file created: <strong>sale_price_change_data_{$processDateShort}.xlsx</strong></p>";
+        echo "<p>✅ Price change upload file created: <strong>sale_price_change_upload_{$processDateShort}.csv</strong></p>";
+        echo "<p>📊 Total price changes: <strong>{$pcTotalRows}</strong></p>";
     }
+} else {
+    // Comax: Generate single xlsx file
+    $priceChangeListFile = $outputDir . "/price_change_list_{$processDateShort}.xlsx";
+    $priceChangeList = new Spreadsheet();
+    $priceChangeSheet = $priceChangeList->getActiveSheet();
 
-    // Save Price_change_list file
-    try {
-        $writer = new Xlsx($priceChangeList);
-        $writer->save($priceChangeListFile);
-    } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
-        die("❌ <strong>Error: Unable to save Price Change List file</strong><br><br>" .
-            "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeListFile)) . "<br><br>" .
-            "⚠️ <strong>Possible causes:</strong><br>" .
-            "• The file is currently open in Excel or another program<br>" .
-            "• The file is locked by another process<br>" .
-            "• Insufficient disk space or permissions<br><br>" .
-            "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
-            "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+    // Get Price_change_list mapping
+    if (!isset($shopConfig['Price_change_list_HeadersMapping_Comax'])) {
+        echo "<p>⚠️ Warning: Price_change_list_HeadersMapping_Comax not found in shop config. Skipping price change list generation.</p>";
+    } else {
+        $pcMapping = $shopConfig['Price_change_list_HeadersMapping_Comax'];
+
+        // Set headers
+        foreach ($pcMapping as $destCol => $config) {
+            $header = $config[0];
+            $priceChangeSheet->setCellValue("{$destCol}1", $header);
+        }
+
+        // Delete existing file if it exists
+        if (file_exists($priceChangeListFile)) {
+            if (!@unlink($priceChangeListFile)) {
+                die("❌ <strong>Error: Unable to delete existing Price Change List file</strong><br><br>" .
+                    "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeListFile)) . "<br><br>" .
+                    "⚠️ <strong>Possible cause:</strong><br>" .
+                    "• The file is currently open in Excel or another program<br><br>" .
+                    "💡 <strong>Solution:</strong> Please close the file in Excel and try again.");
+            }
+        }
+
+        $pcRowIndex = 1; // Row index counter starting at 1
+        $pcDestRow = 2; // Start from row 2 in destination
+
+        // Process each PC file
+        foreach ($pcFiles as $pcFile) {
+            // Load PC file
+            try {
+                $pcSpreadsheet = IOFactory::load($pcFile['path']);
+                $pcSheet = $pcSpreadsheet->getActiveSheet();
+            } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+                die("❌ <strong>Error: Unable to read PC file</strong><br><br>" .
+                    "📄 <strong>File:</strong> " . htmlspecialchars(basename($pcFile['path'])) . "<br><br>" .
+                    "⚠️ <strong>Possible causes:</strong><br>" .
+                    "• The file is currently open in Excel or another program<br>" .
+                    "• The file is corrupted or not a valid Excel file<br>" .
+                    "• The file is locked by another process<br><br>" .
+                    "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+                    "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+            }
+            $highestRow = $pcSheet->getHighestRow();
+
+            // Process each row in PC file (starting from row 2)
+            for ($sourceRow = 2; $sourceRow <= $highestRow; $sourceRow++) {
+                // Check if row is empty (check first few columns)
+                $isEmpty = true;
+                foreach (['A', 'B', 'C', 'D'] as $col) {
+                    if (!empty($pcSheet->getCell($col . $sourceRow)->getValue())) {
+                        $isEmpty = false;
+                        break;
+                    }
+                }
+
+                if ($isEmpty) {
+                    continue; // Skip empty rows
+                }
+
+                foreach ($pcMapping as $destCol => $config) {
+                    $header = $config[0];
+                    $originCol = $config[1];
+                    $dataType = $config[2];
+
+                    // Handle origin column = 0 (special cases)
+                    if ($originCol === 0) {
+                        // Column A: Auto-generate row number
+                        if ($destCol === 'A') {
+                            $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $pcRowIndex);
+                        }
+                        continue;
+                    }
+
+                    // Get value from PC file
+                    $cellAddress = "{$originCol}{$sourceRow}";
+                    $value = $pcSheet->getCell($cellAddress)->getValue();
+
+                    // Apply data type formatting
+                    if ($dataType === 'T') {
+                        // Text
+                        $priceChangeSheet->setCellValueExplicit("{$destCol}{$pcDestRow}", $value, DataType::TYPE_STRING);
+                    } elseif ($dataType === 'D') {
+                        // Double
+                        $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", (float)$value);
+                        $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
+                    } elseif ($dataType === 'I') {
+                        // Integer
+                        $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", (int)$value);
+                        $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                    } elseif ($dataType === 'P') {
+                        // Percentage
+                        // Remove % sign if present and convert to decimal
+                        $percentValue = str_replace('%', '', $value);
+                        $percentValue = str_replace(',', '.', $percentValue);
+                        $percentDecimal = floatval($percentValue) / 100;
+                        $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $percentDecimal);
+                        $priceChangeSheet->getStyle("{$destCol}{$pcDestRow}")->getNumberFormat()->setFormatCode('0.00%');
+                    } else {
+                        // No specific formatting
+                        $priceChangeSheet->setCellValue("{$destCol}{$pcDestRow}", $value);
+                    }
+                }
+
+                $pcRowIndex++;
+                $pcDestRow++;
+                $pcTotalRows++;
+            }
+        }
+
+        // Auto-size all columns
+        foreach (array_keys($pcMapping) as $col) {
+            $priceChangeSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Save Price_change_list file
+        try {
+            $writer = new Xlsx($priceChangeList);
+            $writer->save($priceChangeListFile);
+        } catch (\PhpOffice\PhpSpreadsheet\Writer\Exception $e) {
+            die("❌ <strong>Error: Unable to save Price Change List file</strong><br><br>" .
+                "📄 <strong>File:</strong> " . htmlspecialchars(basename($priceChangeListFile)) . "<br><br>" .
+                "⚠️ <strong>Possible causes:</strong><br>" .
+                "• The file is currently open in Excel or another program<br>" .
+                "• The file is locked by another process<br>" .
+                "• Insufficient disk space or permissions<br><br>" .
+                "💡 <strong>Solution:</strong> Please close the file in Excel and try again.<br><br>" .
+                "🔧 <strong>Technical details:</strong> " . htmlspecialchars($e->getMessage()));
+        }
+
+        echo "<p>✅ Price change list created: <strong>price_change_list_{$processDateShort}.xlsx</strong></p>";
+        echo "<p>📊 Total price changes: <strong>{$pcTotalRows}</strong></p>";
     }
-
-    echo "<p>✅ Price change list created: <strong>{$priceChangeListFile}</strong></p>";
-    echo "<p>📊 Total price changes: <strong>{$pcTotalRows}</strong></p>";
 }
 
 echo "<hr>";
@@ -586,11 +811,13 @@ $newProductsListFile = $outputDir . "/new_products_list_{$processDateShort}.xlsx
 $newProductsList = new Spreadsheet();
 $newProductsSheet = $newProductsList->getActiveSheet();
 
-// Get New_products_list mapping
-if (!isset($shopConfig['New_products_list_HeadersMapping'])) {
-    echo "<p>⚠️ Warning: New_products_list_HeadersMapping not found in shop config. Skipping new products list generation.</p>";
+// Get New_products_list mapping based on BackOfficeType
+$npMappingKey = ($backOfficeType === 'All4shops') ? 'New_products_list_HeadersMapping_All4shops' : 'New_products_list_HeadersMapping_Comax';
+
+if (!isset($shopConfig[$npMappingKey])) {
+    echo "<p>⚠️ Warning: {$npMappingKey} not found in shop config. Skipping new products list generation.</p>";
 } else {
-    $npMapping = $shopConfig['New_products_list_HeadersMapping'];
+    $npMapping = $shopConfig[$npMappingKey];
 
     // Set headers
     foreach ($npMapping as $destCol => $config) {
@@ -685,6 +912,13 @@ if (!isset($shopConfig['New_products_list_HeadersMapping'])) {
                     // Integer
                     $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", (int)$value);
                     $newProductsSheet->getStyle("{$destCol}{$npDestRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                } elseif ($dataType === 'P') {
+                    // Percentage
+                    $percentValue = str_replace('%', '', $value);
+                    $percentValue = str_replace(',', '.', $percentValue);
+                    $percentDecimal = floatval($percentValue) / 100;
+                    $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", $percentDecimal);
+                    $newProductsSheet->getStyle("{$destCol}{$npDestRow}")->getNumberFormat()->setFormatCode('0.00%');
                 } else {
                     // No specific formatting
                     $newProductsSheet->setCellValue("{$destCol}{$npDestRow}", $value);
