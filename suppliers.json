@@ -539,5 +539,17 @@
             "LineTotal": 1,
             "Discount1": 2
         }
+    },
+    {
+        "supplierName": "Ristretto",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "רסטרטו",
+        "jsonToOcrSanity": {
+            "Barcode": 6,
+            "ItemName": 7,
+            "Qty": 5,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
     }
 ]
