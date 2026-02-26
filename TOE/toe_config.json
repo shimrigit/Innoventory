@@ -1,0 +1,16 @@
+{
+    "tesseract_path": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+    "magick_path": "C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe",
+    "tesseract_lang": "heb+eng",
+    "tesseract_oem": 1,
+    "tessdata_dir": "C:\\Program Files\\Tesseract-OCR\\tessdata",
+    "table_psm_default": 6,
+    "header_psm": 7,
+    "column_gap_px": 10,
+    "preprocess_enabled": false,
+    "preprocess_args_table": "-type Grayscale -normalize -unsharp 0x0.5",
+    "preprocess_args_header": "-type Grayscale -normalize -resize 200%",
+    "crops_dir_test": "../AIocr/AIE/crops",
+    "ocr_extracted_dir_test": "../AIocr/AIE/ocr_extracted",
+    "tsv_debug_dir": "tsv_debug"
+}
