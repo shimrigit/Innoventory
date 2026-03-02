@@ -79,7 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tessdata_dir'           => $cfg['tessdata_dir'] ?? null,
             'table_psm'              => (int)($_POST['table_psm']    ?? $cfg['table_psm_default']),
             'header_psm'             => (int)($cfg['header_psm']     ?? 7),
-            'preprocess'             => isset($_POST['preprocess']),
+            'preprocess_headers'     => isset($_POST['preprocess_headers']),
+            'preprocess_tables'      => isset($_POST['preprocess_tables']),
             'preprocess_args_table'  => $cfg['preprocess_args_table'],
             'preprocess_args_header' => $cfg['preprocess_args_header'],
             'column_gap_px'          => (int)($_POST['column_gap_px'] ?? $cfg['column_gap_px']),
@@ -93,6 +94,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tsv_dir_abs
         );
     }
+}
+
+// ── Collect source PNGs for the result panel ─────────────────────────────────
+$result_pngs    = [];
+$crops_url_base = '';
+if (!empty($result['success']) && $crops_dir_abs && !empty($invoice_prefix)) {
+    $suffix_re  = '/(_Date|_Invoiceno|_Total|_Table(\d+))(\.png)$/i';
+    $header_map = [];
+    $tables_map = [];
+    foreach (scandir($crops_dir_abs) as $f) {
+        if (!preg_match('/\.png$/i', $f)) continue;
+        if (preg_match('/\s*\(\d+\)\.png$/i', $f)) continue; // skip versioned duplicates
+        if (strpos($f, $invoice_prefix) !== 0) continue;
+        if (!preg_match($suffix_re, $f, $m)) continue;
+        $sl = strtolower($m[1]);
+        if (in_array($sl, ['_date', '_invoiceno', '_total'])) {
+            $header_map[$sl] = $f;
+        } elseif (isset($m[2])) {
+            $tables_map[(int)$m[2]] = $f;
+        }
+    }
+    ksort($tables_map);
+    foreach (['_date' => 'Date', '_invoiceno' => 'Invoice No', '_total' => 'Total'] as $k => $lbl) {
+        if (isset($header_map[$k])) $result_pngs[] = ['label' => $lbl, 'file' => $header_map[$k], 'type' => 'header'];
+    }
+    foreach ($tables_map as $idx => $f) {
+        $result_pngs[] = ['label' => "Table {$idx}", 'file' => $f, 'type' => 'table'];
+    }
+    $doc_root       = rtrim(str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT'])), '/');
+    $crops_url_base = rtrim(str_replace('\\', '/', $crops_dir_abs), '/');
+    $crops_url_base = str_replace($doc_root, '', $crops_url_base) . '/';
 }
 
 // ── Helpers for display ──────────────────────────────────────────────────────
@@ -146,13 +178,34 @@ function badge(bool $ok, string $yes = 'YES', string $no = 'NO'): string {
   .tsv-list li{ font-family: monospace; font-size: 12px; color: #555; }
   summary     { cursor: pointer; font-weight: bold; margin-bottom: 6px; }
   details     { margin-top: 10px; }
+  /* ── Split result layout ── */
+  .result-split { display: flex; gap: 20px; align-items: flex-start; }
+  .result-left  { flex: 1; min-width: 0; }
+  .result-right { flex: 1; min-width: 0; position: sticky; top: 16px; max-height: 92vh; display: flex; flex-direction: column; }
+  /* ── PNG viewer ── */
+  .png-panel    { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; max-height: 92vh; }
+  .png-panel-title { font-weight: bold; font-size: .95em; margin-bottom: 8px; color: #333; }
+  .png-zoom-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .png-zoom-bar input[type=range] { flex: 1; }
+  .zoom-btn     { background: #6c757d; color: #fff; border: none; border-radius: 4px; padding: 2px 9px; font-size: 15px; cursor: pointer; line-height: 1.4; }
+  .zoom-btn:hover { background: #545b62; }
+  .zoom-lbl     { font-size: 12px; min-width: 38px; text-align: right; color: #555; }
+  .png-scroll   { overflow-y: auto; flex: 1; }
+  /* header PNGs (Date/InvoiceNo/Total) in one row */
+  .png-headers-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .png-header-item { flex: 1; min-width: 0; }
+  /* table PNGs stacked full width */
+  .png-entry    { margin-bottom: 14px; }
+  .png-entry-label { font-size: 11px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+  .png-entry-wrap  { overflow-x: auto; }
+  .png-img      { display: block; width: 100%; border: 1px solid #ddd; border-radius: 3px; cursor: zoom-in; transition: width .15s; }
 </style>
 </head>
 <body>
 
 <h1>🔬 TOE – Tesseract OCR Engine</h1>
 <p style="color:#555;margin-top:0">Local Tesseract OCR test frame &nbsp;|&nbsp;
-   <a href="/AIocr/AIE/enhancer_ai.php">→ Open AIE (OpenAI engine)</a></p>
+   <a href="/website/AIocr/AIE/enhancer_ai.php">→ Open AIE (OpenAI engine)</a></p>
 <hr>
 
 <?php if ($result !== null): ?>
@@ -160,6 +213,8 @@ function badge(bool $ok, string $yes = 'YES', string $no = 'NO'): string {
      ITEM 6 – Result display
      ═══════════════════════════════════════════════════════════════════════════ -->
 <h2>Result</h2>
+<div class="result-split">
+<div class="result-left">
 
 <?php if (!$result['success']): ?>
   <div class="alert-err">
@@ -261,8 +316,87 @@ function badge(bool $ok, string $yes = 'YES', string $no = 'NO'): string {
 <p style="margin-top:14px">
   <a href="toe_start.php" class="btn btn-secondary">← Process Another Invoice</a>
 </p>
+
+</div><!-- .result-left -->
+
+<?php if (!empty($result_pngs)): ?>
+<div class="result-right">
+  <div class="png-panel">
+    <div class="png-panel-title">📸 Source PNGs (<?= count($result_pngs) ?>)</div>
+    <div class="png-zoom-bar">
+      <button class="zoom-btn" onclick="changeZoom(-25)">−</button>
+      <input type="range" id="zoom-slider" min="30" max="300" value="100" oninput="setZoom(this.value)">
+      <button class="zoom-btn" onclick="changeZoom(+25)">+</button>
+      <span class="zoom-lbl" id="zoom-lbl">100%</span>
+    </div>
+    <div class="png-scroll">
+
+      <?php
+        $header_pngs = array_filter($result_pngs, fn($p) => $p['type'] === 'header');
+        $table_pngs  = array_filter($result_pngs, fn($p) => $p['type'] === 'table');
+      ?>
+
+      <?php if (!empty($header_pngs)): ?>
+      <div class="png-headers-row">
+        <?php foreach ($header_pngs as $png): ?>
+        <div class="png-header-item">
+          <div class="png-entry-label"><?= htmlspecialchars($png['label']) ?></div>
+          <div class="png-entry-wrap">
+            <img src="<?= htmlspecialchars($crops_url_base . $png['file']) ?>"
+                 class="png-img"
+                 alt="<?= htmlspecialchars($png['label']) ?>"
+                 title="Click to toggle full size"
+                 onclick="toggleFull(this)">
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+
+      <?php foreach ($table_pngs as $png): ?>
+      <div class="png-entry">
+        <div class="png-entry-label"><?= htmlspecialchars($png['label']) ?></div>
+        <div class="png-entry-wrap">
+          <img src="<?= htmlspecialchars($crops_url_base . $png['file']) ?>"
+               class="png-img"
+               alt="<?= htmlspecialchars($png['label']) ?>"
+               title="Click to toggle full size"
+               onclick="toggleFull(this)">
+        </div>
+      </div>
+      <?php endforeach; ?>
+
+    </div>
+  </div>
+</div><!-- .result-right -->
+<?php endif; ?>
+
+</div><!-- .result-split -->
 <hr>
 <?php endif; ?>
+
+<script>
+let zoom = 100;
+function setZoom(val) {
+    zoom = Math.min(300, Math.max(30, parseInt(val)));
+    document.querySelectorAll('.png-img').forEach(img => img.style.width = zoom + '%');
+    document.getElementById('zoom-lbl').textContent = zoom + '%';
+    document.getElementById('zoom-slider').value = zoom;
+}
+function changeZoom(delta) { setZoom(zoom + delta); }
+function toggleFull(img) {
+    if (img.dataset.full === '1') {
+        img.style.width = zoom + '%';
+        img.style.cursor = 'zoom-in';
+        img.dataset.full = '0';
+    } else {
+        img.style.width = '100%';
+        img.style.cursor = 'zoom-out';
+        img.dataset.full = '1';
+        // temporarily override zoom panel for this img only
+    }
+}
+</script>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      ITEM 1 – Step 1: Launch AIE for cropping
@@ -274,7 +408,7 @@ function badge(bool $ok, string $yes = 'YES', string $no = 'NO'): string {
     Crops are automatically saved to:<br>
     <code><?= htmlspecialchars($crops_dir_abs ?: 'path not found') ?></code>
   </p>
-  <a href="/AIocr/AIE/enhancer_ai.php" class="btn btn-primary" target="_blank">
+  <a href="/website/AIocr/AIE/enhancer_ai.php" class="btn btn-primary" target="_blank">
     Open AIE Crop Tool ↗
   </a>
   &nbsp;
@@ -348,10 +482,15 @@ function badge(bool $ok, string $yes = 'YES', string $no = 'NO'): string {
 
     <div>
       <label style="font-weight:bold;display:block;margin-bottom:4px">Pre-processing:</label>
-      <label>
-        <input type="checkbox" name="preprocess" value="1"
-               <?= !empty($cfg['preprocess_enabled']) ? 'checked' : '' ?>>
-        ImageMagick pre-process (grayscale + normalize)
+      <label style="display:block;margin-bottom:3px">
+        <input type="checkbox" name="preprocess_headers" value="1"
+               <?= !empty($cfg['preprocess_headers_enabled']) ? 'checked' : '' ?>>
+        Headers (Date / InvoiceNo / Total) — grayscale + normalize + 200% resize
+      </label>
+      <label style="display:block">
+        <input type="checkbox" name="preprocess_tables" value="1"
+               <?= !empty($cfg['preprocess_tables_enabled']) ? 'checked' : '' ?>>
+        Tables — grayscale + normalize + unsharp
       </label>
     </div>
 

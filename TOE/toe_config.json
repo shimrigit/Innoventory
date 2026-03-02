@@ -7,9 +7,10 @@
     "table_psm_default": 6,
     "header_psm": 7,
     "column_gap_px": 10,
-    "preprocess_enabled": false,
-    "preprocess_args_table": "-type Grayscale -normalize -unsharp 0x0.5",
-    "preprocess_args_header": "-type Grayscale -normalize -resize 200%",
+    "preprocess_headers_enabled": true,
+    "preprocess_tables_enabled": true,
+    "preprocess_args_table": "-type Grayscale -normalize -resize 300%",
+    "preprocess_args_header": "-type Grayscale -normalize -resize 300%",
     "crops_dir_test": "../AIocr/AIE/crops",
     "ocr_extracted_dir_test": "../AIocr/AIE/ocr_extracted",
     "tsv_debug_dir": "tsv_debug"

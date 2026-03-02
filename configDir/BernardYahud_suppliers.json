@@ -1,126 +1,21 @@
 [
-    {
-        "SupplierName": "Tnuva",
-        "SupplierCode": 1210246
-    },
-    {
-        "SupplierName": "StraussCool",
-        "SupplierCode": 1210238
-    },
-    {
-        "SupplierName": "Avikam",
-        "SupplierCode": 121018
-    },
-    {
-        "SupplierName": "Ays",
-        "SupplierCode": 121029
-    },
-    {
-        "SupplierName": "FarmaDeal",
-        "SupplierCode": 121024
-    },
-    {
-        "SupplierName": "Hamefitz",
-        "SupplierCode": 121025
-    },
-    {
-        "SupplierName": "Hwine",
-        "SupplierCode": 121006
-    },
-    {
-        "SupplierName": "Mashkokit",
-        "SupplierCode": 121020
-    },
-    {
-        "SupplierName": "Sbh",
-        "SupplierCode": 1210201
-    },
-    {
-        "SupplierName": "Tayari",
-        "SupplierCode": 121010
-    },
-    {
-        "SupplierName": "Yehiam",
-        "SupplierCode": 121034
-    },
-    {
-        "SupplierName": "Shufersal",
-        "SupplierCode": 121002
-    },
-    {
-        "SupplierName": "GoPharm",
-        "SupplierCode": 121027
-    },
-    {
-        "SupplierName": "Ewi",
-        "SupplierCode": 121014
-    },
-    {
-        "SupplierName": "BNissim",
-        "SupplierCode": 1210204
-    },
-    {
-        "SupplierName": "Angel",
-        "SupplierCode": 1210240
-    },
-    {
-        "SupplierName": "Etran",
-        "SupplierCode": 121028
-    },
-    {
-        "SupplierName": "Oshri",
-        "SupplierCode": 121031
-    },
-    {
-        "SupplierName": "Globrands",
-        "SupplierCode": 121009
-    },
-    {
-        "SupplierName": "PhilipMorris",
-        "SupplierCode": 121001
-    },
-    {
-        "SupplierName": "TnuvaMeat",
-        "SupplierCode": 1210245
-    },
-    {
-        "SupplierName": "TnuvaMeat2",
-        "SupplierCode": 1210247
-    },
-    {
-        "SupplierName": "Mashani",
-        "SupplierCode": 121032
-    },
-    {
-        "SupplierName": "GWS",
-        "SupplierCode": 121033
-    },
-    {
-        "SupplierName": "Dubek",
-        "SupplierCode": 121022
-    },
-    {
-        "SupplierName": "PastaCasa",
-        "SupplierCode": 121030
-    },
-    {
-        "SupplierName": "Shamir",
-        "SupplierCode": 121035
-    },
-    {
-        "SupplierName": "Akerman",
-        "SupplierCode": 121008
-    },
-    {
-        "SupplierName": "Ida",
-        "SupplierCode": 121036
-    },
-    {
-        "SupplierName": "Tavili",
-        "SupplierCode": 121037
-    },
-    {
-        "SupplierName": "Mayan",
-        "SupplierCode": 121023
-    }
+    { "SupplierName": "SuperBareket", "SupplierCode": 100001 },
+    { "SupplierName": "Diarai", "SupplierCode": 100002 },
+    { "SupplierName": "BikuraiHasade", "SupplierCode": 100003 },
+    { "SupplierName": "Shakuri", "SupplierCode": 100004 },
+    { "SupplierName": "PhilipMorris", "SupplierCode": 100005 },
+    { "SupplierName": "Globrands", "SupplierCode": 100006 },
+    { "SupplierName": "Dubek", "SupplierCode": 100007 },
+    { "SupplierName": "Hebron", "SupplierCode": 100008 },
+    { "SupplierName": "Ristratto", "SupplierCode": 100009 },
+    { "SupplierName": "KAchocolate", "SupplierCode": 100010 },
+    { "SupplierName": "Lehemix", "SupplierCode": 100013 },
+    { "SupplierName": "Babni", "SupplierCode": 100014 },
+    { "SupplierName": "CandyWorld", "SupplierCode": 100015 },
+    { "SupplierName": "HadarSharon", "SupplierCode": 100016 },
+    { "SupplierName": "Dancell", "SupplierCode": 100017 },
+    { "SupplierName": "BabyOff", "SupplierCode": 100018 },
+    { "SupplierName": "JeremyGorme", "SupplierCode": 100019 },
+    { "SupplierName": "Nechicolate", "SupplierCode": 100020 },
+    { "SupplierName": "YamaKedma", "SupplierCode": 121001 }
 ]

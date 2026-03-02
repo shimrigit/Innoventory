@@ -219,7 +219,8 @@ function process_invoice_toe(
     $tessdata_dir           = $options['tessdata_dir']           ?? null;
     $table_psm              = (int)($options['table_psm']        ?? 6);
     $header_psm             = (int)($options['header_psm']       ?? 7);
-    $preprocess             = !empty($options['preprocess']);
+    $preprocess_headers     = !empty($options['preprocess_headers']);
+    $preprocess_tables      = !empty($options['preprocess_tables']);
     $args_table             = $options['preprocess_args_table']  ?? '-type Grayscale -normalize';
     $args_header            = $options['preprocess_args_header'] ?? '-type Grayscale -normalize -resize 200%';
     $gap_px                 = (int)($options['column_gap_px']    ?? 40);
@@ -229,7 +230,7 @@ function process_invoice_toe(
         if (!file_exists($dir)) mkdir($dir, 0777, true);
     }
     $temp_dir = $tsv_dir . '/temp';
-    if ($preprocess && !file_exists($temp_dir)) {
+    if (($preprocess_headers || $preprocess_tables) && !file_exists($temp_dir)) {
         mkdir($temp_dir, 0777, true);
     }
 
@@ -267,7 +268,7 @@ function process_invoice_toe(
 
         // Item 2a – ImageMagick pre-processing
         $ocr_input = $crop_path;
-        if ($preprocess) {
+        if ($preprocess_tables) {
             $pre_path = $temp_dir . '/' . $safe_prefix . "_Table{$table_num}_pre.png";
             $ok = toe_preprocess_image($magick_path, $crop_path, $pre_path, $args_table, $log);
             $ocr_input = $ok ? $pre_path : $crop_path;
@@ -317,7 +318,7 @@ function process_invoice_toe(
 
         // Item 4a – ImageMagick pre-processing
         $ocr_input = $info['path'];
-        if ($preprocess) {
+        if ($preprocess_headers) {
             $pre_path = $temp_dir . '/' . $safe_prefix . "_{$info['label']}_pre.png";
             $ok = toe_preprocess_image($magick_path, $info['path'], $pre_path, $args_header, $log);
             $ocr_input = $ok ? $pre_path : $info['path'];
@@ -345,14 +346,15 @@ function process_invoice_toe(
         } elseif ($field === 'date') {
             $invoice_date = $raw;
         } elseif ($field === 'total') {
-            // Strip everything except digits, commas, and dots; treat comma as decimal separator
+            // Strip everything except digits, commas, and dots
             $clean = preg_replace('/[^\d.,]/', '', $raw);
-            // If both ',' and '.' present, assume '.' is thousands separator → remove it
-            if (strpos($clean, ',') !== false && strpos($clean, '.') !== false) {
-                $clean = str_replace('.', '', $clean);
-                $clean = str_replace(',', '.', $clean);
+            // Israeli format: comma = thousands separator, dot = decimal separator
+            // e.g. "10,578.89" → remove commas → "10578.89"
+            // If no dot present, comma may be decimal: "10,58" → "10.58"
+            if (strpos($clean, '.') !== false) {
+                $clean = str_replace(',', '', $clean); // remove thousands separators, keep decimal dot
             } else {
-                $clean = str_replace(',', '.', $clean);
+                $clean = str_replace(',', '.', $clean); // lone comma → decimal
             }
             $invoice_total = $clean !== '' ? (float)$clean : null;
         }
@@ -423,7 +425,8 @@ if (realpath(__FILE__) === realpath($_SERVER['SCRIPT_FILENAME'] ?? '')) {
         'tessdata_dir'           => $cfg['tessdata_dir'] ?? null,
         'table_psm'              => (int)($_POST['table_psm']   ?? $cfg['table_psm_default']),
         'header_psm'             => (int)($cfg['header_psm']    ?? 7),
-        'preprocess'             => (bool)($_POST['preprocess'] ?? $cfg['preprocess_enabled']),
+        'preprocess_headers'     => (bool)($_POST['preprocess_headers'] ?? $cfg['preprocess_headers_enabled']),
+        'preprocess_tables'      => (bool)($_POST['preprocess_tables']  ?? $cfg['preprocess_tables_enabled']),
         'preprocess_args_table'  => $cfg['preprocess_args_table'],
         'preprocess_args_header' => $cfg['preprocess_args_header'],
         'column_gap_px'          => (int)($_POST['column_gap_px'] ?? $cfg['column_gap_px']),

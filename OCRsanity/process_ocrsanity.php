@@ -611,10 +611,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     // B3 - Invoice Date (as date)
     $invoiceDate = $invoiceData['invoice_date'] ?? '';
     if (!empty($invoiceDate)) {
+        // Normalize 2-digit year to 4-digit (always 20YY — e.g. 26→2026, 99→2099)
+        $normalizedDate = preg_replace('/^(\d{2})\/(\d{2})\/(\d{2})$/', '$1/$2/20$3', $invoiceDate);
         // Try to parse the date
-        $dateObj = DateTime::createFromFormat('d/m/Y', $invoiceDate);
+        $dateObj = DateTime::createFromFormat('d/m/Y', $normalizedDate);
         if (!$dateObj) {
-            // Try alternative format
             $dateObj = DateTime::createFromFormat('Y-m-d', $invoiceDate);
         }
 

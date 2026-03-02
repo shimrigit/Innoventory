@@ -239,15 +239,15 @@
             <div id="newInvoiceContent" class="content-section active">
                 <div class="warning-box">
                     <p><strong>⚠️ PDF Naming Convention Required:</strong></p>
-                    <p>Invoice PDFs in <code>preProcessDir</code> must follow this naming format:</p>
-                    <p><strong>"XXXX dd-mm-yy Z.pdf"</strong></p>
+                    <p>Invoice PDFs in <code>preProcessDir</code> must follow one of these naming formats:</p>
+                    <p><strong>"XXXX dd-mm-yy Z.pdf"</strong> &nbsp;or&nbsp; <strong>"XXXX dd-mm-yy.pdf"</strong></p>
                     <p>Where:</p>
                     <ul style="margin: 10px 0 0 20px; padding: 0;">
                         <li><strong>XXXX</strong> = Supplier name (letters/numbers)</li>
                         <li><strong>dd-mm-yy</strong> = Process date</li>
-                        <li><strong>Z</strong> = Single capital letter (A-Z) for sequence</li>
+                        <li><strong>Z</strong> = Single capital letter (A-Z) for sequence (optional)</li>
                     </ul>
-                    <p style="margin-top: 10px;"><strong>Examples:</strong> "Tayari 15-11-25 A.pdf", "FarmaDeal 23-11-25 B.pdf"</p>
+                    <p style="margin-top: 10px;"><strong>Examples:</strong> "Tayari 15-11-25 A.pdf", "FarmaDeal 23-11-25 B.pdf", "Tnuva 01-02-25.pdf"</p>
                 </div>
 
                 <!-- PDF Invoice Selection -->
@@ -265,8 +265,8 @@
                                 $pdfName = basename($pdfPath);
 
                                 // Parse filename to check format
-                                // Expected format: "XXXX dd-mm-yy Z.pdf"
-                                $isValidFormat = preg_match('/^(.+?)\s+(\d{2}-\d{2}-\d{2})\s+([A-Z])\.pdf$/i', $pdfName, $matches);
+                                // Valid formats: "XXXX dd-mm-yy Z.pdf" or "XXXX dd-mm-yy.pdf"
+                                $isValidFormat = preg_match('/^(.+?)\s+(\d{2}-\d{2}-\d{2})(\s+[A-Z])?\.pdf$/i', $pdfName, $matches);
 
                                 $statusIcon = $isValidFormat ? '✅' : '⚠️';
                                 $statusColor = $isValidFormat ? '#28a745' : '#ff9800';
@@ -451,11 +451,11 @@
 
                 // Check if PDF has valid naming format
                 const pdfName = pdfFile.value;
-                const isValidFormat = /^(.+?)\s+(\d{2}-\d{2}-\d{2})\s+([A-Z])\.pdf$/i.test(pdfName);
+                const isValidFormat = /^(.+?)\s+(\d{2}-\d{2}-\d{2})(\s+[A-Z])?\.pdf$/i.test(pdfName);
 
                 if (!isValidFormat) {
                     const proceed = confirm('⚠️ Warning: The selected PDF does not follow the required naming convention.\n\n' +
-                                           'Expected format: "XXXX dd-mm-yy Z.pdf"\n\n' +
+                                           'Expected format: "XXXX dd-mm-yy Z.pdf" or "XXXX dd-mm-yy.pdf"\n\n' +
                                            'Do you want to proceed anyway?');
                     if (!proceed) {
                         e.preventDefault();
