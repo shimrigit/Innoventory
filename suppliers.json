@@ -551,5 +551,52 @@
             "UnitPrice": 2,
             "LineTotal": 1
         }
+    },
+    {
+        "supplierName": "Shakuri",
+        "OCRsanityMethod": "Simple",
+        "hebrewName": "יוסי שקורי שיווק לחמים בע״מ",
+        "jsonToOcrSanity": {
+            "Barcode": 3,
+            "ItemName": 2,
+            "Qty": 1
+        }
+    },
+    {
+        "supplierName": "Hebron",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "חברון שיווק סלטים בע״מ",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 4,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
+    },
+    {
+        "supplierName": "HadarSharon",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "הדר השרון שיווק והפצה",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 4,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
+    },
+    {
+        "supplierName": "CandyWorld",
+        "OCRsanityMethod": "Discount1",
+        "hebrewName": "עולם הממתקים",
+        "jsonToOcrSanity": {
+            "Barcode": 6,
+            "ItemName": 5,
+            "Qty": 4,
+            "UnitPrice": 3,
+            "LineTotal": 1,
+            "Discount1": 2
+        }
     }
 ]

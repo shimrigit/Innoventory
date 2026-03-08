@@ -341,7 +341,9 @@ try {
         $departmentMargin = null;
         if ($departmentData !== null && is_array($departmentData)) {
             foreach ($departmentData as $dept) {
-                if (isset($dept['DepartmentName']) && $dept['DepartmentName'] == $department) {
+                $matchByName   = isset($dept['DepartmentName'])   && $dept['DepartmentName']   == $department;
+                $matchByNumber = isset($dept['DepartmentNumber']) && (string)$dept['DepartmentNumber'] === (string)$department;
+                if ($matchByName || $matchByNumber) {
                     if (isset($dept['ExpectedMarginPercentage'])) {
                         $departmentMargin = floatval($dept['ExpectedMarginPercentage']);
                         $pcSheet->setCellValue('M' . $row, ($departmentMargin * 100) . '%');
@@ -353,9 +355,79 @@ try {
 
         // Check if this is a "No Cost in PL" row
         if (trim($priceDiffStr) === 'No Cost in PL') {
-            // Skip calculations for "No Cost in PL" rows - leave recommendation columns empty
-            $pcSheet->setCellValue('O' . $row, 'NO - Missing Cost');
-            $pcSheet->setCellValue('R' . $row, 'Cost price missing in price list');
+            // Old Mrgn = NA (no historical cost available)
+            $pcSheet->setCellValue('K' . $row, 'NA');
+
+            // New Mrgn = ((SalesPrice/1.18) - ActualUnitPrice) / (SalesPrice/1.18)
+            if ($salesPrice > 0 && $actualUnitPrice > 0) {
+                $salePriceNoVAT = $salesPrice / 1.18;
+                $newMargin = ($salePriceNoVAT - $actualUnitPrice) / $salePriceNoVAT;
+                $pcSheet->setCellValue('L' . $row, number_format($newMargin * 100, 2) . '%');
+            }
+
+            // Check supervised
+            $isSupervised = false;
+            foreach ($supervisedBarcodes as $supervisedBarcode) {
+                if ($barcode == $supervisedBarcode) { $isSupervised = true; break; }
+                $barcodeLen = strlen($barcode);
+                $supervisedLen = strlen($supervisedBarcode);
+                if ($barcodeLen < $supervisedLen && $barcode == substr($supervisedBarcode, -$barcodeLen)) {
+                    $isSupervised = true; break;
+                }
+            }
+            if ($isSupervised) {
+                $pcSheet->setCellValue('O' . $row, 'NO. supervised');
+                continue;
+            }
+
+            // Skip recommendation if department not found
+            if ($departmentMargin === null) {
+                $pcSheet->setCellValue('O' . $row, 'NO - Missing Cost');
+                $pcSheet->setCellValue('R' . $row, 'Cost price missing in price list');
+                continue;
+            }
+
+            // Use current SalesPrice as preliminary price (no PriceDiff available)
+            $lowMarginBorder  = ($actualUnitPrice / (1 - $departmentMargin)) * 1.18;
+            $highMarginBorder = ($actualUnitPrice / (1 - ($departmentMargin + $marginTolerance / 100))) * 1.18;
+
+            $finalPrice   = $salesPrice;
+            $changeReason = 'No historical cost. New cost applied.';
+
+            if ($salesPrice < $lowMarginBorder) {
+                $finalPrice   = $lowMarginBorder;
+                $changeReason = 'No historical cost. Price increase to meet LMB';
+            } elseif ($salesPrice > $highMarginBorder) {
+                $finalPrice   = $highMarginBorder;
+                $changeReason = 'No historical cost. Price decrease to meet HMB';
+            }
+
+            // Rec Mrgn
+            $fpNoVAT   = $finalPrice / 1.18;
+            $recMargin = ($fpNoVAT - $actualUnitPrice) / $fpNoVAT;
+            $pcSheet->setCellValue('P' . $row, number_format($recMargin * 100, 2) . '%');
+
+            // Recommendation
+            $priceDifference        = abs($salesPrice - $finalPrice);
+            $priceDifferencePercent = ($salesPrice > 0) ? ($priceDifference / $salesPrice) * 100 : 0;
+
+            if ($priceDifferencePercent < $pcpt) {
+                $pcSheet->setCellValue('O' . $row, 'NO. slim difference');
+                $pcSheet->setCellValue('N' . $row, $salesPrice);
+            } elseif ($salesPrice > $finalPrice) {
+                $pcSheet->setCellValue('O' . $row, 'YES. decrease');
+                $pcSheet->setCellValue('N' . $row, number_format($finalPrice, 2));
+                $yesRecommendationCount++;
+            } elseif ($salesPrice < $finalPrice) {
+                $pcSheet->setCellValue('O' . $row, 'YES. increase');
+                $pcSheet->setCellValue('N' . $row, number_format($finalPrice, 2));
+                $yesRecommendationCount++;
+            } else {
+                $pcSheet->setCellValue('O' . $row, 'NO. within margin');
+                $pcSheet->setCellValue('N' . $row, $salesPrice);
+            }
+
+            $pcSheet->setCellValue('R' . $row, $changeReason);
             continue;
         }
 

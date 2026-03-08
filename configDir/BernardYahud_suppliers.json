@@ -40,11 +40,19 @@
         "SupplierCode": 100010
     },
     {
+        "SupplierName": "SimchaZeAnachnu",
+        "SupplierCode": 100011
+    },
+    {
+        "SupplierName": "AvivaJachnunim",
+        "SupplierCode": 100012
+    },
+    {
         "SupplierName": "Lehemix",
         "SupplierCode": 100013
     },
     {
-        "SupplierName": "Babni",
+        "SupplierName": "DoronBabni",
         "SupplierCode": 100014
     },
     {
