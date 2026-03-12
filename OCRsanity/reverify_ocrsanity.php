@@ -39,10 +39,12 @@ try {
     $highestRow = $sheet->getHighestRow();
     $highestColumn = $sheet->getHighestColumn();
 
-    // Step 1: Clear all cell backgrounds and borders (columns A-J, from row 2 onwards)
+    // Step 1: Clear all cell values, backgrounds and borders (columns A-K, from row 2 onwards)
     for ($row = 2; $row <= $highestRow; $row++) {
-        foreach (range('A', 'J') as $column) {
+        foreach (range('A', 'K') as $column) {
             $cell = $sheet->getCell("{$column}{$row}");
+            // Clear value
+            $cell->setValue(null);
             // Clear background
             $cell->getStyle()->getFill()->setFillType(Fill::FILL_NONE);
             // Clear borders
@@ -80,6 +82,24 @@ try {
             else {
                 $sheet->setCellValueByColumnAndRow($excelCol, $excelRow, $value);
             }
+        }
+    }
+
+    // Step 2b: Remove empty trailing rows left by UI deletions
+    // Scan from the bottom up and remove rows where all columns A-K are empty
+    for ($row = $sheet->getHighestRow(); $row >= 2; $row--) {
+        $isEmpty = true;
+        foreach (range('A', 'K') as $column) {
+            $value = $sheet->getCell("{$column}{$row}")->getValue();
+            if ($value !== null && $value !== '') {
+                $isEmpty = false;
+                break;
+            }
+        }
+        if ($isEmpty) {
+            $sheet->removeRow($row);
+        } else {
+            break; // Stop at first non-empty row from the bottom
         }
     }
 
