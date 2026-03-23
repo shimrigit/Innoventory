@@ -81,6 +81,26 @@
     },
     {
         "SupplierName": "YamaKedma",
-        "SupplierCode": 121001
+        "SupplierCode": 100021
+    },
+    {
+        "SupplierName": "Pereg",
+        "SupplierCode": 100022
+    },
+    {
+        "SupplierName": "HakoleYahud",
+        "SupplierCode": 100023
+    },
+    {
+        "SupplierName": "Levitan",
+        "SupplierCode": 100026
+    },
+    {
+        "SupplierName": "GadLine",
+        "SupplierCode": 100024
+    },
+    {
+        "SupplierName": "TopIce",
+        "SupplierCode": 100025
     }
 ]

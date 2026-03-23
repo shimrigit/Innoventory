@@ -60,11 +60,11 @@
     "BackOfficeType": "Comax",
     "ReplaceBarcodeToERP": "YES",
     "PriceListColumns": {
-      "ItemERPName": 3,
-      "Barcode": 4,
-      "Department": 5,
-      "CostPrice": 8,
-      "SalesPrice": 7
+      "ItemERPName": 2,
+      "Barcode": 3,
+      "Department": 4,
+      "CostPrice": 7,
+      "SalesPrice": 6
     },
     "PriceChangePercentageThreshold": 3,
     "MarginTolerancePercentage": 15,

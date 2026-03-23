@@ -598,5 +598,101 @@
             "LineTotal": 1,
             "Discount1": 2
         }
+    },
+    {
+        "supplierName": "Pereg",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "תבליני פרג",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 3,
+            "UnitPrice": 5,
+            "LineTotal": 9
+        }
+    },
+    {
+        "supplierName": "HakoleYahud",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "הקולה יהוד",
+        "jsonToOcrSanity": {
+            "Barcode": 4,
+            "ItemName": 3,
+            "Qty": 2,
+            "UnitPrice": 1,
+            "LineTotal": 1
+        }
+    },
+    {
+        "supplierName": "Levitan",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "לויתן סחר",
+        "jsonToOcrSanity": {
+            "Barcode": 7,
+            "ItemName": 6,
+            "Qty": 4,
+            "UnitPrice": 3,
+            "LineTotal": 1
+        }
+    },
+    {
+        "supplierName": "GadLine",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "גד ליין",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 4,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
+    },
+    {
+        "supplierName": "TopIce",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "טופ אייס",
+        "jsonToOcrSanity": {
+            "Barcode": 5,
+            "ItemName": 4,
+            "Qty": 3,
+            "UnitPrice": 2,
+            "LineTotal": 1
+        }
+    },
+    {
+        "supplierName": "YamaKedma",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "ימה קדמה",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 3,
+            "UnitPrice": 6,
+            "LineTotal": 7
+        }
+    },
+    {
+        "supplierName": "SimchaZeAnachnu",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "שמחה זה אנחנו",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 3,
+            "UnitPrice": 6,
+            "LineTotal": 7
+        }
+    },
+    {
+        "supplierName": "Diarai",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "עמוס דיאראי פרמיום שיווק",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 4,
+            "UnitPrice": 6,
+            "LineTotal": 8
+        }
     }
 ]
