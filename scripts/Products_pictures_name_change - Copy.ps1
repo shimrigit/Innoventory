@@ -39,27 +39,26 @@ if ($jpegFiles.Count -eq 0) {
     exit
 }
 
-# ── Read prices from Excel column F starting at row 2 ────────────────────────
+# ── Read prices from Excel column A ──────────────────────────────────────────
 $excel    = $null
 $workbook = $null
-$sheet    = $null
 $prices   = @()
 
 try {
-    $excel               = New-Object -ComObject Excel.Application
-    $excel.Visible       = $false
-    $excel.DisplayAlerts = $false
-    $workbook            = $excel.Workbooks.Open($excelFile)
-    $sheet               = $workbook.Sheets.Item(1)
+    $excel                = New-Object -ComObject Excel.Application
+    $excel.Visible        = $false
+    $excel.DisplayAlerts  = $false
+    $workbook             = $excel.Workbooks.Open($excelFile)
+    $sheet                = $workbook.Sheets.Item(1)
 
-    $lastRow = $sheet.Cells($sheet.Rows.Count, 6).End(-4162).Row   # xlUp = -4162, column F = 6
-
-    for ($row = 2; $row -le $lastRow; $row++) {
-        $cell = $sheet.Cells.Item($row, 6)
+    $row = 1
+    while ($true) {
+        $cell = $sheet.Cells.Item($row, 1)
+        # Use .Text to get the displayed value (handles both numbers and strings correctly)
         $text = $cell.Text.Trim()
-        if ($text -ne "") {
-            $prices += $text
-        }
+        if ($text -eq "") { break }
+        $prices += $text
+        $row++
     }
 }
 catch {
@@ -70,33 +69,26 @@ catch {
 finally {
     if ($workbook) { $workbook.Close($false) }
     if ($excel)    { $excel.Quit() }
-    if ($sheet)    { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($sheet) | Out-Null }
-    if ($workbook) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null }
     if ($excel)    { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null }
-    [GC]::Collect()
-    [GC]::WaitForPendingFinalizers()
 }
 
 if ($prices.Count -eq 0) {
-    Write-Host "No prices found in Excel column F starting from row 2." -ForegroundColor Red
+    Write-Host "No prices found in Excel column A." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit
 }
 
-# ── Stop if counts differ ─────────────────────────────────────────────────────
+# ── Warn if counts differ ─────────────────────────────────────────────────────
 if ($jpegFiles.Count -ne $prices.Count) {
-    $message = "JPEG files and number of prices are not equal - you have $($jpegFiles.Count) JPEG files and $($prices.Count) prices"
-    [System.Windows.Forms.MessageBox]::Show($message, "Count Mismatch", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
-    Write-Host $message -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
-    exit
+    Write-Host ("Warning: {0} JPEG files but {1} prices in Excel." -f $jpegFiles.Count, $prices.Count) -ForegroundColor Yellow
 }
+$count = [Math]::Min($jpegFiles.Count, $prices.Count)
 
 # ── Rename files ──────────────────────────────────────────────────────────────
 $errors  = @()
 $renamed = 0
 
-for ($i = 0; $i -lt $jpegFiles.Count; $i++) {
+for ($i = 0; $i -lt $count; $i++) {
     $file  = $jpegFiles[$i]
     $price = $prices[$i]
 
