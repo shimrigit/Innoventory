@@ -4,6 +4,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
 // ── Validate ──────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST'
@@ -32,14 +33,19 @@ foreach ($stored as $i => $item) {
     $price   = $item['price'];
 
     $row = $i + 2; // A2, B2, ...
-    $sheet->setCellValue('A' . $row, $barcode);
+    $sheet->getStyle('A' . $row)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+    $sheet->setCellValueExplicit('A' . $row, $barcode, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
     $sheet->setCellValue('B' . $row, $price);
 
     $rows[] = ['barcode' => $barcode, 'price' => $price, 'filename' => $item['filename']];
 }
 
+$sheet->getColumnDimension('A')->setAutoSize(true);
+
 $writer = new Xlsx($spreadsheet);
 $writer->save($excelPath);
+
+$downloadFile = basename($excelPath);
 
 // Clear session data
 unset($_SESSION['npbarcode_excel'], $_SESSION['npbarcode_results']);
@@ -60,6 +66,8 @@ unset($_SESSION['npbarcode_excel'], $_SESSION['npbarcode_results']);
         tr:hover td { background: #f0f6fb; }
         .btn { display: inline-block; margin-top: 18px; padding: 10px 22px; background: #2575a8; color: #fff; border-radius: 6px; text-decoration: none; font-size: 14px; }
         .btn:hover { background: #1a5c87; }
+        .btn-dl { background: #2a7d2a; margin-left: 10px; }
+        .btn-dl:hover { background: #1e5c1e; }
     </style>
 </head>
 <body>
@@ -83,6 +91,7 @@ unset($_SESSION['npbarcode_excel'], $_SESSION['npbarcode_results']);
     <?php endforeach; ?>
 </table>
 
+<a class="btn btn-dl" href="download.php?file=<?= urlencode($downloadFile) ?>">הורד Excel מעודכן</a>
 <a class="btn" href="index.php">חזור לתחילה</a>
 </body>
 </html>

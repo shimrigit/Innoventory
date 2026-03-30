@@ -1,23 +1,36 @@
 <?php
 set_time_limit(0);
 session_start();
-
-define('NP_BASE_DIR', 'C:/Users/Shimri-SAS/Dropbox (Personal)/PC/Documents/LS Consulting/Business/Retailomatics/InvoiceArchive/BernardYahudArchive/NewProducts');
+require_once __DIR__ . '/../vendor/autoload.php';
 
 // ── Validate POST ─────────────────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['np_dir']) || empty($_POST['excel_file'])) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST'
+    || empty($_FILES['excel_file']) || $_FILES['excel_file']['error'] !== UPLOAD_ERR_OK
+    || empty($_FILES['jpeg_files']['name'][0])) {
     header('Location: index.php');
     exit;
 }
 
-$npDirName  = basename($_POST['np_dir']);
-$excelName  = basename($_POST['excel_file']);
-$npDirPath  = NP_BASE_DIR . '/' . $npDirName;
-$excelPath  = $npDirPath . '/' . $excelName;
+// ── Save uploaded files to tmp/ ───────────────────────────────────────────────
+$tmpDir = __DIR__ . '/tmp';
+if (!is_dir($tmpDir)) mkdir($tmpDir, 0755, true);
 
-if (!is_dir($npDirPath) || !file_exists($excelPath)) {
-    header('Location: index.php');
-    exit;
+$sessionId  = uniqid('npb_', true);
+$imgDir     = $tmpDir . '/' . $sessionId;
+mkdir($imgDir, 0755, true);
+
+// Save Excel
+$excelExt  = strtolower(pathinfo($_FILES['excel_file']['name'], PATHINFO_EXTENSION));
+$excelPath = $tmpDir . '/' . $sessionId . '.' . $excelExt;
+move_uploaded_file($_FILES['excel_file']['tmp_name'], $excelPath);
+
+// Save JPEGs
+$uploadedJpegs = $_FILES['jpeg_files'];
+$count = count($uploadedJpegs['name']);
+for ($i = 0; $i < $count; $i++) {
+    if ($uploadedJpegs['error'][$i] !== UPLOAD_ERR_OK) continue;
+    $origName = basename($uploadedJpegs['name'][$i]);
+    move_uploaded_file($uploadedJpegs['tmp_name'][$i], $imgDir . '/' . $origName);
 }
 
 // ── Load OpenAI API key ───────────────────────────────────────────────────────
@@ -40,7 +53,7 @@ function parseNPFilename($filename) {
     return null;
 }
 
-$rawFiles = glob($npDirPath . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE);
+$rawFiles  = glob($imgDir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE);
 $jpegItems = [];
 foreach ($rawFiles as $fullPath) {
     $parsed = parseNPFilename(basename($fullPath));
@@ -54,8 +67,7 @@ usort($jpegItems, fn($a, $b) => strcmp($a['sortKey'], $b['sortKey']));
 // ── OpenAI barcode call ───────────────────────────────────────────────────────
 function askForBarcode($imagePath, $apiKey) {
     $imageData = base64_encode(file_get_contents($imagePath));
-    $ext       = strtolower(pathinfo($imagePath, PATHINFO_EXTENSION));
-    $mime      = in_array($ext, ['jpg','jpeg']) ? 'image/jpeg' : 'image/png';
+    $mime      = 'image/jpeg';
 
     $payload = [
         'model'    => 'gpt-4.1-mini',
@@ -140,7 +152,7 @@ function sf() { echo str_pad('', 512, ' '); flush(); }
 <h2>NP Barcode Reader – עיבוד</h2>
 
 <?php if (empty($jpegItems)): ?>
-<p style="color:#c0392b;">לא נמצאו קבצי JPEG תואמים בתיקייה.</p>
+<p style="color:#c0392b;">לא נמצאו קבצי JPEG תואמים. ודא שהקבצים עוקבים את המבנה: yyyy-mm-dd at hh.mm.ss P.jpeg</p>
 <a href="index.php">חזור</a>
 <?php
     echo '</body></html>';
@@ -155,8 +167,8 @@ sf();
 $results = [];
 
 foreach ($jpegItems as $idx => $item) {
-    $z   = $idx + 1;
-    $fn  = htmlspecialchars($item['filename']);
+    $z  = $idx + 1;
+    $fn = htmlspecialchars($item['filename']);
 
     echo "<p class='pl wait' id='p{$z}'>איטרציה {$z} עבור קובץ {$fn}...</p>";
     sf();
