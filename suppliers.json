@@ -28,8 +28,16 @@
     },
     {
         "supplierName": "Dubek",
-        "OCRsanityMethod": "LineTotal",
-        "hebrewName": "דובק"
+        "OCRsanityMethod": "Discount1",
+        "hebrewName": "דובק",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 3,
+            "UnitPrice": 5,
+            "LineTotal": 6,
+            "Discount1": 4
+        }
     },
     {
         "supplierName": "Caspin",
@@ -433,11 +441,6 @@
         "hebrewName": "גלובל ווין אנד ספיריט"
     },
     {
-        "supplierName": "Dubek",
-        "OCRsanityMethod": "LineTotal",
-        "hebrewName": "דובק"
-    },
-    {
         "supplierName": "PhilipMorris",
         "OCRsanityMethod": "LineTotal",
         "hebrewName": "פיליפ מוריס",
@@ -693,6 +696,18 @@
             "Qty": 4,
             "UnitPrice": 6,
             "LineTotal": 8
+        }
+    },
+    {
+        "supplierName": "KAchocolate",
+        "OCRsanityMethod": "LineTotal",
+        "hebrewName": "ק.א שוקולד",
+        "jsonToOcrSanity": {
+            "Barcode": 1,
+            "ItemName": 2,
+            "Qty": 5,
+            "UnitPrice": 8,
+            "LineTotal": 9
         }
     }
 ]
