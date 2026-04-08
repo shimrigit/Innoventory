@@ -7,3 +7,6 @@ scripts/rename_pdfs_debug.cmd
 .gitignore
 scripts/rename_pdfs.cmd
 TOE/T_TEST
+CHPfetch/tmp/
+NPbarcode/tmp/
+NPclassify/tmp/
