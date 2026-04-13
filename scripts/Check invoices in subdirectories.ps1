@@ -1,4 +1,4 @@
-﻿$rootFolder = "C:\Users\Shimri-SAS\Dropbox (Personal)\PC\Documents\LS Consulting\Business\Retailomatics\InvoiceArchive\BernardYahudArchive\Collection\BernardCustomersCollection"
+$rootFolder = "Z:\RetailomaticsCloud\RetailomaticsArchive\BernardYahud\Collection\2026\ShopCustomersCollection"
 
 if (-not (Test-Path $rootFolder)) {
     Write-Host "Root folder not found:"
@@ -34,16 +34,16 @@ foreach ($dir in $subDirs) {
     foreach ($file in $pdfFiles) {
         $fileName = $file.Name
 
-        if ($fileName -match "נובמבר") {
+        if ($fileName -match "??????") {
             $novemberTotal++
         }
-        if ($fileName -match "דצמבר") {
+        if ($fileName -match "?????") {
             $decemberTotal++
         }
-        if ($fileName -match "ינואר") {
+        if ($fileName -match "?????") {
             $januaryTotal++
         }
-        if ($fileName -match "פברואר") {
+        if ($fileName -match "??????") {
             $februaryTotal++
         }
     }
@@ -54,7 +54,7 @@ Write-Host "----------------------------------------"
 Write-Host "Grand total PDF files: $allPdfTotal"
 Write-Host ""
 Write-Host "Totals by month:"
-Write-Host "נובמבר  : $novemberTotal"
-Write-Host "דצמבר   : $decemberTotal"
-Write-Host "ינואר   : $januaryTotal"
-Write-Host "פברואר  : $februaryTotal"
+Write-Host "??????  : $novemberTotal"
+Write-Host "?????   : $decemberTotal"
+Write-Host "?????   : $januaryTotal"
+Write-Host "??????  : $februaryTotal"
