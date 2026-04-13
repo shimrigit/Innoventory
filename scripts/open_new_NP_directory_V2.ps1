@@ -2,7 +2,7 @@
 Add-Type -AssemblyName System.Drawing
 
 # ── Base Path ────────────────────────────────────────────────────────────────
-$invoiceArchiveRoot = "Z:\RetailomaticsArchive"
+$invoiceArchiveRoot = "Z:\RetailomaticsCloud\RetailomaticsArchive"
 
 if (-not (Test-Path $invoiceArchiveRoot)) {
     [System.Windows.Forms.MessageBox]::Show(
