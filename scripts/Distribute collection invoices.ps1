@@ -1,43 +1,43 @@
 ﻿Add-Type -AssemblyName System.Windows.Forms
 
 # --------------------------------------------------
-# Select invoices source folder
+# Helper: browse for a folder
 # --------------------------------------------------
-function Select-Folder {
-    $defaultFolder = "C:\Users\Shimri-SAS\Dropbox (Personal)\PC\Documents\LS Consulting\Business\Retailomatics\InvoiceArchive\BernardYahudArchive\Collection"
-
+function Select-Folder($prompt) {
     $app = New-Object -ComObject Shell.Application
-    $folder = $app.BrowseForFolder(
-        0,
-        "Select the folder that contains the PDF invoices",
-        0,
-        $defaultFolder
-    )
-
-    if ($null -eq $folder) {
-        return $null
-    }
-
+    $folder = $app.BrowseForFolder(0, $prompt, 0, 0)
+    if ($null -eq $folder) { return $null }
     return $folder.Self.Path
 }
 
-$invoicesFolder = Select-Folder
+# --------------------------------------------------
+# 1. Select invoices batch folder
+# --------------------------------------------------
+$invoicesFolder = Select-Folder 'Select the folder that contains the PDF invoices batch'
 
 if ([string]::IsNullOrWhiteSpace($invoicesFolder)) {
-    Write-Host "No source folder selected. Script cancelled."
+    Write-Host 'No invoices folder selected. Script cancelled.'
     exit
 }
 
 Write-Host "Invoices folder selected: $invoicesFolder"
-Write-Host ""
+Write-Host ''
 
 # --------------------------------------------------
-# Fixed customers root folder
+# 2. Select customers subdirectories root
 # --------------------------------------------------
-$customersRoot = "C:\Users\Shimri-SAS\Dropbox (Personal)\PC\Documents\LS Consulting\Business\Retailomatics\InvoiceArchive\BernardYahudArchive\Collection\BernardCustomersCollection"
+$customersRoot = Select-Folder 'Select the folder that contains the customer subdirectories'
+
+if ([string]::IsNullOrWhiteSpace($customersRoot)) {
+    Write-Host 'No customers folder selected. Script cancelled.'
+    exit
+}
+
+Write-Host "Customers root selected: $customersRoot"
+Write-Host ''
 
 if (-not (Test-Path $customersRoot)) {
-    Write-Host "Customers root folder does not exist:"
+    Write-Host 'Customers root folder does not exist:'
     Write-Host $customersRoot
     exit
 }
@@ -70,7 +70,7 @@ Get-ChildItem -Path $customersRoot -Directory | ForEach-Object {
 }
 
 if ($customerMap.Count -eq 0) {
-    Write-Host "No valid customer directories were found under:"
+    Write-Host 'No valid customer directories were found under:'
     Write-Host $customersRoot
     exit
 }
@@ -81,7 +81,7 @@ if ($customerMap.Count -eq 0) {
 $invoiceFiles = Get-ChildItem -Path $invoicesFolder -File -Filter *.pdf
 
 if ($invoiceFiles.Count -eq 0) {
-    Write-Host "No PDF files were found in the selected invoices folder."
+    Write-Host 'No PDF files were found in the selected invoices folder.'
     exit
 }
 
@@ -114,18 +114,18 @@ foreach ($file in $invoiceFiles) {
             Copy-Item -Path $file.FullName -Destination $targetFile -Force
 
             Write-Host "$($file.Name) was assigned to $([System.IO.Path]::GetFileName($targetDirectory)) directory"
-            Write-Host ""
+            Write-Host ''
             $assignedCount++
         }
         else {
             Write-Host "$($file.Name) was NOT assigned - no matching customer directory found for customer number $invoiceCustomerNumber"
-            Write-Host ""
+            Write-Host ''
             $notAssignedCount++
         }
     }
     else {
         Write-Host "$($file.Name) was NOT assigned - no 3-digit customer number found in file name"
-        Write-Host ""
+        Write-Host ''
         $notAssignedCount++
     }
 }
@@ -133,7 +133,7 @@ foreach ($file in $invoiceFiles) {
 # --------------------------------------------------
 # Summary
 # --------------------------------------------------
-Write-Host "Finished."
+Write-Host 'Finished.'
 Write-Host "$assignedCount invoices were assigned."
 
 if ($notAssignedCount -gt 0) {
