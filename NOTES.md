@@ -3337,4 +3337,51 @@ Added configurable `ReplaceBarcodeToERP` parameter in shops_V2.json. When set to
 
 **Last Updated:** January 26, 2026
 **Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete | ✅ AI Enhancer Tool Ready
+
+---
+
+## TOE Module - Tesseract OCR Environment (February–March 2026)
+
+Experimental module integrating Tesseract OCR in a separate environment alongside the existing AIE environment. Implemented in two phases (Feb 26, Mar 2). Considered experimental — not part of the main production flow.
+
+---
+
+## New Modules: NP Barcode Reader, CHP Fetch, NP Classifier (March 2026)
+
+Three new modules added to support the New Products operation:
+
+- **NP Barcode Reader** (`NPbarcode/`) — reads barcodes from new product images.
+- **CHP Fetch** (`CHPfetch/`) — fetches product data from an external source based on barcode.
+- **NP Classifier** (`NPclassify/`) — classifies new products into departments/categories.
+
+These modules work together as a pipeline in the NP workflow. Tmp directories for all three are excluded from git via inner `.gitignore` files.
+
+---
+
+## New Products (NP) Workflow (March–April 2026)
+
+Full workflow built out for managing new product intake:
+
+### Directory Structure
+Each NP operation creates a dated directory under the customer's archive:
+```
+{CustomerRoot}/NewProducts/{YYYY}/{MM_MonthName}/{DD-MM-YY NP}/
+```
+A pre-formatted Excel file (`new_products_list_{date}_to_upload.xlsx`) with Hebrew headers is auto-created in the daily directory.
+
+### Scripts
+- **`open_new_NP_directory.ps1`** — original script for creating the NP directory.
+- **`open_new_NP_directory_V2.ps1`** — improved version with a GUI form (customer dropdown + date picker), auto-creates the full directory tree and Excel file, opens the folder in Explorer, and pins it to Windows Quick Access.
+
+### NP Directory for Employee
+A dedicated NP directory version was created for Michael (employee 1) — March 23, 2026.
+
+### Root Path
+All customer archives are stored under:
+`Z:\RetailomaticsCloud\RetailomaticsArchive\`
+
+---
+
+**Last Updated:** April 27, 2026
+**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete | ✅ AI Enhancer Tool Ready | ✅ NP Workflow Ready
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard
