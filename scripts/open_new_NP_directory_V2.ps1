@@ -211,9 +211,13 @@ else {
     }
 }
 
-# ── Open folder in Explorer ───────────────────────────────────────────────────
+# ── Open folder in Explorer and pin to Quick Access ──────────────────────────
 if (Test-Path $dailyDir) {
     Start-Process explorer.exe $dailyDir
+
+    $shell = New-Object -ComObject Shell.Application
+    $shell.Namespace($dailyDir).Self.InvokeVerb("pintohome")
+    Write-Host "Pinned to Quick Access: $dailyDir" -ForegroundColor Cyan
 }
 
 Write-Host ""

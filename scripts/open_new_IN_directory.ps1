@@ -144,6 +144,13 @@ foreach ($dir in @($invoicesDir, $yearDir, $monthDir, $dailyDir)) {
     }
 }
 
+# ── Pin to Quick Access ───────────────────────────────────────────────────────
+if (Test-Path $dailyDir) {
+    $shell = New-Object -ComObject Shell.Application
+    $shell.NameSpace($dailyDir).Self.InvokeVerb("pintohome")
+    Write-Host "Pinned to Quick Access: $dailyDir" -ForegroundColor Cyan
+}
+
 # ── Open folder in Explorer ───────────────────────────────────────────────────
 if (Test-Path $dailyDir) {
     Start-Process explorer.exe $dailyDir
