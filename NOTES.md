@@ -3382,6 +3382,47 @@ All customer archives are stored under:
 
 ---
 
+## JSON Column Auto-Detection Module (April 2026)
+
+### Overview
+Because OpenAI returns invoice table columns in a non-consistent order between runs, a heuristic auto-detection module was built to identify columns by their data characteristics rather than fixed position numbers.
+
+**File:** `OCRsanity/detect_json_mapping.php`  
+**Entry point:** `detectJsonMapping(array $tableData, string $sanityMethod, array &$notices, ?array $fallbackMapping): array`
+
+### Toggle per Supplier
+Controlled by `"autoDetectMapping"` in `suppliers.json`:
+- Omit the field or set `true` → auto-detect enabled (default)
+- Set `false` → use only the manual `jsonToOcrSanity` mapping
+
+### Detection Steps (all steps always run; each failure is noted independently)
+
+| Step | Field(s) | Method |
+|------|----------|--------|
+| 1 | ItemName | Unicode letter fraction × avg string length. Column with ≥30% letter content and highest score wins. |
+| 2 | Barcode | Longest pure-digit run per value (strips surrounding `*` or other OCR artifacts). Requires 6–14 digit run, ≥30% row hit-rate. Longest average run wins when multiple columns qualify. |
+| 3 | Discount1/2 | Only for Discount1/Discount2 methods. Score = 0.5×(zero fraction) + 0.3×(0–100 range fraction) + 0.2×(% sign fraction). |
+| 4 | Qty, UnitPrice (Simple) | Most integer-like column = Qty; next numeric column = UnitPrice (optional). |
+| 5 | Qty, UnitPrice, LineTotal | Tries all column permutations for `LineTotal ≈ Qty × UnitPrice` (20% tolerance). Pre-filters columns with <20% decimal-point values as code/sequence columns. After finding the triple, disambiguates Qty vs UnitPrice: more integer-like column = Qty; if both ≤50% integer-like, smaller mean = Qty. |
+
+### Partial Fallback
+When a step fails, the module falls back to the corresponding field in the supplier's `jsonToOcrSanity` mapping (if configured) **for that field only**. Auto-detected fields from earlier steps are kept. This means:
+- A supplier with no `jsonToOcrSanity` at all will get a fully auto-detected mapping (or fail if detection cannot complete).
+- A supplier with a partial or full `jsonToOcrSanity` gets the best of both: auto where possible, fallback only where needed.
+
+### Popup Notification
+After processing, `verify_ocrsanity.php` shows a popup listing the result of each field:
+- `✅ ItemName: auto-detected (column 3)`
+- `⚠️ Barcode: not auto-detected — using fallback (column 1)`
+- `❌ Qty: not auto-detected and no fallback configured`
+
+### Key Fixes Applied During Development
+- **Barcode with `*` delimiters** (`*5588983*`): uses longest digit-run extraction, not full-value match.
+- **Hebrew unit markers** (`"20.00 יח'"`, `"12.00 ש"ח"`): changed `is_numeric()` gate to regex `preg_match('/^-?\d/', ...)` — PHP's `(float)` cast already handles trailing Hebrew text correctly in the multiplicative check.
+- **Qty vs UnitPrice swap**: added post-triple disambiguation by integer-like fraction before the final field assignment.
+
+---
+
 **Last Updated:** April 27, 2026
-**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete | ✅ AI Enhancer Tool Ready | ✅ NP Workflow Ready
+**Status:** ✅ Phase 0 Complete - PreProcess2 Ready | ✅ Phase 1 Complete - OCR Sanity Ready | ✅ Phase 2 Complete - Commercial Layer Ready | ✅ Harmonized Flow Complete | ✅ Resume from Sanity Feature Complete | ✅ AI Enhancer Tool Ready | ✅ NP Workflow Ready | ✅ JSON Column Auto-Detection Ready
 **Next Phase:** PDF Split & JPG Conversion, then ERP integration, database migration, reporting dashboard

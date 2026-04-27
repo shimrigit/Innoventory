@@ -442,8 +442,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
         if ($supplierConfig === null) {
             $validationError = "Error: Supplier '{$supplierName}' does not exist in suppliers.json config file";
         }
-        // Validation 2: Check if supplier has jsonToOcrSanity
-        elseif (!isset($supplierConfig['jsonToOcrSanity'])) {
+        // Validation 2: Check if supplier has jsonToOcrSanity (skipped when autoDetectMapping is enabled)
+        elseif (!isset($supplierConfig['jsonToOcrSanity']) && !($supplierConfig['autoDetectMapping'] ?? true)) {
             $validationError = "Error: Supplier '{$supplierName}' does not have jsonToOcrSanity array";
         }
         // Validation 3: Check if sanity method is valid/implemented
@@ -454,8 +454,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
             if (!in_array($sanityMethod, $validMethods)) {
                 $validationError = "Error: OCRsanityMethod '{$sanityMethod}' for supplier {$supplierName} is not implemented. Valid methods: " . implode(', ', $validMethods);
             }
-            // Validation 4: Check if required fields exist in jsonToOcrSanity for the selected method
-            else {
+            // Validation 4: Check required fields in jsonToOcrSanity — skipped when autoDetectMapping is enabled
+            elseif (!($supplierConfig['autoDetectMapping'] ?? true)) {
                 $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
                 $requiredFields = [];
 
@@ -660,22 +660,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
 
         if ($supplierConfig === null) {
             $statusMessage = "Supplier {$supplierName} does not exist in suppliers.json config file";
-        } elseif (!isset($supplierConfig['jsonToOcrSanity'])) {
-            $statusMessage = "Supplier {$supplierName} does not have jsonToOcrSanity array";
         } else {
-            // Validate column names in jsonToOcrSanity
-            $validColumnNames = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'Discount1', 'Discount2'];
-            $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
+            $autoDetect    = $supplierConfig['autoDetectMapping'] ?? true;
+            $sanityMethod  = $supplierConfig['OCRsanityMethod'] ?? 'Simple';
+            $jsonToOcrSanity = null;
 
-            foreach ($jsonToOcrSanity as $columnName => $propertyNumber) {
-                if (!in_array($columnName, $validColumnNames)) {
-                    $statusMessage = "Column name {$columnName} in jsonToOcrSanity array of supplier {$supplierName} is not valid";
-                    break;
+            $autoDetectNotice = ''; // will be shown as popup in verify_ocrsanity.php
+
+            if ($autoDetect) {
+                require_once __DIR__ . '/detect_json_mapping.php';
+                $detectedNotices = [];
+                $detectedMapping = detectJsonMapping(
+                    $invoiceData['table'] ?? [],
+                    $sanityMethod,
+                    $detectedNotices,
+                    $supplierConfig['jsonToOcrSanity'] ?? null
+                );
+
+                // Check that all required fields ended up in the mapping
+                $requiredFields = ['ItemName', 'Barcode', 'Qty'];
+                if (in_array($sanityMethod, ['LineTotal', 'Discount1', 'Discount2'], true)) {
+                    $requiredFields = array_merge($requiredFields, ['UnitPrice', 'LineTotal']);
                 }
+                $missingFields = [];
+                foreach ($requiredFields as $f) {
+                    if (!isset($detectedMapping[$f])) $missingFields[] = $f;
+                }
+
+                if (empty($missingFields)) {
+                    $jsonToOcrSanity = $detectedMapping;
+                } else {
+                    $statusMessage = "Cannot process {$supplierName}: required column(s) could not be mapped: " . implode(', ', $missingFields);
+                }
+
+                // Build popup: one line per field, plus summary
+                $autoDetectNotice  = "Column mapping for {$supplierName} ({$sanityMethod}):\n";
+                $autoDetectNotice .= implode("\n", $detectedNotices);
+                if (!empty($missingFields)) {
+                    $autoDetectNotice .= "\n\n❌ Cannot process — missing required field(s): " . implode(', ', $missingFields);
+                }
+            } elseif (isset($supplierConfig['jsonToOcrSanity'])) {
+                // Validate column names in jsonToOcrSanity
+                $validColumnNames = ['Barcode', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'Discount1', 'Discount2'];
+                $jsonToOcrSanity  = $supplierConfig['jsonToOcrSanity'];
+                foreach ($jsonToOcrSanity as $columnName => $propertyNumber) {
+                    if (!in_array($columnName, $validColumnNames)) {
+                        $statusMessage = "Column name {$columnName} in jsonToOcrSanity array of supplier {$supplierName} is not valid";
+                        break;
+                    }
+                }
+            } else {
+                $statusMessage = "Supplier {$supplierName} does not have jsonToOcrSanity array";
             }
 
-            // If validation passed, process table data
-            if (empty($statusMessage)) {
+            // Process table data if mapping is available and no hard error
+            if ($jsonToOcrSanity !== null && (empty($statusMessage) || str_starts_with($statusMessage, 'Warning'))) {
                 $tableData = $invoiceData['table'] ?? [];
 
                 foreach ($tableData as $rowObject) {
@@ -784,13 +823,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     }
 
     // Get sanity method from supplier config (already validated earlier)
+    // $jsonToOcrSanity is already set from the mapping section (auto-detected or configured)
     $sanityMethod = $supplierConfig['OCRsanityMethod'] ?? 'Simple';
-    $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
     $totalDifference = 0;
 
-    // If using Discount1 method but jsonToOcrSanity doesn't have Discount1, fill column I with zeros
-    if ($sanityMethod === 'Discount1' && $supplierConfig !== null && isset($supplierConfig['jsonToOcrSanity'])) {
-        $jsonToOcrSanity = $supplierConfig['jsonToOcrSanity'];
+    // If using Discount1 method but mapping doesn't include Discount1, fill column I with zeros
+    if ($sanityMethod === 'Discount1' && isset($jsonToOcrSanity)) {
 
         // Check if Discount1 is NOT in the mapping
         if (!isset($jsonToOcrSanity['Discount1'])) {
@@ -911,6 +949,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ocr_json']) && isset
     // Store OCRjson filename for later use (for "Check OCRjson file" feature)
     session_start();
     $_SESSION['ocrJsonFileName'] = $jsonFile['name'];
+
+    // Persist auto-detect notice so verify page can show it as a popup
+    $_SESSION['autoDetectNotice'] = $autoDetectNotice ?? '';
 
     // Check if harmonized mode for redirect
     if (isset($_POST['harmonized_mode']) && $_POST['harmonized_mode'] === 'true') {

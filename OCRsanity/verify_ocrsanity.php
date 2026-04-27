@@ -1,6 +1,10 @@
 <?php
 // Verify OCR Sanity - Edit and Compare with PDF
 
+session_start();
+$autoDetectNotice = $_SESSION['autoDetectNotice'] ?? '';
+unset($_SESSION['autoDetectNotice']); // show once
+
 if (!isset($_GET['excel']) || !isset($_GET['pdf'])) {
     die('Error: Missing excel or pdf parameter');
 }
@@ -428,6 +432,13 @@ $cellStylesData = json_encode($cellStyles);
     </style>
 </head>
 <body>
+<?php if ($autoDetectNotice !== ''): ?>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+    alert(<?php echo json_encode($autoDetectNotice); ?>);
+});
+</script>
+<?php endif; ?>
     <div class="header">
         <h1>📊 OCR Sanity Verification - <?php echo htmlspecialchars($excelFile); ?></h1>
         <div class="header-buttons">
