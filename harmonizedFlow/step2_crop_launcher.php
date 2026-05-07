@@ -14,13 +14,19 @@ session_start();
 // Get POST data from Step 1
 $pdfFile = $_POST['pdfFile'] ?? '';
 $shopName = $_POST['shopName'] ?? '';
+$processMode = $_POST['processMode'] ?? 'new';
+$isDemoMode = ($processMode === 'demo');
 
 if (empty($pdfFile) || empty($shopName)) {
     die('Error: Missing required parameters (pdfFile or shopName)');
 }
 
-// Validate PDF file exists
-$preProcessDir = realpath(__DIR__ . '/../preProcessDir');
+// Validate PDF file exists (use Demo subdirectory in demo mode)
+if ($isDemoMode) {
+    $preProcessDir = realpath(__DIR__ . '/../preProcessDir/Demo');
+} else {
+    $preProcessDir = realpath(__DIR__ . '/../preProcessDir');
+}
 $pdfPath = $preProcessDir . DIRECTORY_SEPARATOR . $pdfFile;
 
 if (!file_exists($pdfPath)) {
@@ -278,7 +284,8 @@ $_SESSION['harmonizedFlow'] = [
     'processDateFull' => $processDateFull, // dd-mm-yyyy
     'sequenceIdentifier' => $sequenceIdentifier,
     'step' => 2, // Current step
-    'startTime' => time()
+    'startTime' => time(),
+    'demoMode' => $isDemoMode
 ];
 
 // Get shop configuration for later use
@@ -291,6 +298,173 @@ if (file_exists($shopsFile)) {
             break;
         }
     }
+}
+
+// Demo mode: skip crop/OCR pipeline and go directly to verify_ocrsanity.php
+if ($isDemoMode) {
+    $demoDir = realpath(__DIR__ . '/../preProcessDir/Demo');
+    $sanityFilesDir = realpath(__DIR__ . '/../OCRsanity/sanity_files');
+
+    if (!$demoDir) {
+        die('Demo Error: Demo directory not found');
+    }
+
+    // Find OCRsanity file in Demo dir matching this supplier and process date
+    $allDemoOcrFiles = glob($demoDir . DIRECTORY_SEPARATOR . 'OCRsanity_*.xlsx');
+    $matchingOcrFiles = [];
+
+    foreach ($allDemoOcrFiles as $file) {
+        $fileName = basename($file);
+        if (preg_match('/^OCRsanity_(.+?)_(\d{2}-\d{2}-\d{4})_/i', $fileName, $m)) {
+            if (strcasecmp($m[1], $supplierName) === 0 && $m[2] === $processDateFull) {
+                $matchingOcrFiles[] = $file;
+            }
+        }
+    }
+
+    if (empty($matchingOcrFiles)) {
+        die('Demo Error: No OCRsanity file found for supplier "' . htmlspecialchars($supplierName) .
+            '" and date "' . htmlspecialchars($processDateFull) . '" in Demo directory.');
+    }
+
+    // Pick the most recently modified match
+    usort($matchingOcrFiles, function($a, $b) {
+        return filemtime($b) - filemtime($a);
+    });
+    $demoOcrFile = $matchingOcrFiles[0];
+    $demoOcrFileName = basename($demoOcrFile);
+
+    // Copy OCRsanity file and PDF to sanity_files so verify_ocrsanity.php can read them
+    if (!copy($demoOcrFile, $sanityFilesDir . DIRECTORY_SEPARATOR . $demoOcrFileName)) {
+        die('Demo Error: Failed to copy OCRsanity file to sanity_files directory');
+    }
+    if (!copy($pdfPath, $sanityFilesDir . DIRECTORY_SEPARATOR . $pdfFile)) {
+        die('Demo Error: Failed to copy PDF file to sanity_files directory');
+    }
+
+    $redirectUrl = '/website/OCRsanity/verify_ocrsanity.php?excel=' . urlencode($demoOcrFileName) .
+                   '&pdf=' . urlencode($pdfFile) .
+                   '&shop=' . urlencode($shopName) .
+                   '&harmonized=true';
+    ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing OCR...</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .success-icon {
+            width: 72px;
+            height: 72px;
+            background: #3ecf6e;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            fill: none;
+            stroke: white;
+            stroke-width: 3.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        h1 {
+            color: #333;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .step-indicator {
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 25px;
+        }
+        .info-box {
+            background: #eef2ff;
+            border-left: 5px solid #667eea;
+            padding: 18px 22px;
+            border-radius: 4px;
+            text-align: left;
+            margin-bottom: 30px;
+            font-size: 14px;
+            line-height: 2;
+            color: #444;
+        }
+        .spinner {
+            width: 52px;
+            height: 52px;
+            border: 5px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .ocr-label {
+            font-size: 16px;
+            color: #444;
+            margin-bottom: 6px;
+        }
+        .ocr-estimate {
+            font-size: 13px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <h1>Crop Regions Saved Successfully</h1>
+        <div class="step-indicator">STEP 3/8: Crops Saved, Processing OCR</div>
+
+        <div class="info-box">
+            <div>✓ <strong>Crop files saved to:</strong> AIocr/crops/</div>
+            <div>→ <strong>Next step:</strong> Sending crops to OpenAI for OCR processing</div>
+        </div>
+
+        <div class="spinner"></div>
+        <div class="ocr-label">Processing OCR with OpenAI...</div>
+        <div class="ocr-estimate">Estimated: 1-2 minutes</div>
+    </div>
+
+    <script>
+        setTimeout(function() {
+            window.location.href = <?php echo json_encode($redirectUrl); ?>;
+        }, 4000);
+    </script>
+</body>
+</html>
+    <?php
+    exit;
 }
 ?>
 <!DOCTYPE html>

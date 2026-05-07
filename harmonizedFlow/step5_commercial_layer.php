@@ -21,6 +21,7 @@ $flowData = $_SESSION['harmonizedFlow'];
 
 // 1. Get shop name from session
 $shopName = $flowData['shopName'];
+$isDemoMode = !empty($flowData['demoMode']) && $flowData['demoMode'] === true;
 
 // 2. Find the latest OCRsanity file from sanity_files directory
 $sanityFilesDir = __DIR__ . '/../OCRsanity/sanity_files/';
@@ -40,46 +41,77 @@ $latestOcrSanityPath = $allSanityFiles[0];
 $latestOcrSanityFile = basename($latestOcrSanityPath);
 
 // 3. Find the latest price list file matching the shop name
-$priceListDir = __DIR__ . '/../commercialLayer/price_list_files/';
+if ($isDemoMode) {
+    // Demo mode: use price list from preProcessDir/Demo
+    // Match the file that starts with the shop name (pick newest if multiple)
+    $priceListDir = __DIR__ . '/../preProcessDir/Demo/';
+    $allPriceListFiles = glob($priceListDir . '*.xlsx');
 
-// Verify directory exists
-if (!is_dir($priceListDir)) {
-    die("Error: Price list directory not found: " . htmlspecialchars($priceListDir));
-}
+    // Exclude OCRsanity files
+    $allPriceListFiles = array_filter($allPriceListFiles, function($f) {
+        return stripos(basename($f), 'OCRsanity') !== 0;
+    });
 
-// Search for price list files that contain the shop name in their filename
-$allPriceListFiles = glob($priceListDir . '*.xlsx');
-
-if (empty($allPriceListFiles)) {
-    die("Error: No price list files (.xlsx) found in price_list_files directory: " . htmlspecialchars($priceListDir));
-}
-
-$matchingPriceListFiles = [];
-
-foreach ($allPriceListFiles as $file) {
-    $fileName = basename($file);
-    // Check if shop name appears in the filename (case-insensitive)
-    if (stripos($fileName, $shopName) !== false) {
-        $matchingPriceListFiles[] = $file;
+    if (empty($allPriceListFiles)) {
+        die("Error: No price list files (.xlsx) found in Demo directory: " . htmlspecialchars($priceListDir));
     }
+
+    $matchingPriceListFiles = [];
+    foreach ($allPriceListFiles as $file) {
+        $fileName = basename($file);
+        if (stripos($fileName, $shopName) === 0) {
+            $matchingPriceListFiles[] = $file;
+        }
+    }
+
+    if (empty($matchingPriceListFiles)) {
+        $availableFiles = array_map('basename', (array)$allPriceListFiles);
+        die("Error: No price list file starting with shop name '{$shopName}' found in Demo directory.<br><br>" .
+            "Available files:<br>- " . implode('<br>- ', $availableFiles));
+    }
+
+    usort($matchingPriceListFiles, function($a, $b) {
+        return filemtime($b) - filemtime($a);
+    });
+
+    $latestPriceListPath = $matchingPriceListFiles[0];
+    $latestPriceListFile = basename($latestPriceListPath);
+} else {
+    // Normal mode: use price_list_files directory
+    $priceListDir = __DIR__ . '/../commercialLayer/price_list_files/';
+
+    if (!is_dir($priceListDir)) {
+        die("Error: Price list directory not found: " . htmlspecialchars($priceListDir));
+    }
+
+    $allPriceListFiles = glob($priceListDir . '*.xlsx');
+
+    if (empty($allPriceListFiles)) {
+        die("Error: No price list files (.xlsx) found in price_list_files directory: " . htmlspecialchars($priceListDir));
+    }
+
+    $matchingPriceListFiles = [];
+    foreach ($allPriceListFiles as $file) {
+        $fileName = basename($file);
+        if (stripos($fileName, $shopName) !== false) {
+            $matchingPriceListFiles[] = $file;
+        }
+    }
+
+    if (empty($matchingPriceListFiles)) {
+        $availableFiles = array_map('basename', $allPriceListFiles);
+        die("Error: No price list file found for shop '{$shopName}' in price_list_files directory.<br><br>" .
+            "Available price list files:<br>- " . implode('<br>- ', $availableFiles) . "<br><br>" .
+            "Note: The shop name must appear in the filename.");
+    }
+
+    usort($matchingPriceListFiles, function($a, $b) {
+        return filemtime($b) - filemtime($a);
+    });
+
+    $latestPriceListPath = $matchingPriceListFiles[0];
+    $latestPriceListFile = basename($latestPriceListPath);
 }
-
-if (empty($matchingPriceListFiles)) {
-    // Show available files for debugging
-    $availableFiles = array_map('basename', $allPriceListFiles);
-    die("Error: No price list file found for shop '{$shopName}' in price_list_files directory.<br><br>" .
-        "Available price list files:<br>- " . implode('<br>- ', $availableFiles) . "<br><br>" .
-        "Note: The shop name must appear in the filename.");
-}
-
-// Sort by modification time (newest first)
-usort($matchingPriceListFiles, function($a, $b) {
-    return filemtime($b) - filemtime($a);
-});
-
-// Get the most recent matching price list file
-$latestPriceListPath = $matchingPriceListFiles[0];
-$latestPriceListFile = basename($latestPriceListPath);
 
 // 4. Get the invoice PDF from session (may not exist if user skipped PDF)
 $invoicePdfPath = $flowData['pdfPath'] ?? null;

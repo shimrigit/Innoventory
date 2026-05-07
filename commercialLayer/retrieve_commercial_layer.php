@@ -21,6 +21,7 @@ if (!isset($data['filename']) || !isset($data['shop']) || !isset($data['data']))
 $filename = basename($data['filename']);
 $shopName = $data['shop'];
 $updatedData = $data['data'];
+$isDemoMode = !empty($data['demoMode']) && $data['demoMode'] === true;
 
 $clFilePath = __DIR__ . '/commercial_invoice_files/' . $filename;
 
@@ -56,8 +57,17 @@ try {
     $replaceBarcodeToERP = isset($shopConfig['ReplaceBarcodeToERP']) && strtoupper($shopConfig['ReplaceBarcodeToERP']) === 'YES';
 
     // Find the price list file for this shop
-    $priceListDir = __DIR__ . '/price_list_files/';
-    $priceListFiles = glob($priceListDir . $shopName . '*.xlsx');
+    if ($isDemoMode) {
+        // Demo mode: use price list from preProcessDir/Demo, file must start with shop name
+        $demoDir = __DIR__ . '/../preProcessDir/Demo/';
+        $allFiles = glob($demoDir . '*.xlsx');
+        $priceListFiles = array_filter((array)$allFiles, function($f) use ($shopName) {
+            return stripos(basename($f), $shopName) === 0 && stripos(basename($f), 'OCRsanity') !== 0;
+        });
+    } else {
+        $priceListDir = __DIR__ . '/price_list_files/';
+        $priceListFiles = glob($priceListDir . $shopName . '*.xlsx');
+    }
 
     if (empty($priceListFiles)) {
         throw new Exception("No price list file found for shop: $shopName");
@@ -67,7 +77,7 @@ try {
     usort($priceListFiles, function($a, $b) {
         return filemtime($b) - filemtime($a);
     });
-    $priceListPath = $priceListFiles[0];
+    $priceListPath = array_values($priceListFiles)[0];
 
     // Load CL Excel file
     $clSpreadsheet = IOFactory::load($clFilePath);

@@ -215,6 +215,11 @@
                         <label for="mode_existing">📂 Resume from OCR Sanity File</label>
                         <div class="mode-description">Continue from existing sanity file (testing/corrections)</div>
                     </div>
+                    <div class="mode-option" onclick="selectMode('demo')">
+                        <input type="radio" name="processMode" value="demo" id="mode_demo" required>
+                        <label for="mode_demo">🎯 Demo</label>
+                        <div class="mode-description">Demonstrate the system capabilities</div>
+                    </div>
                 </div>
             </div>
 
@@ -342,6 +347,43 @@
                 </div>
             </div>
 
+            <!-- DEMO MODE CONTENT -->
+            <div id="demoContent" class="content-section">
+                <div class="info-box">
+                    <p><strong>🎯 Demo Mode:</strong></p>
+                    <p>Demonstrate the system capabilities</p>
+                </div>
+
+                <!-- Demo PDF Invoice Selection -->
+                <div class="form-group">
+                    <label>📄 Select Invoice PDF from Demo Directory:</label>
+                    <div class="pdf-list" id="demoPdfList">
+                        <?php
+                        $demoDir = realpath(__DIR__ . '/../preProcessDir/Demo');
+                        $demoPdfFiles = $demoDir ? glob($demoDir . '/*.pdf') : [];
+
+                        if (empty($demoPdfFiles)) {
+                            echo '<p style="padding: 20px; text-align: center; color: #999;">No PDF files found in Demo directory</p>';
+                        } else {
+                            foreach ($demoPdfFiles as $demoPdfPath) {
+                                $pdfName = basename($demoPdfPath);
+                                $isValidFormat = preg_match('/^(.+?)\s+(\d{2}-\d{2}-\d{2})(\s+[A-Z])?\.pdf$/i', $pdfName, $matches);
+                                $statusIcon = $isValidFormat ? '✅' : '⚠️';
+                                $statusColor = $isValidFormat ? '#28a745' : '#ff9800';
+                                echo "<div class='pdf-item' onclick='selectPdf(this)'>";
+                                echo "<input type='radio' name='pdfFile' value='{$pdfName}' id='demo_pdf_{$pdfName}'>";
+                                echo "<label for='demo_pdf_{$pdfName}' style='display: inline; font-weight: normal; cursor: pointer; width: 100%;'>";
+                                echo "<span style='color: {$statusColor}; margin-right: 5px;'>{$statusIcon}</span>";
+                                echo htmlspecialchars($pdfName);
+                                echo "</label>";
+                                echo "</div>";
+                            }
+                        }
+                        ?>
+                    </div>
+                </div>
+            </div>
+
             <button type="submit" id="startBtn">🚀 Start Process</button>
         </form>
     </div>
@@ -369,6 +411,7 @@
             // Update radio buttons
             document.getElementById('mode_new').checked = (mode === 'new');
             document.getElementById('mode_existing').checked = (mode === 'existing');
+            document.getElementById('mode_demo').checked = (mode === 'demo');
 
             // Update visual selection
             document.querySelectorAll('.mode-option').forEach(option => {
@@ -377,20 +420,20 @@
             event.currentTarget.classList.add('selected');
 
             // Show/hide appropriate content
-            if (mode === 'new') {
-                document.getElementById('newInvoiceContent').classList.add('active');
-                document.getElementById('existingSanityContent').classList.remove('active');
+            document.getElementById('newInvoiceContent').classList.toggle('active', mode === 'new');
+            document.getElementById('existingSanityContent').classList.toggle('active', mode === 'existing');
+            document.getElementById('demoContent').classList.toggle('active', mode === 'demo');
 
-                // Update form action
+            // Update form action and button text
+            if (mode === 'new') {
                 document.getElementById('flowForm').action = 'step2_crop_launcher.php';
                 document.getElementById('startBtn').textContent = '🚀 Start Harmonized Flow';
-            } else {
-                document.getElementById('newInvoiceContent').classList.remove('active');
-                document.getElementById('existingSanityContent').classList.add('active');
-
-                // Update form action
+            } else if (mode === 'existing') {
                 document.getElementById('flowForm').action = 'resume_from_sanity.php';
                 document.getElementById('startBtn').textContent = '🚀 Resume from Sanity File';
+            } else {
+                document.getElementById('flowForm').action = 'step2_crop_launcher.php';
+                document.getElementById('startBtn').textContent = '🎯 Start Demo';
             }
         }
 
@@ -439,7 +482,7 @@
                 return false;
             }
 
-            if (processMode === 'new') {
+            if (processMode === 'new' || processMode === 'demo') {
                 // Validate PDF selection
                 const pdfFile = document.querySelector('input[name="pdfFile"]:checked');
 
@@ -449,17 +492,19 @@
                     return false;
                 }
 
-                // Check if PDF has valid naming format
-                const pdfName = pdfFile.value;
-                const isValidFormat = /^(.+?)\s+(\d{2}-\d{2}-\d{2})(\s+[A-Z])?\.pdf$/i.test(pdfName);
+                if (processMode === 'new') {
+                    // Check if PDF has valid naming format
+                    const pdfName = pdfFile.value;
+                    const isValidFormat = /^(.+?)\s+(\d{2}-\d{2}-\d{2})(\s+[A-Z])?\.pdf$/i.test(pdfName);
 
-                if (!isValidFormat) {
-                    const proceed = confirm('⚠️ Warning: The selected PDF does not follow the required naming convention.\n\n' +
-                                           'Expected format: "XXXX dd-mm-yy Z.pdf" or "XXXX dd-mm-yy.pdf"\n\n' +
-                                           'Do you want to proceed anyway?');
-                    if (!proceed) {
-                        e.preventDefault();
-                        return false;
+                    if (!isValidFormat) {
+                        const proceed = confirm('⚠️ Warning: The selected PDF does not follow the required naming convention.\n\n' +
+                                               'Expected format: "XXXX dd-mm-yy Z.pdf" or "XXXX dd-mm-yy.pdf"\n\n' +
+                                               'Do you want to proceed anyway?');
+                        if (!proceed) {
+                            e.preventDefault();
+                            return false;
+                        }
                     }
                 }
             } else {

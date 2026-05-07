@@ -1,6 +1,9 @@
 <?php
 // Commercial Layer Verification - Side-by-side CL Excel and Invoice PDF view
 
+session_start();
+$isDemoMode = !empty($_SESSION['harmonizedFlow']['demoMode']) && $_SESSION['harmonizedFlow']['demoMode'] === true;
+
 $clFileName = $_GET['cl'] ?? '';
 $pdfFileName = $_GET['pdf'] ?? '';
 $shopName = $_GET['shop'] ?? '';
@@ -344,6 +347,7 @@ for ($row = 1; $row <= $highestRow; $row++) {
         const clFileName = <?php echo json_encode($clFileName); ?>;
         const pdfFileName = <?php echo json_encode($pdfFileName); ?>;
         const shopName = <?php echo json_encode($shopName); ?>;
+        const isDemoMode = <?php echo json_encode($isDemoMode); ?>;
 
         // Create styleMap for Handsontable
         const styleMap = new Map();
@@ -473,7 +477,8 @@ for ($row = 1; $row <= $highestRow; $row++) {
                 body: JSON.stringify({
                     filename: clFileName,
                     shop: shopName,
-                    data: currentData
+                    data: currentData,
+                    demoMode: isDemoMode
                 })
             })
             .then(response => response.json())
