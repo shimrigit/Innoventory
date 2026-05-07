@@ -1,8 +1,58 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** December 24, 2025
+**Last Updated:** May 7, 2026
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (May 7, 2026)
+
+### Demo Mode in Harmonized Flow
+
+#### Overview
+Added a **Demo** processing mode to the harmonized flow start screen, allowing a full end-to-end demonstration of the system without running a real crop/OCR pipeline. Demo mode uses pre-prepared files stored in `preProcessDir/Demo/`.
+
+#### How It Works
+
+1. **Start Screen** (`harmonizedFlow/start_harmonized_flow.php`): A third mode card "🎯 Demo" is shown alongside "New Invoice Processing" and "Resume from OCR Sanity File". Description: "Demonstrate the system capabilities". PDF files listed are sourced from `preProcessDir/Demo/` instead of `preProcessDir/`.
+
+2. **Step 2 / OCR Imitation** (`harmonizedFlow/step2_crop_launcher.php`): In demo mode the crop/OCR pipeline is skipped entirely. Instead:
+   - The matching OCRsanity file is located in `preProcessDir/Demo/` by matching supplier name + process date (newest picked if multiple).
+   - Both the OCRsanity file and the PDF are copied to `OCRsanity/sanity_files/` so the downstream screen can read them.
+   - A fake "Crop Regions Saved Successfully / Processing OCR with OpenAI…" screen is shown for **4 seconds** to imitate the real OCR step, then the browser auto-redirects to `verify_ocrsanity.php`.
+   - `demoMode: true` is stored in `$_SESSION['harmonizedFlow']`.
+
+3. **Commercial Layer – initial processing** (`harmonizedFlow/step5_commercial_layer.php`): When `demoMode` is set in session, the price list is taken from `preProcessDir/Demo/` (file whose name **starts with** the shop name, newest if multiple) instead of `commercialLayer/price_list_files/`.
+
+4. **Commercial Layer – Retrieve Again** (`commercialLayer/retrieve_commercial_layer.php`): The `verify_commercial_layer.php` page reads `demoMode` from session, injects it as a JS constant, and passes it in the AJAX body. `retrieve_commercial_layer.php` reads `demoMode` from the JSON payload and applies the same Demo price-list lookup when true.
+
+#### Demo Directory Structure (`preProcessDir/Demo/`)
+
+| File pattern | Purpose |
+|---|---|
+| `SupplierName dd-mm-yy.pdf` | Demo invoice PDF |
+| `OCRsanity_Supplier_dd-mm-yyyy_Z_timestamp[_CL_timestamp].xlsx` | Pre-prepared OCRsanity (or CL) file matched to the PDF |
+| `ShopName *.xlsx` | Price list for the shop (must start with shop name) |
+
+#### Files Modified
+
+| File | Change |
+|---|---|
+| `harmonizedFlow/start_harmonized_flow.php` | Added Demo mode card; server-side demo PDF list; updated `selectMode()` JS and form validation |
+| `harmonizedFlow/step2_crop_launcher.php` | Reads `processMode`; uses `preProcessDir/Demo` for PDF path; stores `demoMode` in session; finds + copies OCRsanity file; renders 4-second fake OCR screen then redirects |
+| `harmonizedFlow/step5_commercial_layer.php` | In demo mode uses `preProcessDir/Demo` for price list lookup (file starts with shop name) |
+| `commercialLayer/verify_commercial_layer.php` | Adds `session_start()`; injects `isDemoMode` JS constant; passes it in retrieve AJAX body |
+| `commercialLayer/retrieve_commercial_layer.php` | Reads `demoMode` from JSON body; in demo mode uses `preProcessDir/Demo` for price list |
+
+#### OCRsanity File Matching Logic
+- Glob `preProcessDir/Demo/OCRsanity_*.xlsx`
+- Regex: `OCRsanity_{supplier}_{dd-mm-yyyy}_` — match supplier (case-insensitive) and process date
+- If multiple matches → pick the file with the latest `filemtime`
+
+#### Notes
+- The OCRsanity file from Demo is only used for the **first upload** (copied to `sanity_files/`). For the commercial layer step, `step5_commercial_layer.php` picks the latest file from `sanity_files/` as usual.
+- Only the price list source changes for demo mode; all other processing (OCRsanity verification UI, CL processing logic, etc.) is identical to the normal harmonized flow.
 
 ---
 
