@@ -1,8 +1,83 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** May 7, 2026
+**Last Updated:** May 9, 2026
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (May 9, 2026)
+
+### Verify Price Changes Screen — Handsontable Rewrite & Bidirectional Editing
+
+#### Overview
+The PC verification screen (`commercialLayer/verify_price_changes.php`) was fully rewritten from an HTML form/table to a **Handsontable 12.3.1** Excel-like grid, with bidirectional price↔margin editing, auto-save on Continue, and MyShop department/supplier config files added.
+
+#### Handsontable Grid (replaced HTML table)
+
+- **Columns A-B hidden** from view (InvoiceNo + OriginalIndex) — data preserved in Excel on save
+- **`direction: ltr`** on container + `layoutDirection: 'ltr'` in Handsontable config — prevents RTL page inheritance which caused browser-level horizontal scrollbar at normal zoom
+- **Dynamic height** via `getBoundingClientRect().top` — `Math.floor(window.innerHeight - top - 12)` ensures scrollbars appear at any browser zoom level
+- **Barcode column**: click-to-copy → populates CHP search barcode field
+- **"Not Found" barcodes**: bold border on cell (`notFoundRowSet`)
+- **Recommend column**: green text for YES, red for NO
+
+#### Editable Columns & Yellow Headers
+
+Three columns are editable; all three have **bright yellow (`#FFFF00`) column headers** to signal editability:
+
+| Column | Editable | Behaviour |
+|---|---|---|
+| **Rec Price** | Yes | Editing recalculates Rec Mrgn; output cell turns gold |
+| **Rec Mrgn** | Yes | Editing recalculates Rec Price; output cell turns gold |
+| **Recommend** | Yes | Free-text; tracked as dirty, saved as-is |
+
+#### Bidirectional Price ↔ Margin Calculation
+
+Both fields editable; the **output** cell (the one the system calculated) is highlighted **gold (`#FFD700`)**, the input cell stays normal.
+
+- **User edits Rec Price** → `Rec Mrgn = (RecPrice/1.18 − ActualUnitPrice) / (RecPrice/1.18) × 100` → Rec Mrgn cell turns gold
+- **User edits Rec Mrgn** → `Rec Price = ActualUnitPrice / (1 − RecMrgn%) × 1.18` → Rec Price cell turns gold
+- **Recommend** updates automatically in both directions (YES. increase / YES. decrease / NO based on SalesPrice comparison)
+
+Gold highlight is tracked in a client-side `highlightedCells` Map and applied via Handsontable's `cells()` callback. On page load, rows with gold Rec Mrgn in the Excel file are pre-populated into `highlightedCells`.
+
+#### Save Logic (`doSave()`)
+
+All edits are tracked in a `dirtyRows` Set. Source filtering in `afterChange`:
+- `source === 'calculated'` — our own bidirectional update → skip (prevents infinite loop)
+- `source === 'external'` — server response applied back to table → skip (prevents floating-point drift re-triggering a recalculation)
+
+`doSave()` is a reusable Promise-based function used by both the Re-calculate button and the Continue button:
+
+```javascript
+// For each dirty row, sends:
+{ rowNum, recPrice (or null if only Recommend changed), recommend }
+```
+
+PHP endpoint (`action: recalculate`):
+- If `recPrice` provided → saves Rec Price, recalculates Rec Mrgn (with gold fill in Excel), saves both
+- Always saves `recommend` as-is from the table (preserves manual edits, not re-derived from formula)
+
+#### Auto-Save on "Continue to New Product Process"
+
+Previously, clicking Continue without first clicking Re-calculate would discard all edits. Now:
+1. `continueToNP()` is called on button click
+2. If `dirtyRows.size > 0` → `doSave(silent=true)` runs first
+3. Only after a successful save does the form submit (POST `finalize=1`)
+4. If save fails → button re-enables, user is alerted
+
+#### MyShop Config Files Added
+
+`configDir/MyShop_Departments.json` and `configDir/MyShop_suppliers.json` created (copied from BernardYahud) so that PC files generated for the MyShop customer resolve department margin targets (LMB/HMB) correctly instead of showing "Department not found".
+
+#### Files Modified
+
+| File | Change |
+|---|---|
+| `commercialLayer/verify_price_changes.php` | Full rewrite of display section to Handsontable; bidirectional editing; gold cell highlight; yellow headers; doSave(); auto-save on Continue; Recommend editable |
+| `configDir/MyShop_Departments.json` | NEW — 14 departments with margin targets |
+| `configDir/MyShop_suppliers.json` | NEW — 26 suppliers |
 
 ---
 
@@ -1839,39 +1914,37 @@ Different shops may have different ERP requirements:
 **File:** [verify_price_changes.php](commercialLayer/verify_price_changes.php)
 
 **Features:**
-- **Split-screen layout:** PC data (right) + CHP search panel (left)
+- **Split-screen layout:** PC data (right, Handsontable grid) + CHP search panel (left)
 - **CHP search panel:** Live price search by barcode (click-to-copy from table)
-- **Editable columns:** F (ItemERPName), J (ApprovedNewPrice)
-- **Color coding:** Price differences highlighted (red for increase, green for decrease)
-- **Final action:** "Save Price Changes File" button
+- **Editable columns:** Rec Price, Rec Mrgn, Recommend — all three have bright yellow headers
+- **Bidirectional editing:** Edit Rec Price → Rec Mrgn auto-updates (gold); edit Rec Mrgn → Rec Price auto-updates (gold)
+- **Auto-save on Continue:** Dirty rows saved to Excel before navigating to NP process
+- **Final action:** "Re-calculate Recommended Margin" (saves) + "Continue to New Product Process"
 
 **Layout:**
 ```
 ┌────────────────────────────────────────────────────────┐
 │  Header: Verify Price Changes                         │
-│  [Save Price Changes File] - Right side               │
+│  [🔄 Re-calculate] [➡️ Continue to NP]  - Right side  │
 └────────────────────────────────────────────────────────┘
 ┌─────────────────────┬──────────────────────────────────┐
 │                     │                                  │
-│  CHP Search Panel   │    PC Data Table                 │
-│  - City selector    │    (Columns C-K visible)         │
-│  - Barcode input    │    Columns A-B hidden            │
-│  - Search button    │    Editable: F, J                │
-│  - Results display  │                                  │
+│  CHP Search Panel   │    Handsontable Grid             │
+│  - City input       │    Columns A-B hidden            │
+│  - Barcode input    │    Editable: Rec Price,          │
+│  - Search button    │             Rec Mrgn,            │
+│  - Results table    │             Recommend            │
+│                     │    Yellow headers on editable    │
+│                     │    Gold cell = calculated output │
 │                     │                                  │
 └─────────────────────┴──────────────────────────────────┘
 ```
 
 **CHP Panel Features:**
-- City dropdown (from shop config)
+- City input (pre-filled from shop config default city)
 - Barcode input field (populated by clicking barcode in table)
-- Search button (triggers Puppeteer search)
-- Results display:
-  - Product name
-  - CHP price
-  - Minimal quantity
-  - Origin
-  - Promotional price
+- Search button (triggers Puppeteer/CHP search via AJAX)
+- Results display: min/avg/max price stats + per-store price table
 - Loading indicator during search
 
 #### 3. NP Verification Screen

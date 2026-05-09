@@ -219,7 +219,7 @@ for ($row = 1; $row <= $highestRow; $row++) {
 
         #hot-container {
             width: 100%;
-            height: 100%;
+            height: auto;
             overflow: hidden;
         }
 
@@ -357,13 +357,18 @@ for ($row = 1; $row <= $highestRow; $row++) {
         });
 
         // Initialize Handsontable
+        function hotHeight() {
+            const top = document.getElementById('hot-container').getBoundingClientRect().top;
+            return Math.floor(window.innerHeight - top - 12);
+        }
+
         const container = document.getElementById('hot-container');
         const hot = new Handsontable(container, {
             data: excelData,
             colHeaders: true,
             rowHeaders: true,
             width: '100%',
-            height: '80vh',
+            height: hotHeight(),
             licenseKey: 'non-commercial-and-evaluation',
             contextMenu: ['row_above', 'row_below', 'col_left', 'col_right', 'remove_row', 'remove_col'],
             manualColumnResize: true,
@@ -399,6 +404,8 @@ for ($row = 1; $row <= $highestRow; $row++) {
                 return cellProperties;
             }
         });
+
+        window.addEventListener('resize', () => hot.updateSettings({ height: hotHeight() }));
 
         // Track selected cell for PDF click-to-copy
         let selectedCell = { row: 0, col: 0 };

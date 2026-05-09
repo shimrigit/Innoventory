@@ -1,0 +1,72 @@
+[
+    {
+        "DepartmentNumber": 21,
+        "DepartmentName": "אריזות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 1,
+        "DepartmentName": "מכולת מזון בישול ואפיה",
+        "ExpectedMarginPercentage": 0.3
+    },
+    {
+        "DepartmentNumber": 84,
+        "DepartmentName": "למיון",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 3,
+        "DepartmentName": "פירות וירקות פטור מע\"מ",
+        "ExpectedMarginPercentage": 0.5
+    },
+    {
+        "DepartmentNumber": 2,
+        "DepartmentName": "מצרי חלב ומצוננים",
+        "ExpectedMarginPercentage": 0.25
+    },
+    {
+        "DepartmentNumber": 6,
+        "DepartmentName": "קפואים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 5,
+        "DepartmentName": "חומרי ניקוי/טואלטיקה",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 10,
+        "DepartmentName": "תינוקות",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 7,
+        "DepartmentName": "משקאות",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 4,
+        "DepartmentName": "קצביה",
+        "ExpectedMarginPercentage": 0.35
+    },
+    {
+        "DepartmentNumber": 8,
+        "DepartmentName": "משקאות חריפים",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 85,
+        "DepartmentName": "סיגריות",
+        "ExpectedMarginPercentage": 0.12
+    },
+    {
+        "DepartmentNumber": 11,
+        "DepartmentName": "כלי בית",
+        "ExpectedMarginPercentage": 0.4
+    },
+    {
+        "DepartmentNumber": 37,
+        "DepartmentName": "פירות וירקות מעובדים",
+        "ExpectedMarginPercentage": 0.4
+    }
+]

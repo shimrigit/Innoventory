@@ -38,6 +38,61 @@ if (!file_exists($pcFilePath)) {
     die('Error: PC file not found: ' . $pcFilePath);
 }
 
+// ── JSON recalculate endpoint (called from Handsontable JS) ──────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    if ($rawInput) {
+        $jsonInput = json_decode($rawInput, true);
+        if ($jsonInput && isset($jsonInput['action']) && $jsonInput['action'] === 'recalculate') {
+            header('Content-Type: application/json');
+            $changedRows = $jsonInput['changedRows'] ?? [];
+            if (empty($changedRows)) {
+                echo json_encode(['success' => true, 'modifiedCount' => 0, 'updatedRows' => []]);
+                exit;
+            }
+            $sp2 = IOFactory::load($pcFilePath);
+            $sh2 = $sp2->getActiveSheet();
+            $hdr = $sh2->rangeToArray('A1:P1')[0];
+            $colAUP  = array_search('ActualUnitPrice', $hdr);
+            $colSP   = array_search('SalesPrice',      $hdr);
+            $colRP   = array_search('Rec Price',        $hdr);
+            $colRec  = array_search('Recommend',        $hdr);
+            $colRM   = array_search('Rec Mrgn',         $hdr);
+            $updatedRows = [];
+            foreach ($changedRows as $change) {
+                $rowNum = (int)$change['rowNum'];
+                if ($rowNum <= 1) continue;
+                $newRecMrgnStr = null;
+                $newRecommend  = isset($change['recommend']) ? (string)$change['recommend'] : null;
+
+                if (isset($change['recPrice']) && $change['recPrice'] !== null && $change['recPrice'] !== '') {
+                    $newRecPrice = (float)$change['recPrice'];
+                    $actualUP    = (float)$sh2->getCellByColumnAndRow($colAUP + 1, $rowNum)->getValue();
+                    $sh2->setCellValueByColumnAndRow($colRP + 1, $rowNum, $newRecPrice);
+                    $priceExVAT    = $newRecPrice / 1.18;
+                    $newRecMrgnVal = $priceExVAT > 0 ? (($priceExVAT - $actualUP) / $priceExVAT) * 100 : 0;
+                    $newRecMrgnStr = number_format($newRecMrgnVal, 2, '.', '') . '%';
+                    $sh2->setCellValueByColumnAndRow($colRM + 1, $rowNum, $newRecMrgnStr);
+                    $sh2->getCellByColumnAndRow($colRM + 1, $rowNum)->getStyle()->getFill()
+                        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                        ->getStartColor()->setARGB('FFFFD700');
+                }
+
+                // Save recommend as-is from the table (user may have manually edited it)
+                if ($newRecommend !== null) {
+                    $sh2->setCellValueByColumnAndRow($colRec + 1, $rowNum, $newRecommend);
+                }
+                $updatedRows[] = ['rowNum' => $rowNum, 'recMrgn' => $newRecMrgnStr, 'recommend' => $newRecommend];
+            }
+            $writer = IOFactory::createWriter($sp2, 'Xlsx');
+            $writer->save($pcFilePath);
+            echo json_encode(['success' => true, 'modifiedCount' => count($updatedRows), 'updatedRows' => $updatedRows]);
+            exit;
+        }
+    }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 $spreadsheet = IOFactory::load($pcFilePath);
 $sheet = $spreadsheet->getActiveSheet();
 $pcData = $sheet->toArray();
@@ -216,6 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>אימות שינויי מחירים - Commercial Layer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@12.3.1/dist/handsontable.full.min.css">
     <style>
         * {
             margin: 0;
@@ -292,12 +348,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
 
         .right-panel {
             flex: 1;
+            min-width: 0;
             background: white;
             border-radius: 10px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
             overflow: hidden;
+        }
+
+        #hotContainer {
+            overflow: hidden;
+            position: relative;
+            direction: ltr;
         }
 
         .panel-header {
@@ -312,92 +375,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             flex: 1;
             overflow: auto;
             padding: 15px;
-        }
-
-        /* PC Table Styles */
-        .pc-table-container {
-            overflow: auto;
-            flex: 1;
-            direction: ltr; /* Force LTR for spreadsheet */
-        }
-
-        .pc-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85em;
-            direction: ltr; /* Force LTR for spreadsheet */
-        }
-
-        .pc-table thead {
-            position: sticky;
-            top: 0;
-            background: #f8f9fa;
-            z-index: 10;
-        }
-
-        .pc-table th {
-            padding: 10px 8px;
-            text-align: left; /* LTR: align left */
-            font-weight: bold;
-            border-bottom: 2px solid #667eea;
-            background: #f8f9fa;
-            white-space: nowrap;
-        }
-
-        .pc-table tbody tr {
-            border-bottom: 1px solid #e0e0e0;
-            transition: background-color 0.2s;
-        }
-
-        .pc-table tbody tr:hover {
-            background-color: #f5f5f5;
-        }
-
-        .pc-table tbody tr:nth-child(even) {
-            background-color: #fafafa;
-        }
-
-        .pc-table td {
-            padding: 8px;
-            text-align: left; /* LTR: align left */
-            border-left: 1px solid #e0e0e0; /* LTR: border on left instead of right */
-        }
-
-        .pc-table td:first-child {
-            border-left: none;
-        }
-
-        .barcode-cell {
-            cursor: pointer;
-            color: #667eea;
-            font-weight: bold;
-            text-decoration: underline;
-            position: relative;
-        }
-
-        .barcode-cell:hover {
-            color: #764ba2;
-            background-color: #e9ecef;
-        }
-
-        .barcode-cell .tooltip {
-            position: absolute;
-            bottom: 100%;
-            right: 0;
-            background: #333;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.85em;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-            z-index: 1000;
-        }
-
-        .barcode-cell:hover .tooltip {
-            opacity: 1;
         }
 
         /* Bold border for barcodes with "Not Found" in PriceDiff */
@@ -582,31 +559,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             color: #dc3545;
         }
 
-        /* Editable cell styles */
-        .editable-cell {
-            background-color: #fffacd !important; /* Light yellow to indicate editable */
-        }
-
-        .editable-cell input {
-            width: 100%;
-            padding: 4px 6px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 0.9em;
-            text-align: left;
-        }
-
-        .editable-cell input:focus {
-            outline: none;
-            border-color: #667eea;
-            background-color: white;
-        }
-
-        /* Modified cell (light orange background) */
-        .modified-cell {
-            background-color: #FFD700 !important; /* Light orange */
-        }
-
         /* Recalculate button */
         .recalculate-button {
             padding: 10px 25px;
@@ -638,6 +590,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             margin: 10px 0;
             font-weight: bold;
         }
+
+        /* Gold highlight for calculated output cells */
+        .htGoldCell {
+            background-color: #FFD700 !important;
+        }
     </style>
 </head>
 <body>
@@ -650,8 +607,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
             <button type="button" class="recalculate-button" id="recalculateBtn">
                 🔄 Re-calculate Recommended Margin
             </button>
-            <form method="POST" style="display: inline;">
-                <button type="submit" name="finalize" class="finalize-button" onclick="return confirm('Continue to New Product process?')">
+            <form id="finalizeForm" method="POST" style="display: inline;">
+                <input type="hidden" name="finalize" value="1">
+                <button type="button" class="finalize-button" onclick="continueToNP()">
                     ➡️ Continue to New Product Process
                 </button>
             </form>
@@ -782,71 +740,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                 📊 נתוני שינוי מחירים
             </div>
 
-            <!-- Full PC File Table (All columns A-P, all rows) -->
-            <div class="pc-table-container">
-                <form method="POST" id="recalcForm">
-                    <input type="hidden" name="recalculate" value="1">
-                    <table class="pc-table">
-                        <thead>
-                            <tr>
-                                <?php foreach ($pcData[0] as $header): ?>
-                                    <th><?= htmlspecialchars($header) ?></th>
-                                <?php endforeach; ?>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php for ($i = 1; $i < count($pcData); $i++): ?>
-                                <?php $row = $pcData[$i]; ?>
-                                <tr>
-                                    <?php foreach ($row as $colIdx => $cell): ?>
-                                        <?php if ($pcData[0][$colIdx] === 'Barcode'): ?>
-                                            <?php
-                                            // Check if this barcode row has "Not Found" (row number is $i + 1 in spreadsheet terms)
-                                            $hasNotFound = in_array($i + 1, $notFoundBarcodeRows);
-                                            ?>
-                                            <td class="barcode-cell <?= $hasNotFound ? 'not-found-barcode' : '' ?>" onclick="copyBarcode('<?= htmlspecialchars($cell) ?>')">
-                                                <?= htmlspecialchars($cell) ?>
-                                                <span class="tooltip">לחץ להעתקה</span>
-                                            </td>
-                                        <?php elseif ($pcData[0][$colIdx] === 'Rec Price'): ?>
-                                            <td class="editable-cell">
-                                                <!-- Hidden field to store original value -->
-                                                <input
-                                                    type="hidden"
-                                                    name="original_rec_price[<?= $i + 1 ?>]"
-                                                    value="<?= htmlspecialchars($cell) ?>"
-                                                >
-                                                <!-- Editable field for new value -->
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    name="rec_price[<?= $i + 1 ?>]"
-                                                    value="<?= htmlspecialchars($cell) ?>"
-                                                    placeholder="<?= htmlspecialchars($cell) ?>"
-                                                >
-                                            </td>
-                                        <?php elseif ($pcData[0][$colIdx] === 'Rec Mrgn'): ?>
-                                            <?php
-                                            // Check if this row was modified (row number is $i + 1 in spreadsheet terms)
-                                            $isModified = in_array($i + 1, $modifiedRows);
-                                            ?>
-                                            <td class="<?= $isModified ? 'modified-cell' : '' ?>">
-                                                <?= htmlspecialchars($cell) ?>
-                                            </td>
-                                        <?php elseif ($pcData[0][$colIdx] === 'Recommend'): ?>
-                                            <td class="<?= strpos($cell, 'YES') === 0 ? 'recommendation-yes' : 'recommendation-no' ?>">
-                                                <?= htmlspecialchars($cell) ?>
-                                            </td>
-                                        <?php else: ?>
-                                            <td><?= htmlspecialchars($cell) ?></td>
-                                        <?php endif; ?>
-                                    <?php endforeach; ?>
-                                </tr>
-                            <?php endfor; ?>
-                        </tbody>
-                    </table>
-                </form>
-            </div>
+            <div id="hotContainer"></div>
         </div>
     </div>
 
@@ -855,138 +749,291 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
         ✓ ברקוד הועתק בהצלחה!
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@12.3.1/dist/handsontable.full.min.js"></script>
     <script>
-        function copyBarcode(barcode) {
-            // Copy to clipboard
-            navigator.clipboard.writeText(barcode).then(function() {
-                // Update the barcode field
-                document.getElementById('barcode').value = barcode;
+        // ── Data from PHP ───────────────────────────────────────────────────
+        const pcHeaders    = <?php echo json_encode(array_slice($pcData[0], 2)); ?>;
+        const pcTableData  = <?php echo json_encode(array_values(array_map(function($r){ return array_slice($r, 2); }, array_slice($pcData, 1)))); ?>;
+        // Convert 1-based spreadsheet row numbers to 0-based data indices
+        const modifiedRowSet   = new Set(<?php echo json_encode(array_values(array_map(function($r){ return $r - 2; }, $modifiedRows))); ?>);
+        const notFoundRowSet   = new Set(<?php echo json_encode(array_values(array_map(function($r){ return $r - 2; }, $notFoundBarcodeRows))); ?>);
 
-                // Show notification
-                const notification = document.getElementById('copiedNotification');
-                notification.classList.add('show');
+        const barcodeColIdx    = pcHeaders.indexOf('Barcode');
+        const recPriceColIdx   = pcHeaders.indexOf('Rec Price');
+        const recMrgnColIdx    = pcHeaders.indexOf('Rec Mrgn');
+        const recommendColIdx  = pcHeaders.indexOf('Recommend');
+        const actualUPColIdx   = pcHeaders.indexOf('ActualUnitPrice');
+        const salesPriceColIdx = pcHeaders.indexOf('SalesPrice');
 
-                // Hide after 3 seconds
-                setTimeout(function() {
-                    notification.classList.remove('show');
-                }, 3000);
-            }).catch(function(err) {
-                alert('שגיאה בהעתקה: ' + err);
+        // Gold-highlight tracking: "row,col" → true (marks the OUTPUT cell of a calculation)
+        const highlightedCells = new Map();
+        // Pre-populate from rows that were already saved as modified in the Excel file
+        modifiedRowSet.forEach(row => {
+            if (recMrgnColIdx >= 0) highlightedCells.set(`${row},${recMrgnColIdx}`, true);
+        });
+
+        // Rows the user has edited during this session (either field)
+        const dirtyRows = new Set();
+
+        // ── Custom renderers ────────────────────────────────────────────────
+        function barcodeRenderer(hot, TD, row, col, prop, value, cp) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            TD.style.color          = '#667eea';
+            TD.style.cursor         = 'pointer';
+            TD.style.fontWeight     = 'bold';
+            TD.style.textDecoration = 'underline';
+            if (notFoundRowSet.has(row)) {
+                TD.style.border = '3px solid #000';
+            }
+        }
+
+        function recMrgnRenderer(hot, TD, row, col, prop, value, cp) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            // Gold background handled by cells() callback via highlightedCells
+        }
+
+        function recommendRenderer(hot, TD, row, col, prop, value, cp) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            if (typeof value === 'string' && value.startsWith('YES')) {
+                TD.style.color      = '#28a745';
+                TD.style.fontWeight = 'bold';
+            } else if (value === 'NO') {
+                TD.style.color = '#dc3545';
+            }
+        }
+
+        // ── Column config ───────────────────────────────────────────────────
+        const columns = pcHeaders.map((header, idx) => {
+            const col = { readOnly: idx !== recPriceColIdx && idx !== recMrgnColIdx && idx !== recommendColIdx };
+            if (idx === recPriceColIdx) {
+                col.type = 'numeric';
+                col.numericFormat = { pattern: '0.00' };
+                col.className = 'htLeft';
+            }
+            if (idx === barcodeColIdx)   col.renderer = barcodeRenderer;
+            if (idx === recMrgnColIdx)   col.renderer = recMrgnRenderer;
+            if (idx === recommendColIdx) col.renderer = recommendRenderer;
+            return col;
+        });
+
+        // ── Handsontable init ───────────────────────────────────────────────
+        function hotHeight() {
+            const top = document.getElementById('hotContainer').getBoundingClientRect().top;
+            return Math.floor(window.innerHeight - top - 12); // 12px margin keeps scrollbar clear of viewport edge
+        }
+
+        function updateRecommend(row, recPrice) {
+            if (recommendColIdx < 0 || salesPriceColIdx < 0) return;
+            const salesPrice = parseFloat(hot.getDataAtCell(row, salesPriceColIdx)) || 0;
+            let recommend;
+            if (Math.abs(salesPrice - recPrice) < 0.001) recommend = 'NO';
+            else if (salesPrice > recPrice)              recommend = 'YES. decrease';
+            else                                         recommend = 'YES. increase';
+            hot.setDataAtCell(row, recommendColIdx, recommend, 'calculated');
+        }
+
+        const hot = new Handsontable(document.getElementById('hotContainer'), {
+            data:               pcTableData,
+            colHeaders:         pcHeaders,
+            columns:            columns,
+            rowHeaders:         true,
+            height:             hotHeight(),
+            width:              '100%',
+            licenseKey:         'non-commercial-and-evaluation',
+            layoutDirection:    'ltr',
+            manualColumnResize: true,
+            manualRowResize:    false,
+            contextMenu:        false,
+            fillHandle:         false,
+            wordWrap:           true,
+            autoWrapRow:        true,
+            afterGetColHeader(col, TH) {
+                if (col === recPriceColIdx || col === recMrgnColIdx || col === recommendColIdx) {
+                    TH.style.backgroundColor = '#FFFF00';
+                    TH.style.color = '#000';
+                }
+            },
+            cells(row, col) {
+                if (highlightedCells.has(`${row},${col}`)) {
+                    return { className: 'htGoldCell' };
+                }
+                return {};
+            },
+            afterChange(changes, source) {
+                // 'calculated' = our own bidirectional update; 'external' = server response applied to table
+                if (!changes || source === 'calculated' || source === 'external') return;
+                changes.forEach(([row, col, oldVal, newVal]) => {
+                    if (col === recPriceColIdx) {
+                        const actualUP = parseFloat(hot.getDataAtCell(row, actualUPColIdx)) || 0;
+                        const recPrice = parseFloat(newVal) || 0;
+                        if (recPrice > 0 && actualUP > 0) {
+                            const priceExVAT = recPrice / 1.18;
+                            const recMrgn = ((priceExVAT - actualUP) / priceExVAT) * 100;
+                            hot.setDataAtCell(row, recMrgnColIdx, recMrgn.toFixed(2) + '%', 'calculated');
+                            highlightedCells.set(`${row},${recMrgnColIdx}`, true);
+                            highlightedCells.delete(`${row},${recPriceColIdx}`);
+                            updateRecommend(row, recPrice);
+                        }
+                        dirtyRows.add(row);
+                    } else if (col === recMrgnColIdx) {
+                        const actualUP = parseFloat(hot.getDataAtCell(row, actualUPColIdx)) || 0;
+                        const rawVal   = String(newVal || '').replace('%', '').trim();
+                        const recMrgnVal = parseFloat(rawVal);
+                        if (!isNaN(recMrgnVal) && recMrgnVal >= 0 && recMrgnVal < 100 && actualUP > 0) {
+                            const recPrice = parseFloat(((actualUP / (1 - recMrgnVal / 100)) * 1.18).toFixed(2));
+                            hot.setDataAtCell(row, recPriceColIdx, recPrice, 'calculated');
+                            highlightedCells.set(`${row},${recPriceColIdx}`, true);
+                            highlightedCells.delete(`${row},${recMrgnColIdx}`);
+                            updateRecommend(row, recPrice);
+                        }
+                        dirtyRows.add(row);
+                    } else if (col === recommendColIdx) {
+                        dirtyRows.add(row);
+                    }
+                });
+            },
+            afterOnCellMouseDown(event, coords) {
+                if (coords.col === barcodeColIdx && coords.row >= 0) {
+                    const barcode = String(hot.getDataAtCell(coords.row, barcodeColIdx) ?? '');
+                    if (!barcode) return;
+                    navigator.clipboard.writeText(barcode)
+                        .catch(() => {})
+                        .finally(() => {
+                            document.getElementById('barcode').value = barcode;
+                            const n = document.getElementById('copiedNotification');
+                            n.classList.add('show');
+                            setTimeout(() => n.classList.remove('show'), 3000);
+                        });
+                }
+            }
+        });
+
+        window.addEventListener('resize', () => hot.updateSettings({ height: hotHeight() }));
+
+        // ── CHP search (AJAX, unchanged logic) ─────────────────────────────
+        document.getElementById('chpSearchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('chp_search', '1');
+            const resultsContainer = document.getElementById('chpResultsContainer');
+            resultsContainer.innerHTML = '<div style="text-align:center;padding:20px;">🔄 מחפש...</div>';
+            fetch(window.location.href, { method: 'POST', body: formData })
+                .then(r => r.text())
+                .then(html => {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const newResults = doc.getElementById('chpResultsContainer');
+                    resultsContainer.innerHTML = newResults
+                        ? newResults.innerHTML
+                        : '<div class="error-message">⚠️ שגיאה בטעינת התוצאות</div>';
+                })
+                .catch(err => {
+                    resultsContainer.innerHTML = `<div class="error-message">⚠️ שגיאה בחיפוש: ${err.message}</div>`;
+                });
+        });
+
+        // ── Save dirty rows to Excel (shared by button and auto-save) ──────────
+        function doSave(silent = false) {
+            const changedRows = [];
+            dirtyRows.forEach(idx => {
+                const recPrice  = recPriceColIdx  >= 0 ? hot.getDataAtCell(idx, recPriceColIdx)  : null;
+                const recommend = recommendColIdx >= 0 ? hot.getDataAtCell(idx, recommendColIdx) : null;
+                changedRows.push({
+                    rowNum:    idx + 2,
+                    recPrice:  (recPrice !== null && recPrice !== '') ? parseFloat(recPrice) : null,
+                    recommend: recommend
+                });
+            });
+
+            if (changedRows.length === 0) return Promise.resolve(true);
+
+            const msgDiv = document.getElementById('recalcMessage');
+            if (!silent) {
+                msgDiv.innerHTML = '<div style="background:#e3f2fd;border:2px solid #2196F3;padding:10px 20px;margin:5px 15px;border-radius:8px;text-align:center;">🔄 Saving...</div>';
+            }
+
+            return fetch(window.location.href, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ action: 'recalculate', changedRows })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    data.updatedRows.forEach(upd => {
+                        const rowIdx = upd.rowNum - 2;
+                        if (upd.recMrgn   && recMrgnColIdx  >= 0) hot.setDataAtCell(rowIdx, recMrgnColIdx,   upd.recMrgn,   'external');
+                        if (upd.recommend && recommendColIdx >= 0) hot.setDataAtCell(rowIdx, recommendColIdx, upd.recommend,  'external');
+                        modifiedRowSet.add(rowIdx);
+                    });
+                    dirtyRows.clear();
+                    hot.render();
+                    if (!silent) {
+                        msgDiv.innerHTML = `<div style="background:#d4edda;border:2px solid #28a745;padding:10px 20px;margin:5px 15px;border-radius:8px;text-align:center;color:#155724;">✓ ${data.modifiedCount} row(s) saved successfully</div>`;
+                        setTimeout(() => msgDiv.innerHTML = '', 3000);
+                    }
+                    return true;
+                } else {
+                    if (!silent) { alert('Error: ' + data.error); msgDiv.innerHTML = ''; }
+                    return false;
+                }
+            })
+            .catch(err => {
+                if (!silent) { alert('Error: ' + err); msgDiv.innerHTML = ''; }
+                return false;
             });
         }
 
-        // Handle CHP search form submission via AJAX
-        document.getElementById('chpSearchForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // Prevent page reload
-
-            const formData = new FormData(this);
-            formData.append('chp_search', '1');
-
-            // Show loading indicator
-            const resultsContainer = document.getElementById('chpResultsContainer');
-            resultsContainer.innerHTML = '<div style="text-align: center; padding: 20px;">🔄 מחפש...</div>';
-
-            // Send AJAX request
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(html => {
-                // Parse the response HTML to extract just the results section
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const newResults = doc.getElementById('chpResultsContainer');
-
-                if (newResults) {
-                    resultsContainer.innerHTML = newResults.innerHTML;
-                } else {
-                    resultsContainer.innerHTML = '<div class="error-message">⚠️ שגיאה בטעינת התוצאות</div>';
-                }
-            })
-            .catch(error => {
-                resultsContainer.innerHTML = '<div class="error-message">⚠️ שגיאה בחיפוש: ' + error.message + '</div>';
-            });
-        });
-
-        // Handle recalculate button click via AJAX
+        // ── Recalculate button ──────────────────────────────────────────────
         document.getElementById('recalculateBtn').addEventListener('click', function() {
-            const formData = new FormData(document.getElementById('recalcForm'));
-            formData.append('recalculate', '1');
-
-            // Show loading message
-            const messageDiv = document.getElementById('recalcMessage');
-            messageDiv.innerHTML = '<div style="background: #e3f2fd; border: 2px solid #2196F3; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center;">🔄 Recalculating...</div>';
-
-            // Send AJAX request
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(html => {
-                // Parse the response to extract the updated table
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const newTable = doc.querySelector('#recalcForm table');
-                const oldTable = document.querySelector('#recalcForm table');
-
-                if (newTable && oldTable) {
-                    // Replace the table with updated data
-                    oldTable.innerHTML = newTable.innerHTML;
-
-                    // Show success message
-                    messageDiv.innerHTML = '<div style="background: #d4edda; border: 2px solid #28a745; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center; color: #155724;">✓ Recommended margins recalculated successfully!</div>';
-
-                    // Hide message after 3 seconds
-                    setTimeout(() => {
-                        messageDiv.innerHTML = '';
-                    }, 3000);
-                } else {
-                    messageDiv.innerHTML = '<div style="background: #f8d7da; border: 2px solid #dc3545; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center; color: #721c24;">⚠️ Error updating table</div>';
-                }
-            })
-            .catch(error => {
-                messageDiv.innerHTML = '<div style="background: #f8d7da; border: 2px solid #dc3545; padding: 15px; margin: 15px 30px; border-radius: 8px; text-align: center; color: #721c24;">⚠️ Error: ' + error.message + '</div>';
+            if (dirtyRows.size === 0) { alert('No unsaved changes detected'); return; }
+            const btn = this;
+            btn.disabled    = true;
+            btn.textContent = '⏳ Saving...';
+            doSave().finally(() => {
+                btn.disabled    = false;
+                btn.textContent = '🔄 Re-calculate Recommended Margin';
             });
         });
 
-        // Check if we need to continue to NP process
+        // ── Continue to NP — auto-save dirty rows first ─────────────────────
+        function continueToNP() {
+            if (!confirm('Continue to New Product process?')) return;
+            const btn = document.querySelector('#finalizeForm button');
+            if (dirtyRows.size > 0) {
+                btn.disabled    = true;
+                btn.textContent = '⏳ Saving...';
+                doSave(true).then(ok => {
+                    if (ok) {
+                        document.getElementById('finalizeForm').submit();
+                    } else {
+                        btn.disabled    = false;
+                        btn.textContent = '➡️ Continue to New Product Process';
+                        alert('Save failed — please retry before continuing.');
+                    }
+                });
+            } else {
+                document.getElementById('finalizeForm').submit();
+            }
+        }
+
+        // ── Continue to NP process ──────────────────────────────────────────
         <?php if (isset($_GET['continueToNP']) && $_GET['continueToNP'] == '1'): ?>
         window.addEventListener('DOMContentLoaded', function() {
-            // Get CL filename from session
             const clFileName = '<?= $_SESSION['clFileName'] ?? '' ?>';
-            const shopName = '<?= $shopName ?>';
-
-            if (!clFileName) {
-                alert('Error: CL file name not found');
-                return;
-            }
-
-            // Call generate_np_file.php
+            const shopName   = '<?= $shopName ?>';
+            if (!clFileName) { alert('Error: CL file name not found'); return; }
             fetch('generate_np_file.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    clFileName: clFileName,
-                    shopName: shopName
-                })
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ clFileName, shopName })
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
                 if (data.success) {
                     if (data.hasNewProducts) {
-                        alert('✅ New Products file created!\n\n' +
-                              'Products found: ' + data.newProductCount + '\n' +
-                              'Supplier: ' + data.supplierHebrewName + '\n\n' +
-                              'Redirecting to New Product verification...');
-
-                        // Redirect to NP verification page
+                        alert('✅ New Products file created!\n\nProducts found: ' + data.newProductCount + '\nSupplier: ' + data.supplierHebrewName + '\n\nRedirecting to New Product verification...');
                         window.location.href = data.redirectUrl;
                     } else {
-                        // No new products - go to completion page
                         alert('ℹ️ ' + data.message);
                         window.location.href = 'price_change_complete.php?pcFile=' + encodeURIComponent('<?= $pcFileName ?>') + '&shop=' + encodeURIComponent('<?= $shopName ?>') + '&cl=' + encodeURIComponent(clFileName) + '&noNP=true';
                     }
@@ -994,9 +1041,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalize'])) {
                     alert('❌ Error: ' + data.error);
                 }
             })
-            .catch(error => {
-                alert('❌ Error generating NP file: ' + error);
-            });
+            .catch(err => alert('❌ Error generating NP file: ' + err));
         });
         <?php endif; ?>
     </script>
