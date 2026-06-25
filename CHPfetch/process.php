@@ -211,9 +211,13 @@ streamFlush();
 foreach ($results as $r) {
     $row = $r['row'];
     $sheet->setCellValue('B' . $row, $r['hebrewName']);
-    $sheet->setCellValue('C' . $row, $r['returnedBarcode']);
+    $sheet->setCellValueExplicit('C' . $row, $r['returnedBarcode'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
     $sheet->setCellValue('D' . $row, $r['maxPrice']);
     $sheet->setCellValue('E' . $row, $r['minPrice']);
+}
+
+foreach (range('B', 'G') as $col) {
+    $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
 $writer = new Xlsx($spreadsheet);

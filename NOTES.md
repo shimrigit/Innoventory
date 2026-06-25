@@ -6,6 +6,70 @@
 
 ---
 
+## Recent Updates (June 25, 2026)
+
+### NP Harmonized Module — Core Stages Complete
+
+#### Overview
+New module `NPharmonized/` integrates three previously standalone NP tools (NPbarcode, CHPfetch, NPclassify) into a single sequential flow. The user runs one process end-to-end; intermediate Excel files are saved at each stage for debugging.
+
+#### Full Flow
+
+```
+index.php         → Input: date, shop, root drive letter
+confirm.php       → Verify paths & file counts (✅/❌ per check); אישור button gated on all-pass
+process.php       → Rename WhatsApp JPEGs: "WhatsApp Image yyyy-mm-dd at hh.mm.ss.jpeg"
+                     → "yyyy-mm-dd at hh.mm.ss {price}.jpeg" (chronological match to col F prices)
+stage_br.php      → Stream GPT-4.1-mini barcode reading per JPEG; verification table with images
+stage_br_save.php → Write barcode→col A (TYPE_STRING), price→col B; save _BR.xlsx; auto-advance
+stage_chpf.php    → Stream CHP fetch per barcode; write name→B, barcode→C, max→D, min→E;
+                     auto-size B–G; save _CHPF.xlsx; price-range check shown; אישור button
+stage_dcl.php     → GPT-4.1-mini dept classification (batch); write dept#→G, dept name→H;
+                     save _DCL.xlsx (final); price-range summary + WhatsApp copy button
+serve_image.php   → Serves JPEG from np_dir safely (path-traversal guard) for verification table
+```
+
+#### Intermediate Excel Files Saved in NP Directory
+| File suffix | Content added |
+|---|---|
+| `_BR.xlsx` | Col A = barcode (string), Col B = sale price |
+| `_BR_CHPF.xlsx` | Col B = Hebrew name, C = CHP barcode, D = max price, E = min price |
+| `_BR_CHPF_DCL.xlsx` | Col G = dept number, Col H = dept name (final output) |
+
+#### NP Working Directory Path
+`{root}:/RetailomaticsCloud/RetailomaticsArchive/{shop}/NewProducts/{YYYY}/{MM_Mmm}/{dd-mm-yy} NP`
+
+#### Price Range Warning Feature
+After CHPF fetch, the sale price (col F of original NPL, never overwritten) is compared against CHP min/max (cols E/D). Rows where sale > max or sale < min are flagged:
+- In the CHPF stage results table (per-row status column + summary box)
+- On the final DCL screen (summary box + **"📋 העתק להודעת WhatsApp" button** that copies the warning text to clipboard)
+- Rows where CHP returned no prices (NA) are counted separately; no comparison is made for them
+
+#### Key Technical Decisions
+- All pages rendered at 150% scale (font-size, padding) — consistent with user preference
+- UI language: Hebrew RTL (`dir="rtl"`, `lang="he"`)
+- `session_start()` used in stage_br.php / stage_br_save.php to pass large result arrays across the streaming → save boundary (same pattern as original NPbarcode)
+- JPEG rename pattern guard: only files matching `/^WhatsApp Image \d{4}-\d{2}-\d{2} at \d{2}\.\d{2}\.\d{2}\.jpeg$/i` are renamed
+- `serve_image.php` uses `realpath()` + prefix check to prevent path traversal when serving from Z:\ drive
+
+#### Files Created
+| File | Purpose |
+|---|---|
+| `NPharmonized/index.php` | Input form |
+| `NPharmonized/confirm.php` | Pre-flight checks |
+| `NPharmonized/process.php` | JPEG rename |
+| `NPharmonized/stage_br.php` | Barcode reading (streaming) |
+| `NPharmonized/stage_br_save.php` | Save _BR.xlsx |
+| `NPharmonized/stage_chpf.php` | CHP fetch (streaming) + price check |
+| `NPharmonized/stage_dcl.php` | Dept classification + final summary |
+| `NPharmonized/serve_image.php` | Image server for Z:\ drive |
+
+#### Bug Fixes Applied to Standalone Modules (pre-harmonization)
+- **CHPfetch/process.php**: Column C (returned barcode) now saved as `TYPE_STRING` to prevent Excel scientific-notation conversion of long barcode numbers
+- **CHPfetch/process.php**: Auto-size added for columns B–G before save
+
+---
+
 ## Recent Updates (May 9, 2026)
 
 ### Verify Price Changes Screen — Handsontable Rewrite & Bidirectional Editing
