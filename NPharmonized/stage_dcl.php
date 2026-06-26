@@ -146,6 +146,17 @@ foreach (['G', 'H'] as $col) {
     $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
+// ── Write full department reference list: col I = number, col J = name ───────
+$dRow = 2;
+foreach ($deptLookup as $name => $num) {
+    $sheet->setCellValue('I' . $dRow, $num);
+    $sheet->setCellValue('J' . $dRow, $name);
+    $dRow++;
+}
+foreach (['I', 'J'] as $col) {
+    $sheet->getColumnDimension($col)->setAutoSize(true);
+}
+
 // Save as _DCL.xlsx (final)
 $base     = pathinfo($xlsxFile, PATHINFO_FILENAME);
 $dclFile  = $base . '_DCL.xlsx';

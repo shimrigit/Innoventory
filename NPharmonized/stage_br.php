@@ -100,6 +100,10 @@ function sf() { echo str_pad('', 512, ' '); flush(); }
         .zoom-btns button:hover { background: #ddd; }
         .btn-approve { margin-top: 30px; padding: 17px 50px; background: #2a7d2a; color: #fff; border: none; border-radius: 8px; font-size: 24px; cursor: pointer; }
         .btn-approve:hover { background: #1e5c1e; }
+        .bc-invalid  { border-color: #e74c3c !important; background: #fdecea !important; }
+        .bc-warn     { color: #c0392b; font-size: 18px; margin-top: 4px; display: none; }
+        .bc-warn.show { display: block; }
+        #blockMsg    { display: none; background: #fdecea; border: 2px solid #e74c3c; border-radius: 8px; padding: 16px 24px; color: #c0392b; font-size: 22px; font-weight: bold; margin-bottom: 20px; max-width: 1100px; }
     </style>
 </head>
 <body>
@@ -152,6 +156,7 @@ $_SESSION['br_deptfile'] = $deptFile;
 <!-- ── Verification table ─────────────────────────────────────────────────── -->
 <h3>אמת ברקודים – ניתן לערוך לפני האישור</h3>
 <form action="stage_br_save.php" method="post">
+<div id="blockMsg"></div>
 <table class="vtbl">
     <tr>
         <th>#</th>
@@ -163,7 +168,14 @@ $_SESSION['br_deptfile'] = $deptFile;
     <?php foreach ($results as $i => $r): ?>
     <tr>
         <td><?= $i + 1 ?></td>
-        <td><input class="bc" type="text" name="barcode[<?= $i ?>]" value="<?= htmlspecialchars($r['barcode']) ?>"></td>
+        <td>
+            <?php $isLong = preg_match('/^\d+$/', $r['barcode']) && strlen($r['barcode']) > 13; ?>
+            <input class="bc<?= $isLong ? ' bc-invalid' : '' ?>" type="text"
+                   name="barcode[<?= $i ?>]"
+                   value="<?= htmlspecialchars($r['barcode']) ?>"
+                   oninput="validateBc(this)">
+            <div class="bc-warn<?= $isLong ? ' show' : '' ?>">⚠ <?= strlen($r['barcode']) ?> ספרות – עד 13 בלבד</div>
+        </td>
         <td class="price-val"><?= htmlspecialchars($r['price']) ?></td>
         <td class="fname"><?= htmlspecialchars($r['fname']) ?></td>
         <td>
@@ -186,6 +198,53 @@ function zoom(id, f) {
     var img = document.getElementById(id);
     img.style.width = Math.round(img.offsetWidth * f) + 'px';
 }
+
+function validateBc(input) {
+    var val  = input.value.trim();
+    var warn = input.nextElementSibling;
+    var bad  = /^\d+$/.test(val) && val.length > 13;
+    input.classList.toggle('bc-invalid', bad);
+    if (warn) {
+        if (bad) {
+            warn.textContent = '⚠ ' + val.length + ' ספרות – עד 13 בלבד';
+            warn.classList.add('show');
+        } else {
+            warn.classList.remove('show');
+        }
+    }
+    updateBlockMsg();
+}
+
+function updateBlockMsg() {
+    var bad = Array.from(document.querySelectorAll('input.bc')).filter(function(inp) {
+        var v = inp.value.trim();
+        return /^\d+$/.test(v) && v.length > 13;
+    }).length;
+    var msg = document.getElementById('blockMsg');
+    var btn = document.querySelector('.btn-approve');
+    if (bad > 0) {
+        msg.textContent = '⚠ יש ' + bad + ' ברקוד' + (bad === 1 ? '' : 'ים') + ' עם יותר מ-13 ספרות – יש לתקן לפני המשך.';
+        msg.style.display = 'block';
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+    } else {
+        msg.style.display = 'none';
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+    }
+}
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    var bad = Array.from(document.querySelectorAll('input.bc')).some(function(inp) {
+        var v = inp.value.trim();
+        return /^\d+$/.test(v) && v.length > 13;
+    });
+    if (bad) { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+});
+
+document.addEventListener('DOMContentLoaded', updateBlockMsg);
 </script>
 </body>
 </html>
