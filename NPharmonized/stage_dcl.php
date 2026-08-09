@@ -1,9 +1,8 @@
 <?php
-// Stage 3 – Department Classification
+// Stage 3 – Department Classification (review & edit — no save yet)
 set_time_limit(0);
 require_once __DIR__ . '/../vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['np_dir'])) {
     header('Location: index.php'); exit;
@@ -20,13 +19,14 @@ if (!file_exists($deptFile)) {
     die('<p style="color:red;font-family:Arial;font-size:22px;padding:30px">שגיאה: קובץ מחלקות לא נמצא: ' . htmlspecialchars($deptFile) . '</p>');
 }
 $departments = json_decode(file_get_contents($deptFile), true) ?? [];
-$deptLookup  = [];
+$deptLookup  = [];  // name => number
 foreach ($departments as $d) {
     if (isset($d['DepartmentName'], $d['DepartmentNumber'])) {
         $deptLookup[$d['DepartmentName']] = $d['DepartmentNumber'];
     }
 }
-$deptNames = array_keys($deptLookup);
+$deptNames  = array_keys($deptLookup);
+$numToName  = array_flip($deptLookup); // number => name (for editable dept-number sync)
 
 // ── Load xlsx and read product names from col B ───────────────────────────────
 try {
@@ -47,8 +47,8 @@ if (empty($products)) {
     die('<p style="color:red;font-family:Arial;font-size:22px;padding:30px">שגיאה: לא נמצאו שמות מוצרים בעמודה B.</p>');
 }
 
-// ── Read price comparison data from CHPF xlsx (col D=max, E=min, F=sale) ─────
-$priceChecks = [];
+// ── Read price comparison data (col D=max, E=min, F=sale) ────────────────────
+$priceChecks = []; // row => [...]
 foreach ($products as $p) {
     $row      = $p['row'];
     $barcode  = trim((string)$sheet->getCell('A' . $row)->getValue());
@@ -56,19 +56,27 @@ foreach ($products as $p) {
     $minP     = trim((string)$sheet->getCell('E' . $row)->getValue());
     $saleP    = (float)$sheet->getCell('F' . $row)->getValue();
     if ($maxP === '' || $maxP === 'NA' || $minP === '' || $minP === 'NA') {
-        $priceChecks[] = ['row' => $row, 'name' => $p['name'], 'barcode' => $barcode, 'sale' => $saleP, 'status' => 'na'];
+        $priceChecks[$row] = ['barcode' => $barcode, 'sale' => $saleP, 'status' => 'na'];
     } else {
         $max  = (float)str_replace(',', '', $maxP);
         $min  = (float)str_replace(',', '', $minP);
-        if ($saleP > $max)     $priceChecks[] = ['row' => $row, 'name' => $p['name'], 'barcode' => $barcode, 'sale' => $saleP, 'max' => $max, 'min' => $min, 'status' => 'above'];
-        elseif ($saleP < $min) $priceChecks[] = ['row' => $row, 'name' => $p['name'], 'barcode' => $barcode, 'sale' => $saleP, 'max' => $max, 'min' => $min, 'status' => 'below'];
-        else                   $priceChecks[] = ['row' => $row, 'name' => $p['name'], 'barcode' => $barcode, 'sale' => $saleP, 'max' => $max, 'min' => $min, 'status' => 'ok'];
+        if ($saleP > $max)     $priceChecks[$row] = ['barcode' => $barcode, 'sale' => $saleP, 'max' => $max, 'min' => $min, 'status' => 'above'];
+        elseif ($saleP < $min) $priceChecks[$row] = ['barcode' => $barcode, 'sale' => $saleP, 'max' => $max, 'min' => $min, 'status' => 'below'];
+        else                   $priceChecks[$row] = ['barcode' => $barcode, 'sale' => $saleP, 'max' => $max, 'min' => $min, 'status' => 'ok'];
     }
 }
 $pcNa       = count(array_filter($priceChecks, fn($c) => $c['status'] === 'na'));
 $pcOk       = count(array_filter($priceChecks, fn($c) => $c['status'] === 'ok'));
 $pcWarn     = array_filter($priceChecks, fn($c) => in_array($c['status'], ['above', 'below']));
 $pcCompared = $pcOk + count($pcWarn);
+
+$statusLabel = [
+    'ok'    => 'בטווח',
+    'above' => 'מעל המקסימום',
+    'below' => 'מתחת למינימום',
+    'na'    => 'אין נתוני השוואה',
+];
+$statusClass = ['ok' => 'st-ok', 'above' => 'st-bad', 'below' => 'st-bad', 'na' => 'st-na'];
 
 // ── Load OpenAI key ───────────────────────────────────────────────────────────
 $config = json_decode(file_get_contents(__DIR__ . '/../AIocr/config.json'), true);
@@ -131,49 +139,46 @@ if (json_last_error() !== JSON_ERROR_NONE || !isset($aiData['classifications']))
 $classifications = $aiData['classifications'];
 $usage           = $result['usage'] ?? [];
 
-// ── Write to xlsx (col G = dept number, col H = dept name, col I = product name) ──
+// ── Classification lookup by row (nothing is written to the file yet) ─────────
+$clByRow = [];
 foreach ($classifications as $cl) {
-    $idx      = (int)($cl['index'] ?? 0) - 1;
+    $idx = (int)($cl['index'] ?? 0) - 1;
     if (!isset($products[$idx])) continue;
-    $row      = $products[$idx]['row'];
-    $deptName = $cl['department'] ?? '';
-    $deptNum  = $deptLookup[$deptName] ?? '';
-    $sheet->setCellValue('G' . $row, $deptNum);
-    $sheet->setCellValue('H' . $row, $deptName);
+    $row = $products[$idx]['row'];
+    $clByRow[$row] = [
+        'department' => $cl['department'] ?? '',
+        'note'       => $cl['note'] ?? '',
+    ];
 }
 
-foreach (['G', 'H'] as $col) {
-    $sheet->getColumnDimension($col)->setAutoSize(true);
-}
+// ── Unified per-row data for the editable review screen ──────────────────────
+$finalRows = [];
+foreach ($products as $p) {
+    $row      = $p['row'];
+    $barcode  = $priceChecks[$row]['barcode'] ?? trim((string)$sheet->getCell('A' . $row)->getValue());
+    $price    = $priceChecks[$row]['sale']    ?? (float)$sheet->getCell('F' . $row)->getValue();
+    $status   = $priceChecks[$row]['status']  ?? 'na';
+    $deptName = $clByRow[$row]['department']  ?? '';
+    $deptNum  = $deptLookup[$deptName]        ?? '';
+    $note     = $clByRow[$row]['note']        ?? '';
 
-// ── Write full department reference list: col I = number, col J = name ───────
-$dRow = 2;
-foreach ($deptLookup as $name => $num) {
-    $sheet->setCellValue('I' . $dRow, $num);
-    $sheet->setCellValue('J' . $dRow, $name);
-    $dRow++;
-}
-foreach (['I', 'J'] as $col) {
-    $sheet->getColumnDimension($col)->setAutoSize(true);
-}
-
-// Save as _DCL.xlsx (final)
-$base     = pathinfo($xlsxFile, PATHINFO_FILENAME);
-$dclFile  = $base . '_DCL.xlsx';
-$dclPath  = $npDir . '/' . $dclFile;
-try {
-    (new Xlsx($spreadsheet))->save($dclPath);
-    $saveOk = true;
-} catch (Exception $e) {
-    $saveOk  = false;
-    $saveErr = $e->getMessage();
+    $finalRows[] = [
+        'row'      => $row,
+        'barcode'  => $barcode,
+        'name'     => $p['name'],
+        'price'    => $price,
+        'status'   => $status,
+        'deptNum'  => $deptNum,
+        'deptName' => $deptName,
+        'note'     => $note,
+    ];
 }
 ?>
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>NP Harmonized – שלב 3: סיווג מחלקות</title>
+    <title>NP Harmonized – שלב 3: סיווג מחלקות – אימות סופי</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 45px; }
         h2   { color: #2575a8; font-size: 36px; margin-bottom: 9px; }
@@ -181,29 +186,42 @@ try {
         .meta { display: flex; gap: 30px; flex-wrap: wrap; margin-bottom: 33px; }
         .meta-box { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 14px 24px; font-size: 20px; color: #555; }
         .meta-box strong { color: #333; }
-        .saved-box { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 21px 28px; max-width: 1100px; margin-bottom: 36px; font-size: 21px; color: #2a7d2a; font-weight: bold; }
-        .saved-box.err { background: #fdecea; border-color: #f5c6c6; color: #c0392b; }
-        table { border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.1); max-width: 1400px; width: 100%; margin-bottom: 36px; }
-        th { background: #2575a8; color: #fff; padding: 14px 18px; font-size: 20px; text-align: right; }
-        td { padding: 12px 18px; border-bottom: 1px solid #eee; font-size: 20px; color: #333; vertical-align: top; }
+        .layout { display: flex; gap: 30px; align-items: flex-start; }
+        .main-col { flex: 1; min-width: 0; }
+        .side-col { width: 300px; flex-shrink: 0; position: sticky; top: 20px; }
+        table { border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.1); width: 100%; margin-bottom: 36px; table-layout: fixed; }
+        th { background: #2575a8; color: #fff; padding: 14px 18px; font-size: 19px; text-align: right; }
+        td { padding: 10px 14px; border-bottom: 1px solid #eee; font-size: 19px; color: #333; vertical-align: middle; overflow-wrap: break-word; }
         tr:last-child td { border-bottom: none; }
-        .dept-num  { font-weight: bold; color: #2575a8; }
-        .note-cell { color: #777; font-style: italic; font-size: 17px; }
-        .btn-home  { display: inline-block; padding: 17px 50px; background: #2575a8; color: #fff; border: none; border-radius: 8px; font-size: 24px; cursor: pointer; text-decoration: none; }
-        .btn-home:hover { background: #1a5c87; }
-        .finish-banner { background: #e8f5e9; border: 2px solid #2a7d2a; border-radius: 10px; padding: 28px 36px; max-width: 1100px; margin-bottom: 36px; font-size: 27px; color: #2a7d2a; font-weight: bold; text-align: center; }
-        .ok-box  { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 21px 28px; max-width: 1100px; margin-bottom: 36px; font-size: 21px; color: #2a7d2a; font-weight: bold; }
-        .warn-box { background: #fdecea; border: 2px solid #e57373; border-radius: 8px; padding: 21px 28px; max-width: 1100px; margin-bottom: 36px; }
-        .warn-box h4 { color: #c0392b; font-size: 24px; margin: 0 0 14px; }
-        .warn-row { font-size: 20px; color: #c0392b; margin: 6px 0; }
+        .col-barcode { width: calc(13ch + 30px); }
+        .col-name    { width: calc(13ch * 2.5); }
+        .col-deptnum { width: calc(3ch + 40px); }
+        .col-note    { width: 12ch; }
+        .note-cell { color: #777; font-style: italic; font-size: 16px; white-space: normal; overflow-wrap: break-word; }
+        input.edit { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #bbb; border-radius: 6px; font-size: 18px; }
+        input.edit:focus { border-color: #2575a8; outline: none; }
+        .price-cell { font-weight: bold; color: #2575a8; white-space: nowrap; }
+        .st-ok  { color: #2a7d2a; font-weight: bold; }
+        .st-bad { color: #c0392b; font-weight: bold; }
+        .st-na  { color: #999; }
+        .dept-name-cell.warn { color: #c0392b; }
+        .dept-list-box { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 18px 22px; box-shadow: 0 1px 6px rgba(0,0,0,.1); max-height: 80vh; overflow-y: auto; }
+        .dept-list-box h3 { margin: 0 0 14px; color: #555; font-size: 22px; }
+        .dept-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 17px; }
+        .dept-row:last-child { border-bottom: none; }
+        .dept-row .num { font-weight: bold; color: #2575a8; margin-left: 12px; }
         .price-stats { font-size: 20px; color: #555; margin-bottom: 16px; }
         .price-stats span { margin-left: 28px; }
-        .btn-copy { margin-top: 18px; padding: 12px 30px; background: #2575a8; color: #fff; border: none; border-radius: 7px; font-size: 20px; cursor: pointer; }
-        .btn-copy:hover { background: #1a5c87; }
+        .ok-box  { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 21px 28px; margin-bottom: 36px; font-size: 21px; color: #2a7d2a; font-weight: bold; }
+        .warn-box { background: #fdecea; border: 2px solid #e57373; border-radius: 8px; padding: 21px 28px; margin-bottom: 36px; }
+        .warn-box h4 { color: #c0392b; font-size: 24px; margin: 0 0 14px; }
+        .warn-row { font-size: 20px; color: #c0392b; margin: 6px 0; }
+        .btn-approve { padding: 20px 66px; background: #2a7d2a; color: #fff; border: none; border-radius: 8px; font-size: 27px; cursor: pointer; margin-top: 12px; }
+        .btn-approve:hover { background: #1e5c1e; }
     </style>
 </head>
 <body>
-<h2>NP Harmonized – שלב 3: סיווג מחלקות</h2>
+<h2>NP Harmonized – שלב 3: סיווג מחלקות – אימות סופי</h2>
 <p class="sub">חנות: <?= htmlspecialchars($shop) ?> | תאריך: <?= htmlspecialchars($date) ?></p>
 
 <div class="meta">
@@ -215,32 +233,56 @@ try {
     <?php endif; ?>
 </div>
 
-<div class="saved-box <?= $saveOk ? '' : 'err' ?>">
-    <?php if ($saveOk): ?>
-        ✅ קובץ סופי נשמר: <?= htmlspecialchars($dclFile) ?>
-    <?php else: ?>
-        ❌ שגיאה בשמירה: <?= htmlspecialchars($saveErr) ?>
-    <?php endif; ?>
-</div>
+<div class="layout">
+<div class="main-col">
 
-<table>
-    <tr><th>#</th><th>שם מוצר</th><th>מחלקה</th><th>מספר מחלקה</th><th>הערת AI</th></tr>
-    <?php foreach ($classifications as $cl):
-        $idx      = (int)($cl['index'] ?? 0) - 1;
-        $deptName = $cl['department'] ?? '';
-        $deptNum  = $deptLookup[$deptName] ?? '—';
-        $product  = $cl['product'] ?? ($products[$idx]['name'] ?? '');
-        $note     = $cl['note']    ?? '';
-    ?>
-    <tr>
-        <td><?= (int)($cl['index'] ?? 0) ?></td>
-        <td><?= htmlspecialchars($product) ?></td>
-        <td><?= htmlspecialchars($deptName) ?></td>
-        <td class="dept-num"><?= htmlspecialchars((string)$deptNum) ?></td>
-        <td class="note-cell"><?= htmlspecialchars($note) ?></td>
-    </tr>
-    <?php endforeach; ?>
-</table>
+<form action="stage_dcl_save.php" method="post">
+    <input type="hidden" name="np_dir"    value="<?= htmlspecialchars($npDir) ?>">
+    <input type="hidden" name="xlsx_file" value="<?= htmlspecialchars($xlsxFile) ?>">
+    <input type="hidden" name="shop"      value="<?= htmlspecialchars($shop) ?>">
+    <input type="hidden" name="date"      value="<?= htmlspecialchars($date) ?>">
+    <input type="hidden" name="dept_file" value="<?= htmlspecialchars($deptFile) ?>">
+
+    <table>
+        <colgroup>
+            <col style="width:40px">
+            <col class="col-barcode">
+            <col class="col-name">
+            <col style="width:110px">
+            <col style="width:150px">
+            <col class="col-deptnum">
+            <col style="width:140px">
+            <col class="col-note">
+        </colgroup>
+        <tr>
+            <th>#</th>
+            <th>ברקוד</th>
+            <th>שם מוצר</th>
+            <th>מחיר מכירה</th>
+            <th>מחיר מול CHP</th>
+            <th>מספר מחלקה</th>
+            <th>שם מחלקה</th>
+            <th>הערת AI</th>
+        </tr>
+        <?php foreach ($finalRows as $i => $r): ?>
+        <tr>
+            <td><?= $i + 1 ?></td>
+            <td><input class="edit" type="text" name="barcode[<?= $r['row'] ?>]" value="<?= htmlspecialchars($r['barcode']) ?>"></td>
+            <td><input class="edit" type="text" name="name[<?= $r['row'] ?>]" value="<?= htmlspecialchars($r['name']) ?>"></td>
+            <td class="price-cell"><?= number_format($r['price'], 2) ?></td>
+            <td class="<?= $statusClass[$r['status']] ?>"><?= $statusLabel[$r['status']] ?></td>
+            <td>
+                <input class="edit" type="text" name="deptnum[<?= $r['row'] ?>]" value="<?= htmlspecialchars((string)$r['deptNum']) ?>"
+                       data-row="<?= $r['row'] ?>" oninput="syncDeptName(this)">
+            </td>
+            <td class="dept-name-cell" id="deptname-<?= $r['row'] ?>"><?= htmlspecialchars($r['deptName'] ?: '—') ?></td>
+            <td class="note-cell"><?= htmlspecialchars($r['note']) ?></td>
+        </tr>
+        <?php endforeach; ?>
+    </table>
+
+    <button type="submit" class="btn-approve">אישור – שמור וסיים תהליך ←</button>
+</form>
 
 <!-- ── Price range summary ───────────────────────────────────────────────────── -->
 <h3 style="color:#555;font-size:27px;margin-bottom:18px">סיכום מחירים מול CHP</h3>
@@ -256,40 +298,53 @@ try {
 <div class="ok-box">✅ כל המחירים בטווח</div>
 <?php elseif (!empty($pcWarn)):
     $warnLines = [];
-    foreach ($pcWarn as $w) {
+    foreach ($pcWarn as $row => $w) {
+        $rowName = null;
+        foreach ($finalRows as $fr) { if ($fr['row'] === $row) { $rowName = $fr['name']; break; } }
         if ($w['status'] === 'above')
-            $warnLines[] = "{$w['name']} ({$w['barcode']}) — מחיר מכירה " . number_format($w['sale'],2) . " גבוה ממקסימום " . number_format($w['max'],2) . " ב CHP";
+            $warnLines[] = "{$rowName} ({$w['barcode']}) — מחיר מכירה " . number_format($w['sale'],2) . " גבוה ממקסימום " . number_format($w['max'],2) . " ב CHP";
         else
-            $warnLines[] = "{$w['name']} ({$w['barcode']}) — מחיר מכירה " . number_format($w['sale'],2) . " נמוך ממינימום " . number_format($w['min'],2) . " ב CHP";
+            $warnLines[] = "{$rowName} ({$w['barcode']}) — מחיר מכירה " . number_format($w['sale'],2) . " נמוך ממינימום " . number_format($w['min'],2) . " ב CHP";
     }
-    $copyText = "שים לב ל " . count($pcWarn) . " מוצרים עם מחירים מחוץ לטווח CHP\n" . implode("\n", $warnLines);
 ?>
 <div class="warn-box">
     <h4>⚠ שים לב ל <?= count($pcWarn) ?> מוצרים עם מחירים מחוץ לטווח CHP</h4>
     <?php foreach ($warnLines as $line): ?>
     <div class="warn-row"><?= htmlspecialchars($line) ?></div>
     <?php endforeach; ?>
-    <button type="button" class="btn-copy" onclick="copyWarn()">📋 העתק להודעת WhatsApp</button>
 </div>
-<script>
-function copyWarn() {
-    var text = <?= json_encode($copyText, JSON_UNESCAPED_UNICODE) ?>;
-    navigator.clipboard.writeText(text).then(function() {
-        var btn = document.querySelector('.btn-copy');
-        var orig = btn.textContent;
-        btn.textContent = '✔ הועתק!';
-        setTimeout(function() { btn.textContent = orig; }, 2500);
-    });
-}
-</script>
 <?php endif; ?>
 
-<div class="finish-banner">
-    🎉 תהליך NP Harmonized הושלם בהצלחה!<br>
-    <span style="font-size:20px;font-weight:normal">קבצים שנשמרו בתיקיית NP: _BR.xlsx → _CHPF.xlsx → _DCL.xlsx</span>
 </div>
 
-<a class="btn-home" href="index.php">חזור לתחילה</a>
+<div class="side-col">
+    <div class="dept-list-box">
+        <h3>רשימת מחלקות – <?= htmlspecialchars($shop) ?></h3>
+        <?php foreach ($deptLookup as $name => $num): ?>
+        <div class="dept-row"><span class="num"><?= htmlspecialchars((string)$num) ?></span><span><?= htmlspecialchars($name) ?></span></div>
+        <?php endforeach; ?>
+    </div>
+</div>
 
+</div>
+
+<script>
+const NUM_TO_NAME = <?= json_encode($numToName, JSON_UNESCAPED_UNICODE) ?>;
+
+function syncDeptName(input) {
+    var row  = input.dataset.row;
+    var num  = input.value.trim();
+    var cell = document.getElementById('deptname-' + row);
+    cell.classList.remove('warn');
+    if (num === '') {
+        cell.textContent = '—';
+    } else if (NUM_TO_NAME.hasOwnProperty(num)) {
+        cell.textContent = NUM_TO_NAME[num];
+    } else {
+        cell.textContent = '⚠ מחלקה לא מוכרת';
+        cell.classList.add('warn');
+    }
+}
+</script>
 </body>
 </html>

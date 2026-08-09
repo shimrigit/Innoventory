@@ -1,8 +1,88 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** May 9, 2026
+**Last Updated:** August 9, 2026
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (August 5–9, 2026)
+
+### WhatsApp Picture-Load Pipeline for the NP Process
+
+#### Overview
+New capability letting the New Product (NP) process pull product photos + prices from a WhatsApp bot conversation instead of manual file placement. Two parts: (1) a standalone WhatsApp receiver/fetcher under `whatsapp_app/`, and (2) a "WhatsApp" harvest mode woven into the existing `NPharmonized/` flow, which rejoins the original ("Manual") flow at the barcode-reading stage.
+
+#### Part 1 — `whatsapp_app/` (Meta WhatsApp Cloud API receiver)
+
+| File | Purpose |
+|---|---|
+| `webhook.php` | Meta webhook endpoint. GET = verification handshake (`hub_verify_token` check). POST = **only** appends the raw JSON payload to `whatsapp_images/webhook_log.txt` (timestamped). Does **not** download images or write any per-message file itself — that's `MessageFetching.php`'s job. |
+| `MessageFetching.php` | Run manually (browser or CLI) after sending WhatsApp photos to the bot. Parses `webhook_log.txt` top to bottom, flattens every `entry[].changes[].value.messages[]` across *all* logged payloads into one arrival-ordered list, and assigns each message a **serial number** (1, 2, 3, … — counts every message, not just images). For `image` messages, downloads via the message's `url` (falling back to the media-lookup Graph API endpoint + `meta_key` from `config.json`) and saves as `ddmmyy-hhmmss X Y.ext` where X = serial number, Y = sanitized caption, ext = from the mime type (e.g. `image/jpeg` → `jpeg`). Skips re-downloading if the target filename already exists (idempotent — safe to re-run). Browser output is wrapped in `<pre style="font-size:2em">` so each log line renders on its own row at 2× size (plain `echo "...\n"` doesn't produce line breaks in an HTML response, and text renders at normal size without this). |
+| `messages.php` | **Removed** — was a browser viewer for `messages.jsonl`, which is no longer produced. |
+| `whatsapp_images/` | Drop zone: `webhook_log.txt` (arrival log, permanent), downloaded images, `.gitignore`. Images are the staging area consumed by `NPharmonized/process_whatsapp.php` — see below. Originals are **copied**, not moved, into the NP directory, so this folder keeps accumulating history for debugging (not auto-cleared). |
+| `config.json` | Holds `meta_key` (WhatsApp Cloud API access token) used for media downloads. |
+
+**Key fact used for the naming convention:** message `timestamp` (unix epoch, UTC) formatted with `gmdate('dmy-His', ...)` matches Meta's value exactly with no timezone conversion — verified against a real payload (`1785917371` → `050826-080931` UTC).
+
+#### Part 2 — `NPharmonized/` WhatsApp harvest mode
+
+**Start screen (`index.php`):** added a switch — "אופן איסוף תמונות": ידני (Manual) / WhatsApp. **WhatsApp is the default** (as of Aug 9; originally Manual was default when the switch was first added).
+
+**`confirm.php`** branches on `harvest_mode`:
+- **Manual** — unchanged from the original flow (npDir + xlsx + jpeg-count pre-flight checks).
+- **WhatsApp** — creates the NP directory if it doesn't exist (`mkdir` recursive), then validates every image in `whatsapp_app/whatsapp_images` against the `ddmmyy-hhmmss n y.jpe?g` convention: proper naming, `n` must be a pure integer, and all `n` must be unique. Any violation is listed inline (bad filenames / duplicate serials) and the אישור button stays disabled — this is the "prompt and stop" behavior. Only `.jpg/.jpeg` is accepted (matches a system-wide assumption elsewhere — see Known Limitations below).
+
+**`process_whatsapp.php`** (new — runs after אישור, mirrors `process.php`'s role for Manual mode):
+1. Re-validates the staged images (defensive re-check).
+2. Sorts by **serial number**, not filename timestamp.
+3. **Copies** (not moves) each image into the NP directory — originals stay in `whatsapp_images` for debugging.
+4. Generates a fresh NPL workbook with headers `A1:G1` = מס פריט / שם פריט / ברקוד / מחיר קניה / ספק / מחיר מכירה / מחלקה (bold).
+5. Writes each image's caption into column F at row `(index-in-sorted-order + 2)` — this is a **compacted** write, so a serial gap (e.g. images numbered 1, 3, 4) never produces a blank row; no separate "delete empty rows" pass is needed.
+6. Hands off to `stage_br.php` with `harvest_mode=whatsapp` in the form.
+
+**`stage_br.php`** is now mode-aware: for `harvest_mode=whatsapp` it matches the `ddmmyy-hhmmss n y` filename and **sorts by the serial number `n`**, never by the embedded timestamp — two messages can land in the same second, so serial order is the only reliable source of truth. Manual mode's original date-string sort is untouched. `process.php` (Manual path) now explicitly passes `harvest_mode=manual` for clarity.
+
+From `stage_br.php` onward (CHPF, DCL) the two modes are fully unified — no further mode branching anywhere downstream.
+
+#### Part 3 — DCL final screen: editable review before the file is finalized
+
+Split the old single-pass "`stage_dcl.php`: classify + auto-save + show results" into an edit-then-confirm flow, mirroring the existing BR-stage pattern (`stage_br.php` compute → `stage_br_save.php` save):
+
+- **`stage_dcl.php`** — now compute-only (calls OpenAI for dept classification, builds the review data) and **saves nothing**. Renders an editable table: `#, ברקוד, שם מוצר, מחיר מכירה, מחיר מול CHP (בטווח/מעל המקסימום/מתחת למינימום), מספר מחלקה, שם מחלקה, הערת AI`. **Barcode, product name, and department number are editable `<input>` fields** (pre-filled or blank), so missing data can be filled in. Editing department number live-updates the (read-only) department name next to it via a client-side lookup — no way to end up with a mismatched pair. A sticky side panel lists every department name+number for the shop, for reference while editing.
+- **`stage_dcl_save.php`** (new) — runs on the אישור click. Re-loads the pristine `_BR_CHPF.xlsx`, writes the edited barcode/name into A/B, department number into G, recomputes the price-vs-CHP status from D/E/F (unaffected by edits), and saves the definitive `_DCL.xlsx`. This is the actual end of the process now. Shows the completion banner + price-warning summary (moved here from the old `stage_dcl.php`).
+- **Final-file cleanup**: `stage_dcl_save.php` explicitly clears columns **D and E** (CHP min/max — only needed transiently to compute the status) and **H** (department name) before saving, and no longer writes the old I/J full-department-reference-list at all. The final `_DCL.xlsx` therefore carries only the department **number** (G), not the name — the name is shown on screen for reference only. This was a deliberate, explicit user request (avoid cluttering the final NP file with working/lookup data now that the app shows it interactively).
+- **Column width fix**: the editable table uses `table-layout: fixed` with `calc()`-based widths that account for the input's padding/border overhead (`box-sizing: border-box` eats padding out of a plain `ch` width, which is why a first attempt at `3ch` for department-number rendered as an invisible sliver). Current widths: barcode `calc(13ch + 30px)`, product name `calc(13ch * 2.5)`, department number `calc(3ch + 40px)`, AI-note column narrowed and wrapping enabled.
+
+#### Barcode columns A vs C — attempted unification, reverted
+Columns A and C both end up holding a barcode-like value for historical reasons: **A** = the barcode the user verified/edited in the BR stage (`stage_br_save.php`) and can further edit in the DCL stage (`stage_dcl_save.php`); **C** = the barcode *CHP's own database* returns for the matched product (written in `stage_chpf.php`), which can legitimately differ from A. A change was made to force C to always mirror A (stop `stage_chpf.php` writing CHP's returned barcode into C, write the same value to A+C in both save stages) — the user reported this **caused a problem** and asked for a full rollback, which was done. **Current state is back to the original: A and C can differ, and that's expected.** Do not re-attempt without first understanding what broke.
+
+#### Known issue — cross-stage filesystem race on save→load handoff
+**Symptom:** `שגיאה בטעינת Excel: Unable to identify a reader for this file` when a stage (e.g. `stage_chpf.php`) loads an xlsx that the *immediately preceding* stage had just saved a moment earlier, on the `Z:\...` (RetailomaticsCloud) network/cloud-synced drive.
+
+**Diagnosis:** Not file corruption — the file in question was verified as a structurally valid xlsx (`unzip -l` showed a complete ZIP) and loaded successfully via PhpSpreadsheet moments after the error. Most likely a transient lock/scan (antivirus real-time scanning, or the cloud-sync agent) on a freshly-written file on the network drive, in the brief window right after the previous stage's `save()` call returns. **User confirmed waiting ~3 seconds between stages avoids it** — this is a click-pace issue, not a data-integrity issue.
+
+**Planned fix (not yet implemented):** when an automatic/continuous flow mode is built (stages advancing on their own without the user manually clicking through each one), add a retry-with-backoff around `IOFactory::load()` for xlsx files that were just written by the previous stage, so it waits briefly for the filesystem to settle instead of failing immediately. A first draft of this (`xlsx_retry.php`, `loadSpreadsheetWithRetry()`) was written and then intentionally **not** adopted yet — hold it for that future flow-mode work rather than adding it to the current manual-click flow.
+
+#### Known Limitations
+- Barcode-reading (`stage_br.php`'s `askBarcode()`) hardcodes `data:image/jpeg;base64,...` regardless of actual file type — the whole pipeline assumes JPEG end-to-end. WhatsApp-mode image validation in `confirm.php`/`process_whatsapp.php` only accepts `.jpg/.jpeg` for this reason; a PNG/WEBP caption photo is correctly flagged as invalid naming rather than silently mishandled.
+- `whatsapp_app/whatsapp_images` is a single shared staging folder, not scoped per NP session — every image currently sitting there when `process_whatsapp.php` runs is treated as belonging to that session.
+
+#### Files Created/Modified
+| File | Change |
+|---|---|
+| `whatsapp_app/webhook.php` | Simplified to raw-log-only (no image download / no jsonl) |
+| `whatsapp_app/MessageFetching.php` | NEW — parses log, serial-numbers messages, downloads images, HTML report |
+| `whatsapp_app/messages.php` | Removed |
+| `NPharmonized/index.php` | Harvest-mode switch (WhatsApp default) |
+| `NPharmonized/confirm.php` | Branches Manual/WhatsApp; WhatsApp dir creation + image validation |
+| `NPharmonized/process_whatsapp.php` | NEW — copies images (serial order), generates NPL, gap-compacted F column |
+| `NPharmonized/process.php` | Passes `harvest_mode=manual` explicitly |
+| `NPharmonized/stage_br.php` | Mode-aware image ordering (serial vs. date) |
+| `NPharmonized/stage_dcl.php` | Rewritten: compute + editable review only, no save |
+| `NPharmonized/stage_dcl_save.php` | NEW — applies edits, saves final `_DCL.xlsx`, clears D/E/H, drops I/J ref list |
+| `NPharmonized/stage_chpf.php` | Unchanged from original (A/C unification reverted here) |
+| `NPharmonized/stage_br_save.php` | Unchanged from original (A/C unification reverted here) |
 
 ---
 

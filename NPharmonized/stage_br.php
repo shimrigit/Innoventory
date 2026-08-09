@@ -8,37 +8,59 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['np_dir'])) {
     header('Location: index.php'); exit;
 }
 
-$npDir    = $_POST['np_dir'];
-$xlsxFile = $_POST['xlsx_file'];
-$shop     = $_POST['shop']      ?? '';
-$date     = $_POST['date']      ?? '';
-$deptFile = $_POST['dept_file'] ?? '';
+$npDir       = $_POST['np_dir'];
+$xlsxFile    = $_POST['xlsx_file'];
+$shop        = $_POST['shop']      ?? '';
+$date        = $_POST['date']      ?? '';
+$deptFile    = $_POST['dept_file'] ?? '';
+$harvestMode = ($_POST['harvest_mode'] ?? 'manual') === 'whatsapp' ? 'whatsapp' : 'manual';
 
 // ── OpenAI key ────────────────────────────────────────────────────────────────
 $config = json_decode(file_get_contents(__DIR__ . '/../AIocr/config.json'), true);
 $apiKey = $config['openai_api_key'] ?? null;
 if (empty($apiKey)) die('Error: OpenAI API key not configured.');
 
-// ── Collect renamed JPEGs (format: yyyy-mm-dd at hh.mm.ss X.jpeg) ────────────
-$pattern  = '/^(\d{4}-\d{2}-\d{2} at \d{2}\.\d{2}\.\d{2}) ([\d.]+)\.jpe?g$/i';
-$allFiles = glob($npDir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE) ?: [];
-
+// ── Collect JPEGs and order them ─────────────────────────────────────────────
+// Manual:   "yyyy-mm-dd at hh.mm.ss X.jpeg" — sorted by the embedded date/time
+// WhatsApp: "ddmmyy-hhmmss n y.jpeg"         — sorted by serial number n,
+//           NEVER by the embedded timestamp (arrival order is the source of
+//           truth; two images can share the same second).
+$allFiles  = glob($npDir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE) ?: [];
 $jpegItems = [];
-foreach ($allFiles as $fullPath) {
-    $fname = basename($fullPath);
-    if (preg_match($pattern, $fname, $m)) {
-        preg_match('/^(\d{4})-(\d{2})-(\d{2}) at (\d{2})\.(\d{2})\.(\d{2})/', $m[1], $dt);
-        $sortKey = $dt[1].$dt[2].$dt[3].$dt[4].$dt[5].$dt[6];
-        $jpegItems[] = [
-            'fullPath'     => $fullPath,
-            'fname'        => $fname,
-            'sortKey'      => $sortKey,
-            'dateTimePart' => $m[1],
-            'price'        => $m[2],
-        ];
+
+if ($harvestMode === 'whatsapp') {
+    $pattern = '/^\d{6}-\d{6} (\d+) (.+)\.jpe?g$/i';
+    foreach ($allFiles as $fullPath) {
+        $fname = basename($fullPath);
+        if (preg_match($pattern, $fname, $m) && ctype_digit($m[1])) {
+            $jpegItems[] = [
+                'fullPath'     => $fullPath,
+                'fname'        => $fname,
+                'serial'       => (int)$m[1],
+                'dateTimePart' => $fname,
+                'price'        => $m[2],
+            ];
+        }
     }
+    usort($jpegItems, fn($a, $b) => $a['serial'] <=> $b['serial']);
+} else {
+    $pattern = '/^(\d{4}-\d{2}-\d{2} at \d{2}\.\d{2}\.\d{2}) ([\d.]+)\.jpe?g$/i';
+    foreach ($allFiles as $fullPath) {
+        $fname = basename($fullPath);
+        if (preg_match($pattern, $fname, $m)) {
+            preg_match('/^(\d{4})-(\d{2})-(\d{2}) at (\d{2})\.(\d{2})\.(\d{2})/', $m[1], $dt);
+            $sortKey = $dt[1].$dt[2].$dt[3].$dt[4].$dt[5].$dt[6];
+            $jpegItems[] = [
+                'fullPath'     => $fullPath,
+                'fname'        => $fname,
+                'sortKey'      => $sortKey,
+                'dateTimePart' => $m[1],
+                'price'        => $m[2],
+            ];
+        }
+    }
+    usort($jpegItems, fn($a, $b) => strcmp($a['sortKey'], $b['sortKey']));
 }
-usort($jpegItems, fn($a, $b) => strcmp($a['sortKey'], $b['sortKey']));
 
 // ── GPT barcode call ──────────────────────────────────────────────────────────
 function askBarcode($imagePath, $apiKey) {

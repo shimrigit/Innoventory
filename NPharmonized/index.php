@@ -21,6 +21,11 @@ $today = date('Y-m-d');
         input[type="text"].letter { width: 90px; text-transform: uppercase; text-align: center; font-size: 27px; font-weight: bold; }
         button { display: block; width: 100%; padding: 18px; background: #2575a8; color: #fff; border: none; border-radius: 8px; font-size: 24px; cursor: pointer; margin-top: 6px; }
         button:hover { background: #1a5c87; }
+        .switch-group { display: flex; gap: 15px; margin-bottom: 30px; }
+        .switch-opt { flex: 1; }
+        .switch-opt input[type="radio"] { display: none; }
+        .switch-opt label { display: block; margin: 0; padding: 15px; text-align: center; border: 2px solid #ccc; border-radius: 8px; background: #fafafa; font-size: 20px; font-weight: bold; color: #555; cursor: pointer; }
+        .switch-opt input[type="radio"]:checked + label { border-color: #2575a8; background: #e8f1f8; color: #2575a8; }
     </style>
 </head>
 <body>
@@ -41,6 +46,18 @@ $today = date('Y-m-d');
 
         <label for="root_letter">אות כונן ראשי</label>
         <input type="text" class="letter" id="root_letter" name="root_letter" value="Z" maxlength="1" required>
+
+        <label>אופן איסוף תמונות</label>
+        <div class="switch-group">
+            <div class="switch-opt">
+                <input type="radio" id="harvest_manual" name="harvest_mode" value="manual">
+                <label for="harvest_manual">ידני</label>
+            </div>
+            <div class="switch-opt">
+                <input type="radio" id="harvest_whatsapp" name="harvest_mode" value="whatsapp" checked>
+                <label for="harvest_whatsapp">WhatsApp</label>
+            </div>
+        </div>
 
         <button type="submit">המשך לאישור</button>
     </form>

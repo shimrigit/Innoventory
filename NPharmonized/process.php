@@ -148,11 +148,12 @@ for ($i = 0; $i < count($jpegItems); $i++) {
 <div class="actions">
     <a class="btn btn-back" href="index.php">חזור לתחילה</a>
     <form action="stage_br.php" method="post" style="display:inline">
-        <input type="hidden" name="np_dir"    value="<?= htmlspecialchars($npDir) ?>">
-        <input type="hidden" name="xlsx_file" value="<?= htmlspecialchars($xlsxFile) ?>">
-        <input type="hidden" name="shop"      value="<?= htmlspecialchars($shop) ?>">
-        <input type="hidden" name="date"      value="<?= htmlspecialchars($date) ?>">
-        <input type="hidden" name="dept_file" value="<?= htmlspecialchars($deptFile) ?>">
+        <input type="hidden" name="np_dir"       value="<?= htmlspecialchars($npDir) ?>">
+        <input type="hidden" name="xlsx_file"    value="<?= htmlspecialchars($xlsxFile) ?>">
+        <input type="hidden" name="shop"         value="<?= htmlspecialchars($shop) ?>">
+        <input type="hidden" name="date"         value="<?= htmlspecialchars($date) ?>">
+        <input type="hidden" name="dept_file"    value="<?= htmlspecialchars($deptFile) ?>">
+        <input type="hidden" name="harvest_mode" value="manual">
         <button type="submit" class="btn btn-next">אישור – עבור לקריאת ברקודים ←</button>
     </form>
 </div>

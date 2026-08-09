@@ -7,10 +7,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['shop']) || empty($_PO
     exit;
 }
 
-$date       = $_POST['date'];
-$shop       = basename($_POST['shop']);
-$rootLetter = strtoupper(trim($_POST['root_letter'] ?? 'Z'));
+$date        = $_POST['date'];
+$shop        = basename($_POST['shop']);
+$rootLetter  = strtoupper(trim($_POST['root_letter'] ?? 'Z'));
 if (!preg_match('/^[A-Za-z]$/', $rootLetter)) $rootLetter = 'Z';
+$harvestMode = ($_POST['harvest_mode'] ?? 'manual') === 'whatsapp' ? 'whatsapp' : 'manual';
 
 // ── Date parts ────────────────────────────────────────────────────────────────
 $dt          = DateTime::createFromFormat('Y-m-d', $date);
@@ -31,48 +32,94 @@ $deptFile = __DIR__ . "/../configDir/{$shop}_Departments.json";
 $npDirDisplay    = "{$rootLetter}:\\RetailomaticsCloud\\RetailomaticsArchive\\{$shop}\\NewProducts\\{$yyyy}\\{$monthFolder}\\{$dateFolder}";
 $deptFileDisplay = "C:\\xampp\\htdocs\\website\\configDir\\{$shop}_Departments.json";
 
-// ── Existence checks ──────────────────────────────────────────────────────────
-$npDirExists = is_dir($npDir);
-$deptExists  = file_exists($deptFile);
-
-// Find xlsx file in NP directory
-$xlsxFiles = $npDirExists ? (glob($npDir . '/*.xlsx') ?: []) : [];
-$xlsxFile  = !empty($xlsxFiles) ? basename($xlsxFiles[0]) : null;
-$xlsxExists = $xlsxFile !== null;
-
-// Count JPEG files
-$jpegFiles = $npDirExists
-    ? (glob($npDir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE) ?: [])
-    : [];
-$jpegCount = count($jpegFiles);
-
-// ── Read column F from xlsx ───────────────────────────────────────────────────
-$fCount      = 0;
-$fAllNumeric = true;
-$fError      = null;
-
-if ($xlsxExists) {
-    try {
-        $spreadsheet = IOFactory::load($npDir . '/' . $xlsxFile);
-        $sheet       = $spreadsheet->getActiveSheet();
-        for ($row = 2; $row <= $sheet->getHighestRow(); $row++) {
-            $val = $sheet->getCell('F' . $row)->getValue();
-            if ($val === null || $val === '') break;
-            $fCount++;
-            if (!is_numeric($val)) $fAllNumeric = false;
-        }
-    } catch (Exception $e) {
-        $fError = $e->getMessage();
-    }
-}
-
-$countsMatch = ($fCount > 0 && $jpegCount === $fCount);
-$allOk       = $npDirExists && $deptExists && $xlsxExists && !$fError && $fAllNumeric && $fCount > 0 && $countsMatch;
+$deptExists = file_exists($deptFile);
 
 function ok($cond) {
     return $cond
         ? '<span style="color:#2a7d2a;font-size:17px">✅</span>'
         : '<span style="color:#c0392b;font-size:17px">❌</span>';
+}
+
+if ($harvestMode === 'whatsapp') {
+
+    // ── WhatsApp mode: create the NP directory if it doesn't exist yet ────────
+    $npDirExisted = is_dir($npDir);
+    $npDirCreated = false;
+    if (!$npDirExisted) {
+        $npDirCreated = @mkdir($npDir, 0777, true);
+    }
+    $npDirExists = is_dir($npDir);
+
+    // ── Validate images staged in whatsapp_app/whatsapp_images ────────────────
+    $whatsappImagesDir = __DIR__ . '/../whatsapp_app/whatsapp_images';
+    $waPattern = '/^\d{6}-\d{6} (\d+) (.+)\.jpe?g$/i';
+    $waFiles   = glob($whatsappImagesDir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE) ?: [];
+
+    $waItems         = [];   // valid: ['fname','serial','caption']
+    $waInvalidNames  = [];   // filenames that don't match the convention
+    $seenSerials     = [];
+    $waDuplicates    = [];
+
+    foreach ($waFiles as $fullPath) {
+        $fname = basename($fullPath);
+        if (preg_match($waPattern, $fname, $m) && ctype_digit($m[1])) {
+            $serial = (int)$m[1];
+            if (isset($seenSerials[$serial])) {
+                $waDuplicates[] = $serial;
+            }
+            $seenSerials[$serial] = true;
+            $waItems[] = ['fname' => $fname, 'serial' => $serial, 'caption' => $m[2]];
+        } else {
+            $waInvalidNames[] = $fname;
+        }
+    }
+    $waDuplicates = array_values(array_unique($waDuplicates));
+
+    $waCount      = count($waItems);
+    $waNamingOk   = empty($waInvalidNames);
+    $waSerialsOk  = empty($waDuplicates);
+    $waHasImages  = $waCount > 0;
+
+    $allOk = $npDirExists && $deptExists && $waHasImages && $waNamingOk && $waSerialsOk;
+
+} else {
+
+    // ── Manual mode: original pre-flight checks (unchanged) ───────────────────
+    $npDirExists = is_dir($npDir);
+
+    // Find xlsx file in NP directory
+    $xlsxFiles = $npDirExists ? (glob($npDir . '/*.xlsx') ?: []) : [];
+    $xlsxFile  = !empty($xlsxFiles) ? basename($xlsxFiles[0]) : null;
+    $xlsxExists = $xlsxFile !== null;
+
+    // Count JPEG files
+    $jpegFiles = $npDirExists
+        ? (glob($npDir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE) ?: [])
+        : [];
+    $jpegCount = count($jpegFiles);
+
+    // ── Read column F from xlsx ───────────────────────────────────────────────
+    $fCount      = 0;
+    $fAllNumeric = true;
+    $fError      = null;
+
+    if ($xlsxExists) {
+        try {
+            $spreadsheet = IOFactory::load($npDir . '/' . $xlsxFile);
+            $sheet       = $spreadsheet->getActiveSheet();
+            for ($row = 2; $row <= $sheet->getHighestRow(); $row++) {
+                $val = $sheet->getCell('F' . $row)->getValue();
+                if ($val === null || $val === '') break;
+                $fCount++;
+                if (!is_numeric($val)) $fAllNumeric = false;
+            }
+        } catch (Exception $e) {
+            $fError = $e->getMessage();
+        }
+    }
+
+    $countsMatch = ($fCount > 0 && $jpegCount === $fCount);
+    $allOk       = $npDirExists && $deptExists && $xlsxExists && !$fError && $fAllNumeric && $fCount > 0 && $countsMatch;
 }
 ?>
 <!DOCTYPE html>
@@ -103,6 +150,8 @@ function ok($cond) {
         .btn-approve { padding: 20px 66px; background: #2a7d2a; color: #fff; border: none; border-radius: 8px; font-size: 27px; cursor: pointer; }
         .btn-approve:hover:not(:disabled) { background: #1e5c1e; }
         .btn-approve:disabled { background: #aaa; cursor: not-allowed; }
+        .filelist { font-size: 16px; color: #c0392b; margin-top: 6px; }
+        .filelist div { padding: 2px 0; }
     </style>
 </head>
 <body>
@@ -127,9 +176,60 @@ function ok($cond) {
         <td class="val"><?= htmlspecialchars($rootLetter) ?>:\</td>
         <td class="ico"></td>
     </tr>
+    <tr>
+        <td class="lbl">אופן איסוף תמונות</td>
+        <td class="val"><?= $harvestMode === 'whatsapp' ? 'WhatsApp' : 'ידני' ?></td>
+        <td class="ico"></td>
+    </tr>
 </table>
 
-<!-- ── File & directory checks ───────────────────────────────────────────── -->
+<?php if ($harvestMode === 'whatsapp'): ?>
+<!-- ── WhatsApp mode checks ──────────────────────────────────────────────── -->
+<table>
+    <tr><th colspan="3">בדיקת קבצים ותיקיות – WhatsApp</th></tr>
+
+    <tr>
+        <td class="lbl">NP_working_directory</td>
+        <td class="val">
+            <?= htmlspecialchars($npDirDisplay) ?>
+            <?php if (!$npDirExisted && $npDirCreated): ?>
+                <div class="note good">✔ התיקייה נוצרה כעת</div>
+            <?php elseif (!$npDirExisted && !$npDirCreated): ?>
+                <div class="note warn">⚠️ לא ניתן היה ליצור את התיקייה</div>
+            <?php endif; ?>
+        </td>
+        <td class="ico"><?= ok($npDirExists) ?></td>
+    </tr>
+
+    <tr>
+        <td class="lbl">Departments_config_file</td>
+        <td class="val"><?= htmlspecialchars($deptFileDisplay) ?></td>
+        <td class="ico"><?= ok($deptExists) ?></td>
+    </tr>
+
+    <tr>
+        <td class="lbl">תמונות בתיקיית WhatsApp</td>
+        <td class="val">
+            <strong><?= $waCount ?></strong> תמונות תקינות
+            <?php if (!$waNamingOk): ?>
+                <div class="note warn">⚠️ שמות קבצים לא תואמים למוסכמה "ddmmyy-hhmmss n y":</div>
+                <div class="filelist"><?php foreach ($waInvalidNames as $bad): ?><div><?= htmlspecialchars($bad) ?></div><?php endforeach; ?></div>
+            <?php endif; ?>
+            <?php if (!$waSerialsOk): ?>
+                <div class="note warn">⚠️ מספרים סידוריים כפולים: <?= htmlspecialchars(implode(', ', $waDuplicates)) ?></div>
+            <?php endif; ?>
+            <?php if ($waNamingOk && $waSerialsOk && $waHasImages): ?>
+                <div class="note good">✔ כל השמות תקינים ומספרים סידוריים ייחודיים</div>
+            <?php endif; ?>
+            <?php if (!$waHasImages): ?>
+                <div class="note warn">⚠️ לא נמצאו תמונות בתיקיית <?= htmlspecialchars($whatsappImagesDir) ?></div>
+            <?php endif; ?>
+        </td>
+        <td class="ico"><?= ok($waHasImages && $waNamingOk && $waSerialsOk) ?></td>
+    </tr>
+</table>
+<?php else: ?>
+<!-- ── Manual mode checks (unchanged) ───────────────────────────────────────── -->
 <table>
     <tr><th colspan="3">בדיקת קבצים ותיקיות</th></tr>
 
@@ -208,6 +308,7 @@ function ok($cond) {
     </tr>
     <?php endif; ?>
 </table>
+<?php endif; ?>
 
 <!-- ── Summary & approve ──────────────────────────────────────────────────── -->
 <div class="summary <?= $allOk ? 'ok' : 'err' ?>">
@@ -216,15 +317,28 @@ function ok($cond) {
 
 <div class="actions">
     <a class="btn-back" href="index.php">חזור</a>
-    <form action="process.php" method="post" style="display:inline">
-        <input type="hidden" name="date"        value="<?= htmlspecialchars($date) ?>">
-        <input type="hidden" name="shop"        value="<?= htmlspecialchars($shop) ?>">
-        <input type="hidden" name="root_letter" value="<?= htmlspecialchars($rootLetter) ?>">
-        <input type="hidden" name="np_dir"      value="<?= htmlspecialchars($npDir) ?>">
-        <input type="hidden" name="xlsx_file"   value="<?= htmlspecialchars($xlsxFile ?? '') ?>">
-        <input type="hidden" name="dept_file"   value="<?= htmlspecialchars($deptFile) ?>">
+    <?php if ($harvestMode === 'whatsapp'): ?>
+    <form action="process_whatsapp.php" method="post" style="display:inline">
+        <input type="hidden" name="date"         value="<?= htmlspecialchars($date) ?>">
+        <input type="hidden" name="shop"         value="<?= htmlspecialchars($shop) ?>">
+        <input type="hidden" name="root_letter"  value="<?= htmlspecialchars($rootLetter) ?>">
+        <input type="hidden" name="np_dir"       value="<?= htmlspecialchars($npDir) ?>">
+        <input type="hidden" name="dept_file"    value="<?= htmlspecialchars($deptFile) ?>">
+        <input type="hidden" name="harvest_mode" value="whatsapp">
         <button class="btn-approve" <?= $allOk ? '' : 'disabled' ?>>אישור</button>
     </form>
+    <?php else: ?>
+    <form action="process.php" method="post" style="display:inline">
+        <input type="hidden" name="date"         value="<?= htmlspecialchars($date) ?>">
+        <input type="hidden" name="shop"         value="<?= htmlspecialchars($shop) ?>">
+        <input type="hidden" name="root_letter"  value="<?= htmlspecialchars($rootLetter) ?>">
+        <input type="hidden" name="np_dir"       value="<?= htmlspecialchars($npDir) ?>">
+        <input type="hidden" name="xlsx_file"    value="<?= htmlspecialchars($xlsxFile ?? '') ?>">
+        <input type="hidden" name="dept_file"    value="<?= htmlspecialchars($deptFile) ?>">
+        <input type="hidden" name="harvest_mode" value="manual">
+        <button class="btn-approve" <?= $allOk ? '' : 'disabled' ?>>אישור</button>
+    </form>
+    <?php endif; ?>
 </div>
 
 </div>
