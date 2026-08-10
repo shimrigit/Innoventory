@@ -2,6 +2,8 @@
 // Stage 2 – CHP Fetch
 set_time_limit(0);
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/xlsx_retry.php';
+require_once __DIR__ . '/flow_mode.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -15,10 +17,11 @@ $xlsxFile = $_POST['xlsx_file'];   // _BR.xlsx
 $shop     = $_POST['shop']      ?? '';
 $date     = $_POST['date']      ?? '';
 $deptFile = $_POST['dept_file'] ?? '';
+$mode     = npFlowMode();
 
 // ── Load xlsx and collect barcodes from col A ─────────────────────────────────
 try {
-    $spreadsheet = IOFactory::load($npDir . '/' . $xlsxFile);
+    $spreadsheet = loadSpreadsheetWithRetry($npDir . '/' . $xlsxFile);
 } catch (Exception $e) {
     die('<p style="color:red;font-family:Arial;font-size:22px;padding:30px">שגיאה בטעינת Excel: ' . htmlspecialchars($e->getMessage()) . '</p>');
 }
@@ -266,14 +269,16 @@ function priceStatus($r) {
 </div>
 <?php endif; ?>
 
-<form action="stage_dcl.php" method="post">
+<form id="advanceForm" action="stage_dcl.php" method="post">
     <input type="hidden" name="np_dir"    value="<?= htmlspecialchars($npDir) ?>">
     <input type="hidden" name="xlsx_file" value="<?= htmlspecialchars($chpfFile) ?>">
     <input type="hidden" name="shop"      value="<?= htmlspecialchars($shop) ?>">
     <input type="hidden" name="date"      value="<?= htmlspecialchars($date) ?>">
     <input type="hidden" name="dept_file" value="<?= htmlspecialchars($deptFile) ?>">
+    <input type="hidden" name="mode"      value="<?= htmlspecialchars($mode) ?>">
     <button type="submit" class="btn-next" <?= $saveOk ? '' : 'disabled' ?>>אישור – עבור לשלב 3 – סיווג מחלקות ←</button>
 </form>
+<?php if ($saveOk) renderFlowAutoAdvance($mode, 'advanceForm'); ?>
 
 </body>
 </html>

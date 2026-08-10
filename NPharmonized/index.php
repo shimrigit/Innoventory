@@ -59,6 +59,18 @@ $today = date('Y-m-d');
             </div>
         </div>
 
+        <label>מצב תהליך</label>
+        <div class="switch-group">
+            <div class="switch-opt">
+                <input type="radio" id="mode_flow" name="mode" value="flow" checked>
+                <label for="mode_flow">Flow – רציף אוטומטית</label>
+            </div>
+            <div class="switch-opt">
+                <input type="radio" id="mode_steps" name="mode" value="steps">
+                <label for="mode_steps">Steps – שלב אחר שלב</label>
+            </div>
+        </div>
+
         <button type="submit">המשך לאישור</button>
     </form>
 </div>

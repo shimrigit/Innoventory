@@ -3,6 +3,8 @@
 set_time_limit(0);
 session_start();
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/barcode_validate.php';
+require_once __DIR__ . '/flow_mode.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['np_dir'])) {
     header('Location: index.php'); exit;
@@ -14,6 +16,7 @@ $shop        = $_POST['shop']      ?? '';
 $date        = $_POST['date']      ?? '';
 $deptFile    = $_POST['dept_file'] ?? '';
 $harvestMode = ($_POST['harvest_mode'] ?? 'manual') === 'whatsapp' ? 'whatsapp' : 'manual';
+$mode        = npFlowMode();
 
 // ── OpenAI key ────────────────────────────────────────────────────────────────
 $config = json_decode(file_get_contents(__DIR__ . '/../AIocr/config.json'), true);
@@ -125,6 +128,8 @@ function sf() { echo str_pad('', 512, ' '); flush(); }
         .bc-invalid  { border-color: #e74c3c !important; background: #fdecea !important; }
         .bc-warn     { color: #c0392b; font-size: 18px; margin-top: 4px; display: none; }
         .bc-warn.show { display: block; }
+        .bc-checksum-warn { color: #e67e22; font-size: 18px; margin-top: 4px; display: none; }
+        .bc-checksum-warn.show { display: block; }
         #blockMsg    { display: none; background: #fdecea; border: 2px solid #e74c3c; border-radius: 8px; padding: 16px 24px; color: #c0392b; font-size: 22px; font-weight: bold; margin-bottom: 20px; max-width: 1100px; }
     </style>
 </head>
@@ -177,7 +182,8 @@ $_SESSION['br_deptfile'] = $deptFile;
 
 <!-- ── Verification table ─────────────────────────────────────────────────── -->
 <h3>אמת ברקודים – ניתן לערוך לפני האישור</h3>
-<form action="stage_br_save.php" method="post">
+<form id="advanceForm" action="stage_br_save.php" method="post">
+<input type="hidden" name="mode" value="<?= htmlspecialchars($mode) ?>">
 <div id="blockMsg"></div>
 <table class="vtbl">
     <tr>
@@ -187,16 +193,22 @@ $_SESSION['br_deptfile'] = $deptFile;
         <th>שם קובץ</th>
         <th>תמונה</th>
     </tr>
-    <?php foreach ($results as $i => $r): ?>
+    <?php $anyLong = false; foreach ($results as $i => $r): ?>
     <tr>
         <td><?= $i + 1 ?></td>
         <td>
-            <?php $isLong = preg_match('/^\d+$/', $r['barcode']) && strlen($r['barcode']) > 13; ?>
+            <?php
+                $isLong     = preg_match('/^\d+$/', $r['barcode']) && strlen($r['barcode']) > 13;
+                $checksumOk = validateBarcode($r['barcode']);
+                if ($isLong) $anyLong = true;
+            ?>
             <input class="bc<?= $isLong ? ' bc-invalid' : '' ?>" type="text"
                    name="barcode[<?= $i ?>]"
                    value="<?= htmlspecialchars($r['barcode']) ?>"
-                   oninput="validateBc(this)">
+                   data-idx="<?= $i ?>"
+                   oninput="validateBc(this); validateChecksum(this)">
             <div class="bc-warn<?= $isLong ? ' show' : '' ?>">⚠ <?= strlen($r['barcode']) ?> ספרות – עד 13 בלבד</div>
+            <div class="bc-checksum-warn<?= $checksumOk ? '' : ' show' ?>" id="checksum-warn-<?= $i ?>">⚠ ברקוד לא תקין (אורך או ביקורת ספרה)</div>
         </td>
         <td class="price-val"><?= htmlspecialchars($r['price']) ?></td>
         <td class="fname"><?= htmlspecialchars($r['fname']) ?></td>
@@ -214,6 +226,7 @@ $_SESSION['br_deptfile'] = $deptFile;
 </table>
 <button type="submit" class="btn-approve">אישור – שמור ועבור לשלב 2 ←</button>
 </form>
+<?php if (!$anyLong) renderFlowAutoAdvance($mode, 'advanceForm', 6); // extra time here — most sensitive manual-check point in the flow ?>
 
 <script>
 function zoom(id, f) {
@@ -235,6 +248,35 @@ function validateBc(input) {
         }
     }
     updateBlockMsg();
+}
+
+// Mirrors PHP's validateBarcode() in barcode_validate.php — EAN-13/UPC-A/EAN-8
+// mod-10 checksum. Non-blocking: only toggles the advisory warning below the
+// field, never disables the approve button.
+function validateBarcodeChecksum(code) {
+    if (!/^\d+$/.test(code)) return false;
+    var len = code.length;
+    if (len !== 8 && len !== 12 && len !== 13) return false;
+    var digits = code.split('').map(Number);
+    var checkDigit = digits.pop();
+    var sum = 0;
+    digits.forEach(function(d, i) {
+        var pos = i + 1;
+        if (len === 13) {
+            sum += (pos % 2 === 1) ? d * 1 : d * 3;
+        } else {
+            sum += (pos % 2 === 1) ? d * 3 : d * 1;
+        }
+    });
+    var calculated = (10 - (sum % 10)) % 10;
+    return calculated === checkDigit;
+}
+
+function validateChecksum(input) {
+    var warnEl = document.getElementById('checksum-warn-' + input.dataset.idx);
+    if (!warnEl) return;
+    var ok = validateBarcodeChecksum(input.value.trim());
+    warnEl.classList.toggle('show', !ok);
 }
 
 function updateBlockMsg() {

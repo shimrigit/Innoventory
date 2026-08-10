@@ -3,6 +3,8 @@
 // number) from the final review screen, writes them into the xlsx, and saves
 // the definitive _DCL.xlsx. This is the last step of the NP process.
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/barcode_validate.php';
+require_once __DIR__ . '/xlsx_retry.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -37,7 +39,7 @@ $numToName = array_flip($deptLookup); // number => name
 
 // ── Load the (pristine) _BR_CHPF xlsx ─────────────────────────────────────────
 try {
-    $spreadsheet = IOFactory::load($npDir . '/' . $xlsxFile);
+    $spreadsheet = loadSpreadsheetWithRetry($npDir . '/' . $xlsxFile);
 } catch (Exception $e) {
     die('<p style="color:red;font-family:Arial;font-size:22px;padding:30px">שגיאה בטעינת Excel: ' . htmlspecialchars($e->getMessage()) . '</p>');
 }
@@ -59,8 +61,12 @@ foreach ($rows as $row) {
     $deptNum  = trim($deptNums[$row] ?? '');
     $deptName = $numToName[$deptNum] ?? '';
 
+    // Final save only: copy the (possibly corrected) barcode into both A and C
+    // so they end up identical in the finished NP file.
     $sheet->getStyle('A' . $row)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
     $sheet->setCellValueExplicit('A' . $row, $barcode, DataType::TYPE_STRING);
+    $sheet->getStyle('C' . $row)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+    $sheet->setCellValueExplicit('C' . $row, $barcode, DataType::TYPE_STRING);
     $sheet->setCellValue('B' . $row, $name);
     $sheet->setCellValue('G' . $row, $deptNum);
     // Department NAME is shown on screen for reference only — the final NP
@@ -82,22 +88,26 @@ foreach ($rows as $row) {
     }
 
     // The CHP min/max were only needed to compute the status above — the
-    // final NP file should not carry them in columns D/E.
+    // final NP file should not carry them in columns D/E. Column K (source
+    // image filename, used to re-show FTP photos on the review screen) is
+    // also working data, not meant for the final deliverable.
     $sheet->setCellValue('D' . $row, null);
     $sheet->setCellValue('E' . $row, null);
+    $sheet->setCellValue('K' . $row, null);
 
     $finalRows[] = [
-        'barcode'  => $barcode,
-        'name'     => $name,
-        'price'    => $saleP,
-        'status'   => $status,
-        'deptNum'  => $deptNum,
-        'deptName' => $deptName,
+        'barcode'    => $barcode,
+        'name'       => $name,
+        'price'      => $saleP,
+        'status'     => $status,
+        'deptNum'    => $deptNum,
+        'deptName'   => $deptName,
+        'checksumOk' => validateBarcode($barcode),
     ];
 }
 $pcCompared = $pcOk + count($pcWarn);
 
-foreach (['A', 'B', 'G'] as $col) {
+foreach (['A', 'B', 'C', 'G'] as $col) {
     $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
@@ -138,6 +148,9 @@ $statusClass = ['ok' => 'st-ok', 'above' => 'st-bad', 'below' => 'st-bad', 'na' 
         .col-barcode { width: calc(13ch + 30px); }
         .col-name    { width: calc(13ch * 2.5); }
         .col-deptnum { width: calc(3ch + 40px); }
+        .checksum-cell { text-align: center; font-size: 22px; font-weight: bold; }
+        .checksum-cell.cs-ok  { color: #2a7d2a; }
+        .checksum-cell.cs-bad { color: #c0392b; }
         .st-ok  { color: #2a7d2a; font-weight: bold; }
         .st-bad { color: #c0392b; font-weight: bold; }
         .st-na  { color: #999; }
@@ -170,17 +183,19 @@ $statusClass = ['ok' => 'st-ok', 'above' => 'st-bad', 'below' => 'st-bad', 'na' 
     <colgroup>
         <col style="width:40px">
         <col class="col-barcode">
+        <col style="width:80px">
         <col class="col-name">
         <col style="width:110px">
         <col style="width:150px">
         <col class="col-deptnum">
         <col style="width:140px">
     </colgroup>
-    <tr><th>#</th><th>ברקוד</th><th>שם מוצר</th><th>מחיר מכירה</th><th>מחיר מול CHP</th><th>מספר מחלקה</th><th>שם מחלקה</th></tr>
+    <tr><th>#</th><th>ברקוד</th><th>ביקורת ספרה</th><th>שם מוצר</th><th>מחיר מכירה</th><th>מחיר מול CHP</th><th>מספר מחלקה</th><th>שם מחלקה</th></tr>
     <?php foreach ($finalRows as $i => $r): ?>
     <tr>
         <td><?= $i + 1 ?></td>
         <td><?= htmlspecialchars($r['barcode']) ?></td>
+        <td class="checksum-cell <?= $r['checksumOk'] ? 'cs-ok' : 'cs-bad' ?>"><?= $r['checksumOk'] ? '✔' : '✘' ?></td>
         <td><?= htmlspecialchars($r['name']) ?></td>
         <td><?= number_format($r['price'], 2) ?></td>
         <td class="<?= $statusClass[$r['status']] ?>"><?= $statusLabel[$r['status']] ?></td>

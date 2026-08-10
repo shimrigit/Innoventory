@@ -1,8 +1,76 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** August 9, 2026
+**Last Updated:** August 10, 2026
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (August 10, 2026)
+
+### 1. Barcode Checksum Verification (BR stage + final review)
+
+`NPharmonized/barcode_validate.php` (new, shared) — `validateBarcode($code)`: standard mod-10 checksum for **EAN-13** (13 digits, odd position ×1 / even ×3), **UPC-A** (12 digits, odd ×3 / even ×1), **EAN-8** (8 digits, odd ×3 / even ×1). Check digit = `(10 - sum%10) % 10`, compared to the barcode's last digit. Returns `false` for any length other than 8/12/13, non-digit input, or a failed check digit. Verified against 12 test cases including 3 real-world known-valid barcodes (EAN-13/UPC-A/EAN-8) plus corrupted/wrong-length/non-numeric variants — all passed.
+
+- **`stage_br.php`**: a second, non-blocking advisory warning under each barcode field ("⚠ ברקוד לא תקין (אורך או ביקורת ספרה)") — distinct from, and independent of, the existing hard block on >13-digit barcodes (which still disables the submit button as before). **Checksum failure never blocks moving to the next stage** — purely advisory, per explicit requirement. Live-updates via JS (a hand-mirrored copy of the same algorithm) as the AI-read value is edited.
+- **`stage_dcl.php` / `stage_dcl_save.php`**: new **"ביקורת ספרה"** column showing ✔ (green) / ✘ (red) per row. Live-updates on `stage_dcl.php` as the barcode is corrected there too.
+
+### 2. Enhanced Final Check — "FTP" (Failed To Pass) Section
+
+`stage_dcl.php` computes, per row:
+```
+isFtp = !checksumOk || status !== 'ok'
+```
+— covering all three required conditions: checksum failed, CHPF returned no data at all (`status === 'na'`, confirmed this also correctly catches the "no product description AND no min/max price" case — CHPF writes the literal string `"NA"` rather than leaving cells blank, so the row survives the collection loop and is correctly flagged), or the sale price is outside the CHP min/max range.
+
+A new section renders below the main table (only when ≥1 row is FTP): lists the barcode as read, the specific failure reason(s) (a row can show more than one), and **the source photo again with the same zoom in/out (＋/－) controls as `stage_br.php`**, served via the existing `serve_image.php`.
+
+To make the photo re-lookup possible without re-deriving harvest-mode/sort order, **`stage_br_save.php` now also writes the source image filename into column K** per row. **`stage_dcl_save.php` clears column K** (alongside D/E/H) before the final `_DCL.xlsx` save — it's working data for the review screen, not meant for the deliverable file.
+
+#### Small related correction — barcode columns A/C
+A full A=C mirroring attempt (BR stage + final stage both forcing the columns identical, and stopping `stage_chpf.php` from writing CHP's own returned barcode into C) was implemented and then **rolled back** at the user's request ("caused a problem"). A narrower, explicitly-requested version was then added instead: **only at the final save (`stage_dcl_save.php`, on the "אישור – שמור וסיים תהליך" click)**, the barcode is copied **A → C** (A, the user-verified/corrected value, is authoritative; C is overwritten to match, discarding whatever CHP's lookup had put there). BR stage and CHPF stage are untouched — confirmed via diff that only `stage_dcl_save.php` changed.
+
+### 3. Flow Mode
+
+**`index.php`**: new switch — "מצב תהליך": **Flow (default)** / Steps.
+
+- **Flow**: auto-advances through every stage from `confirm.php` through `stage_chpf.php` → `stage_dcl.php`, without requiring the user to click each stage's own אישור button — **except `stage_dcl.php` (final review), which always requires the manual "אישור – שמור וסיים תהליך" click, in every mode.** Confirmed via grep: zero auto-advance calls exist in `stage_dcl.php`.
+- **Steps**: the original click-through behavior, a complete fallback — zero JS auto-submit anywhere. Use if Flow misbehaves.
+- **Auto-advance never bypasses real validation** — it only fires when the stage's own success condition already holds, mirroring whatever already gated that stage's submit button (or an equivalent new safety gate added where none existed):
+
+| Stage | Auto-advance gate |
+|---|---|
+| `confirm.php` | `$allOk` (same as the existing disabled-button condition) |
+| `process.php` | `empty($errors)` (new safety gate — button wasn't previously conditional) |
+| `process_whatsapp.php` | `$skipped === 0` (new safety gate) |
+| `stage_br.php` → `stage_br_save.php` | `!$anyLong` — new server-side mirror of the pre-existing client-side >13-digit block |
+| `stage_br_save.php` → `stage_chpf.php` | unconditional (no failure path reaches this output — a `die()` upstream already stops it) |
+| `stage_chpf.php` → `stage_dcl.php` | `$saveOk` (same as the existing disabled-button condition) |
+
+Mechanism — `NPharmonized/flow_mode.php` (new, shared):
+- `npFlowMode()` — reads `mode` from POST/GET, defaults to `flow`, anything but `'steps'` falls back to `flow`.
+- `renderFlowAutoAdvance($mode, $formId, $delaySeconds = 3)` — renders a countdown banner + delayed `form.submit()` of the named form id, flow-mode only.
+- `renderFlowStopNotice($mode)` — small explanatory banner shown on `stage_dcl.php` in flow mode ("this is the final checkpoint").
+
+**Cross-stage filesystem race protection** — this is the retry-with-backoff mechanism that was drafted earlier and deliberately deferred ("hold it for that future flow-mode work"); this is that moment. `NPharmonized/xlsx_retry.php` (new, shared) — `loadSpreadsheetWithRetry()`: up to 4 attempts (1 + 3 retries), **3 seconds** apart, before throwing a clear "נכשל בטעינת הקובץ אחרי N ניסיונות (כנראה בעיית סנכרון עם מערכת הקבצים)" error instead of PhpSpreadsheet's raw "Unable to identify a reader" message. Applied in `stage_br_save.php`, `stage_chpf.php`, `stage_dcl.php`, `stage_dcl_save.php` — **regardless of Flow/Steps mode** (pure robustness, fast path adds zero delay; verified: valid file loads in ~0.05s, a genuinely missing file correctly retries the configured number of times before throwing with the augmented message).
+
+**Special case — 6 second wait for the BR verification step:** after Flow mode landed, the user found the default 3-second countdown on `stage_br.php` (AI-read barcode verification — "the most sensitive part of the flow") too fast to intervene manually when needed. That one transition (`stage_br.php` → `stage_br_save.php`) now uses `renderFlowAutoAdvance($mode, 'advanceForm', 6)`. Every other transition stays at the default 3 seconds.
+
+#### Files Created/Modified (this round)
+| File | Change |
+|---|---|
+| `NPharmonized/barcode_validate.php` | NEW — `validateBarcode()`, mod-10 checksum for EAN-13/UPC-A/EAN-8 |
+| `NPharmonized/xlsx_retry.php` | NEW — `loadSpreadsheetWithRetry()`, 4 attempts / 3s apart |
+| `NPharmonized/flow_mode.php` | NEW — `npFlowMode()`, `renderFlowAutoAdvance()`, `renderFlowStopNotice()` |
+| `NPharmonized/index.php` | Flow/Steps switch (Flow default) |
+| `NPharmonized/confirm.php` | mode threading + auto-advance on `$allOk` |
+| `NPharmonized/process.php` | mode threading + auto-advance on `empty($errors)` |
+| `NPharmonized/process_whatsapp.php` | mode threading + auto-advance on `$skipped === 0` |
+| `NPharmonized/stage_br.php` | checksum advisory warning, `!$anyLong` auto-advance gate, 6s delay to `stage_br_save.php` |
+| `NPharmonized/stage_br_save.php` | retry-load, mode threading, unconditional auto-advance, writes col K (image filename) |
+| `NPharmonized/stage_chpf.php` | retry-load, mode threading, auto-advance on `$saveOk` |
+| `NPharmonized/stage_dcl.php` | retry-load, checksum column, FTP section (photo + zoom re-check), flow-stop notice, **no auto-advance** |
+| `NPharmonized/stage_dcl_save.php` | retry-load, clears col K, A→C barcode copy on final save |
 
 ---
 

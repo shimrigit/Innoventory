@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/flow_mode.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['shop']) || empty($_POST['date'])) {
@@ -12,6 +13,7 @@ $shop        = basename($_POST['shop']);
 $rootLetter  = strtoupper(trim($_POST['root_letter'] ?? 'Z'));
 if (!preg_match('/^[A-Za-z]$/', $rootLetter)) $rootLetter = 'Z';
 $harvestMode = ($_POST['harvest_mode'] ?? 'manual') === 'whatsapp' ? 'whatsapp' : 'manual';
+$mode        = npFlowMode();
 
 // ── Date parts ────────────────────────────────────────────────────────────────
 $dt          = DateTime::createFromFormat('Y-m-d', $date);
@@ -318,17 +320,18 @@ if ($harvestMode === 'whatsapp') {
 <div class="actions">
     <a class="btn-back" href="index.php">חזור</a>
     <?php if ($harvestMode === 'whatsapp'): ?>
-    <form action="process_whatsapp.php" method="post" style="display:inline">
+    <form id="advanceForm" action="process_whatsapp.php" method="post" style="display:inline">
         <input type="hidden" name="date"         value="<?= htmlspecialchars($date) ?>">
         <input type="hidden" name="shop"         value="<?= htmlspecialchars($shop) ?>">
         <input type="hidden" name="root_letter"  value="<?= htmlspecialchars($rootLetter) ?>">
         <input type="hidden" name="np_dir"       value="<?= htmlspecialchars($npDir) ?>">
         <input type="hidden" name="dept_file"    value="<?= htmlspecialchars($deptFile) ?>">
         <input type="hidden" name="harvest_mode" value="whatsapp">
+        <input type="hidden" name="mode"         value="<?= htmlspecialchars($mode) ?>">
         <button class="btn-approve" <?= $allOk ? '' : 'disabled' ?>>אישור</button>
     </form>
     <?php else: ?>
-    <form action="process.php" method="post" style="display:inline">
+    <form id="advanceForm" action="process.php" method="post" style="display:inline">
         <input type="hidden" name="date"         value="<?= htmlspecialchars($date) ?>">
         <input type="hidden" name="shop"         value="<?= htmlspecialchars($shop) ?>">
         <input type="hidden" name="root_letter"  value="<?= htmlspecialchars($rootLetter) ?>">
@@ -336,10 +339,12 @@ if ($harvestMode === 'whatsapp') {
         <input type="hidden" name="xlsx_file"    value="<?= htmlspecialchars($xlsxFile ?? '') ?>">
         <input type="hidden" name="dept_file"    value="<?= htmlspecialchars($deptFile) ?>">
         <input type="hidden" name="harvest_mode" value="manual">
+        <input type="hidden" name="mode"         value="<?= htmlspecialchars($mode) ?>">
         <button class="btn-approve" <?= $allOk ? '' : 'disabled' ?>>אישור</button>
     </form>
     <?php endif; ?>
 </div>
+<?php if ($allOk) renderFlowAutoAdvance($mode, 'advanceForm'); ?>
 
 </div>
 </body>

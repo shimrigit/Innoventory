@@ -9,6 +9,7 @@
 // serial numbers. From here on the flow rejoins the Manual method at
 // stage_br.php.
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/flow_mode.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -22,6 +23,7 @@ $shop       = $_POST['shop']      ?? '';
 $date       = $_POST['date']      ?? '';
 $deptFile   = $_POST['dept_file'] ?? '';
 $rootLetter = $_POST['root_letter'] ?? '';
+$mode       = npFlowMode();
 
 $whatsappImagesDir = __DIR__ . '/../whatsapp_app/whatsapp_images';
 
@@ -225,16 +227,18 @@ $gapsFound  = ($maxSerial - $minSerial + 1) !== count($serials);
 
 <div class="actions">
     <a class="btn btn-back" href="index.php">חזור לתחילה</a>
-    <form action="stage_br.php" method="post" style="display:inline">
+    <form id="advanceForm" action="stage_br.php" method="post" style="display:inline">
         <input type="hidden" name="np_dir"       value="<?= htmlspecialchars($npDir) ?>">
         <input type="hidden" name="xlsx_file"    value="<?= htmlspecialchars($xlsxFile) ?>">
         <input type="hidden" name="shop"         value="<?= htmlspecialchars($shop) ?>">
         <input type="hidden" name="date"         value="<?= htmlspecialchars($date) ?>">
         <input type="hidden" name="dept_file"    value="<?= htmlspecialchars($deptFile) ?>">
         <input type="hidden" name="harvest_mode" value="whatsapp">
+        <input type="hidden" name="mode"         value="<?= htmlspecialchars($mode) ?>">
         <button type="submit" class="btn btn-next">אישור – עבור לקריאת ברקודים ←</button>
     </form>
 </div>
+<?php if ($skipped === 0) renderFlowAutoAdvance($mode, 'advanceForm'); ?>
 
 </body>
 </html>

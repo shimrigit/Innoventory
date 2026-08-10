@@ -2,6 +2,8 @@
 // Stage 1 save – writes barcodes + prices to xlsx, saves _BR.xlsx
 session_start();
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/xlsx_retry.php';
+require_once __DIR__ . '/flow_mode.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
@@ -18,10 +20,11 @@ $shop     = $_SESSION['br_shop'];
 $date     = $_SESSION['br_date'];
 $deptFile = $_SESSION['br_deptfile'];
 $barcodes = $_POST['barcode'] ?? [];
+$mode     = npFlowMode();
 
 // ── Load xlsx and write data ──────────────────────────────────────────────────
 try {
-    $spreadsheet = IOFactory::load($npDir . '/' . $xlsxFile);
+    $spreadsheet = loadSpreadsheetWithRetry($npDir . '/' . $xlsxFile);
 } catch (Exception $e) {
     die('<p style="color:red;font-family:Arial;font-size:22px;padding:30px">שגיאה בטעינת Excel: ' . htmlspecialchars($e->getMessage()) . '</p>');
 }
@@ -37,11 +40,15 @@ foreach ($results as $i => $item) {
     $sheet->getStyle('A' . $row)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
     $sheet->setCellValueExplicit('A' . $row, $barcode, DataType::TYPE_STRING);
     $sheet->setCellValue('B' . $row, $price);
+    // Column K carries the source image filename through the pipeline so the
+    // final review screen (stage_dcl.php) can show it again for rows that
+    // fail final verification. Cleared before the final _DCL.xlsx save.
+    $sheet->setCellValue('K' . $row, $item['fname']);
 
     $rows[] = ['barcode' => $barcode, 'price' => $price, 'fname' => $item['fname']];
 }
 
-foreach (['A', 'B'] as $col) {
+foreach (['A', 'B', 'K'] as $col) {
     $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
@@ -99,13 +106,15 @@ unset($_SESSION['br_results'], $_SESSION['br_npdir'], $_SESSION['br_xlsx'],
     <?php endforeach; ?>
 </table>
 
-<form action="stage_chpf.php" method="post">
+<form id="advanceForm" action="stage_chpf.php" method="post">
     <input type="hidden" name="np_dir"    value="<?= htmlspecialchars($npDir) ?>">
     <input type="hidden" name="xlsx_file" value="<?= htmlspecialchars($brFile) ?>">
     <input type="hidden" name="shop"      value="<?= htmlspecialchars($shop) ?>">
     <input type="hidden" name="date"      value="<?= htmlspecialchars($date) ?>">
     <input type="hidden" name="dept_file" value="<?= htmlspecialchars($deptFile) ?>">
+    <input type="hidden" name="mode"      value="<?= htmlspecialchars($mode) ?>">
     <button type="submit" class="btn-next">המשך לשלב 2 – CHP Fetch ←</button>
 </form>
+<?php renderFlowAutoAdvance($mode, 'advanceForm'); ?>
 </body>
 </html>
