@@ -56,9 +56,21 @@ Mechanism — `NPharmonized/flow_mode.php` (new, shared):
 
 **Special case — 6 second wait for the BR verification step:** after Flow mode landed, the user found the default 3-second countdown on `stage_br.php` (AI-read barcode verification — "the most sensitive part of the flow") too fast to intervene manually when needed. That one transition (`stage_br.php` → `stage_br_save.php`) now uses `renderFlowAutoAdvance($mode, 'advanceForm', 6)`. Every other transition stays at the default 3 seconds.
 
+### 4. MessageFetching — Numeric Price Extraction & Caption Borrowing
+
+`whatsapp_app/MessageFetching.php` — two fixes to how an image's price (the "Y" in `ddmmyy-hhmmss X Y.ext`) is derived from the WhatsApp caption:
+
+- **Numeric-only extraction** (`extractNumericCaption()`): captions sometimes carry extra text alongside the price (e.g. `"13.9 מבצע"`, `"מחיר 24.9 כולל מעמ"`) — only the first number (digits + optional decimal point) is kept, the rest discarded. Verified with 8 cases.
+- **Caption borrowing when the image itself has no caption** (`resolveCaptionSources()`, two passes over the whole message list):
+  1. **Forward** — borrow the *next* message's number if it's a text-only message (no image) containing one. (Original ask: caption sent as a separate follow-up text.)
+  2. **Backward** (fallback only) — borrow the *preceding* message's number instead, but only if pass 1 didn't already claim it for a different, earlier image. Added after a real log showed the *opposite* order happening in practice: a photo's own message timestamp landed **after** a text sent moments later, because large media takes longer to upload than text — so the caption text can reach the webhook before its own image does, even though it was sent second.
+  - Forward always resolves before backward runs, so a number-text sitting between two textless images is claimed exactly once (by the image before it), never both — verified with 10 checks including that exact ambiguous case.
+  - User-side mitigation adopted alongside this: send an image+price pair back-to-back, not interleaved with other photos, to keep them adjacent in the log.
+
 #### Files Created/Modified (this round)
 | File | Change |
 |---|---|
+| `whatsapp_app/MessageFetching.php` | Numeric-only caption extraction; two-pass forward/backward caption borrowing for captionless images |
 | `NPharmonized/barcode_validate.php` | NEW — `validateBarcode()`, mod-10 checksum for EAN-13/UPC-A/EAN-8 |
 | `NPharmonized/xlsx_retry.php` | NEW — `loadSpreadsheetWithRetry()`, 4 attempts / 3s apart |
 | `NPharmonized/flow_mode.php` | NEW — `npFlowMode()`, `renderFlowAutoAdvance()`, `renderFlowStopNotice()` |
