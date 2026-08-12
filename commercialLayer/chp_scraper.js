@@ -38,12 +38,19 @@ async function searchCHP(barcode, city) {
             // First input is for city/location (upper box)
             console.error(`Entering city in first input: ${city}`);
             await inputs[0].click();
+            // Settle delay before typing — without this, the very first
+            // keystroke can be dropped by the page's focus/autocomplete init
+            // (race condition), silently truncating the typed value by one
+            // character. 300ms verified with a large safety margin (the
+            // drop stopped occurring at delays as low as 50ms in testing).
+            await new Promise(resolve => setTimeout(resolve, 300));
             await inputs[0].type(city, { delay: 100 });
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             // Second input is for barcode/product (lower box)
             console.error(`Entering barcode in second input: ${barcode}`);
             await inputs[1].click();
+            await new Promise(resolve => setTimeout(resolve, 300));
             await inputs[1].type(barcode, { delay: 100 });
             await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
