@@ -1,0 +1,22 @@
+{
+    "unique_id": "PO00001",
+    "core_name": "user1_Osem_130826-113128_PO00001",
+    "generator_id": "user1",
+    "supplier_id": "Osem",
+    "date_generated": "2026-08-13T11:31:28+02:00",
+    "status": "open",
+    "items": [
+        {
+            "barcode": "7290000066317",
+            "name": "אסם פסטה פנה 500 גרם",
+            "qty": 2,
+            "unit_price_agorot": 690
+        },
+        {
+            "barcode": "7290000066324",
+            "name": "אסם קוסקוס 500 גרם",
+            "qty": 3,
+            "unit_price_agorot": 750
+        }
+    ]
+}
