@@ -6,7 +6,18 @@
 require_once __DIR__ . '/filename_utils.php';
 
 define('POAGENT_PODIR', __DIR__ . '/../POdir');
-define('POAGENT_PO_COUNTER_FILE', POAGENT_PODIR . '/.po_counter');
+
+// The counter lives in its own directory, deliberately separate from
+// POdir/ — POdir/ is gitignored (generated PO records, not source), and the
+// counter must never disappear as a side effect of that (e.g. someone
+// treating POdir/ as disposable and wiping it). If the counter file is ever
+// lost/deleted anyway, nextPoId() below does NOT try to reconstruct it from
+// existing PO records — it silently restarts at PO00001 (see
+// POAgentNotes.md "what happens if the counter file gets deleted"). Worst
+// case, restore it manually: create POcounter/.po_counter containing the
+// last-used number as plain text.
+define('POAGENT_COUNTER_DIR', __DIR__ . '/../POcounter');
+define('POAGENT_PO_COUNTER_FILE', POAGENT_COUNTER_DIR . '/.po_counter');
 
 class POStore
 {
@@ -15,6 +26,9 @@ class POStore
     {
         if (!is_dir(POAGENT_PODIR)) {
             mkdir(POAGENT_PODIR, 0777, true);
+        }
+        if (!is_dir(POAGENT_COUNTER_DIR)) {
+            mkdir(POAGENT_COUNTER_DIR, 0777, true);
         }
 
         $fh = fopen(POAGENT_PO_COUNTER_FILE, 'c+');
