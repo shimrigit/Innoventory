@@ -99,7 +99,7 @@ function poagent_render_foot(): void
      have the picture open in another screen but in the same screen").
      Multi-instance: every element with class="poagent-zoom-panel" (see
      poagent_render_zoom_panel() below) gets its own independent zoom/pan
-     state, so a page can show several (e.g. dn_view.php's multi-delivery
+     state, so a page can show several (e.g. po_view.php's multi-delivery
      list) without them interfering with each other. -->
 <style>
     .poagent-zoom-panel {
@@ -274,9 +274,10 @@ function poagent_agorot_to_ils(int $agorot): string
  * photo itself — callers show it separately via poagent_render_zoom_panel(),
  * typically in its own large column next to this (explicit request: data
  * and photo side by side, photo large and zoomable, never in a separate
- * screen). Used by dn_result.php (right after import) and dn_view.php (from
- * the history list, po_list.php) so a DN looks identical regardless of how
- * you got to it — same convention as poagent_render_po_detail() above.
+ * screen). Used by dn_result.php (right after import) and po_view.php (the
+ * unified PO+DN+VS view reached from po_list.php) so a DN looks identical
+ * regardless of how you got to it — same convention as
+ * poagent_render_po_detail() above.
  */
 function poagent_render_dn_detail(array $dn): void
 {
@@ -311,7 +312,7 @@ function poagent_render_dn_detail(array $dn): void
 
 /**
  * Shared VS detail rendering — status badge, line-items diff table, and any
- * unmatched-DN-items table. Used by dn_result.php and vs_view.php — same
+ * unmatched-DN-items table. Used by dn_result.php and po_view.php — same
  * convention as poagent_render_po_detail()/poagent_render_dn_detail() above.
  */
 function poagent_render_vs_detail(array $vs): void
@@ -382,9 +383,9 @@ function poagent_render_vs_detail(array $vs): void
  * check is skipped (shown as "not evaluated") when no total was ever
  * visible on the document (DiffEngine::compare() leaves dn_declared_total_agorot
  * null in that case) — a missing total is not itself a mismatch. Used by
- * poagent_render_vs_detail() and directly by dn_view.php (matching each DN
- * to its own VS's total_check, since a DN has no PO-comparison context of
- * its own — see dn_view.php).
+ * poagent_render_vs_detail() (which already has the matching VS in hand) and
+ * consumed directly wherever a page matches a DN to its own VS by
+ * dn_reference to pull just the total_check out of it.
  */
 function poagent_render_total_check(array $totalCheck): void
 {
@@ -414,6 +415,42 @@ function poagent_render_total_check(array $totalCheck): void
             הסה"כ המוצהר בתעודה מול סכום השורות בתעודה:
             הפרש <?= $totalCheck['declared_vs_computed_diff_agorot'] > 0 ? '+' : '' ?><?= poagent_agorot_to_ils((int) $totalCheck['declared_vs_computed_diff_agorot']) ?>
         </p>
+    <?php endif; ?>
+    <?php
+}
+
+/**
+ * Plain-language variance summary — renders DiffEngine::summarizeForPo()'s
+ * output: either a single all-clear line, or one bullet per finding across
+ * the 4 problem types (unordered item / missing item / qty mismatch / price
+ * mismatch). Explicit request: the raw diff tables above weren't "clear
+ * enough" on their own — this is the plain-Hebrew-sentence version.
+ */
+function poagent_render_variance_summary(array $summary): void
+{
+    ?>
+    <h4 style="margin-top:24px;color:#555">📝 סיכום</h4>
+    <?php if ($summary['fully_matched']): ?>
+        <p style="color:#2a7d2a;font-weight:bold">✔ ההזמנה סופקה במלואה</p>
+    <?php else: ?>
+        <ul style="margin:0;padding-inline-start:22px;color:#c0392b;font-weight:bold">
+            <?php foreach ($summary['findings'] as $f): ?>
+                <li style="margin-bottom:6px">
+                    <?php if ($f['type'] === 'unordered_item'): ?>
+                        תעודת המשלוח כוללת מוצר שלא הוזמן <?= htmlspecialchars($f['barcode']) ?>
+                    <?php elseif ($f['type'] === 'missing_item'): ?>
+                        תעודת המשלוח חסרה את המוצר <?= htmlspecialchars($f['barcode']) ?>
+                    <?php elseif ($f['type'] === 'qty_mismatch'): ?>
+                        בתעודת המשלוח במוצר <?= htmlspecialchars($f['barcode']) ?> הוזמנו <?= (int) $f['po_qty'] ?> פריטים
+                        אולם התקבלו <?= (int) $f['received_qty'] ?> פריטים
+                    <?php elseif ($f['type'] === 'price_mismatch'): ?>
+                        בתעודת המשלוח במוצר <?= htmlspecialchars($f['barcode']) ?> מחיר המוצר הוא
+                        <?= poagent_agorot_to_ils((int) $f['dn_price_agorot']) ?>
+                        אולם בהזמנה המחיר הוא <?= poagent_agorot_to_ils((int) $f['po_price_agorot']) ?>
+                    <?php endif; ?>
+                </li>
+            <?php endforeach; ?>
+        </ul>
     <?php endif; ?>
     <?php
 }

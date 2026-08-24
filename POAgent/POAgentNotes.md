@@ -34,7 +34,7 @@ All business logic lives in `lib/` (the "brain"); UI screens only call into it a
 | 5 | Barcode matching + Review screen | 🟡 Mostly done — editable Review screen built (`dn_review.php`/`dn_confirm.php`), correcting any field or deleting/adding a row all work; the one piece not built is "add to supplier catalog" for a genuinely-new item (spec §4.3's other half) — see §6 |
 | 6 | Diff Engine (fused) — VS generation | ✅ Done |
 | 7 | Status lifecycle transitions (`open`→`prcv`/`closed`) | ✅ Done |
-| 8 | UI: status/history view, VS display | ✅ Done — `po_list.php` has DN/VS indicator columns linking to `dn_view.php`/`vs_view.php` |
+| 8 | UI: status/history view, VS display | ✅ Done — `po_list.php`'s unified column links to `po_view.php`, the single PO+DN+VS 3-panel view |
 | 9 | End-to-end test incl. multi-delivery + unknown-barcode + exact-match cases | 🟡 Partial — exact-match case verified for real (see §6); multi-delivery and unknown-barcode cases await the user's own variance-testing pass |
 
 ---
@@ -51,16 +51,14 @@ POAgent/
 ├── po_confirm.php        PO flow step 3 — confirm screen, re-derives prices server-side
 ├── po_create.php         PO flow step 4 — writes the PO via POStore, flash-redirects
 ├── po_success.php        PO flow step 5 — confirmation screen (one-time session flash)
-├── po_view.php           PO detail view (from po_list.php) — same rendering as po_success.php
-├── po_list.php           Status/history view — filename-glob backed, totals per PO, DN/VS
-│                         indicator columns (📷 count / ✔|⚠ count) linking to dn_view.php/
-│                         vs_view.php, links to po_view.php. Defaults to ALL users' POs — pass
-│                         ?mine=1 to narrow to the current session's user (demo-debugging default,
-│                         revisit after the demo)
-├── dn_view.php           All DN photos + OCR/reviewed data for one PO (oldest first) — reached
-│                         from po_list.php's DN column
-├── vs_view.php           All VS records for one PO, in delivery order — reached from po_list.php's
-│                         VS column
+├── po_view.php           Unified PO+DN+VS view (from po_list.php) — 3 panels side by side: PO on
+│                         the right (always, sticky, same rendering as po_success.php), then one
+│                         row per delivery with the DN photo+data in the middle and its VS on the
+│                         left. Replaces the earlier separate dn_view.php/vs_view.php (deleted)
+├── po_list.php           Status/history view — filename-glob backed, totals per PO, one unified
+│                         "תעודות ודוחות" column (DN/VS counts folded into the po_view.php link).
+│                         Defaults to ALL users' POs — pass ?mine=1 to narrow to the current
+│                         session's user (demo-debugging default, revisit after the demo)
 ├── dn_select_po.php      DN flow step 1 — pick the open/prcv PO this delivery is against
 │                         (shows ALL users' eligible POs, not just the current session's — by
 │                         explicit request, for demo purposes)
@@ -84,7 +82,8 @@ POAgent/
 │   ├── ui_common.php      Shared HTML shell (RTL/Hebrew card layout) + session helper +
 │   │                      poagent_render_po_detail() (shared by po_success.php/po_view.php) +
 │   │                      poagent_render_dn_detail()/poagent_render_vs_detail() (shared by
-│   │                      dn_result.php/dn_view.php/vs_view.php) + poagent_agorot_to_ils()
+│   │                      dn_result.php/po_view.php) + poagent_render_zoom_panel() (inline
+│   │                      zoom/pan photo panel) + poagent_agorot_to_ils()
 │   ├── filename_utils.php Sanitize-for-filename + write-to-temp-then-rename helpers
 │   ├── SupplierStore.php  DataStore adapter — reads SuppliersDB/*.xlsx catalogs
 │   ├── POStore.php        DataStore adapter — atomic counter, PO JSON read/write/status
@@ -592,6 +591,48 @@ present and correctly structured. Left the `dn_review.php` test unconfirmed on p
 markup check); leftover test image deleted afterward. Noticed real user activity on PO00002 (now
 `closed`, real confirmed DN/VS, plus a couple of unconfirmed leftover review images) from testing
 done in parallel — left entirely untouched, not mine to clean up.
+
+### Feature — unified PO+DN+VS view; inline zoom replaces the lightbox (Aug 24, 2026)
+**Shorter entries from here on** — user flagged the write-ups were getting long; keeping to
+what changed + why, skipping the step-by-step verification narrative.
+
+- **`po_list.php`**: the DN column / VS column / view column merged into one ("תעודות ודוחות") —
+  one link to `po_view.php`, with the DN/VS counts folded into the link text instead of separate
+  cells.
+- **`po_view.php`** is now the single unified page (replaces `dn_view.php`/`vs_view.php`, both
+  deleted): three panels side by side — PO on the right (always, sticky), then one row per
+  delivery with the DN photo+data in the middle and its VS on the left. Confirmed via screenshot
+  (RTL flex DOM-order reasoning alone wasn't trusted after getting bitten once already).
+- **Zoom mechanism changed**: replaced the click-to-open lightbox (previous session's approach)
+  with an always-inline `poagent_render_zoom_panel()` — explicit request, "should not have the
+  picture open in another screen." Same zoom/pan mechanics, just embedded in-page instead of a
+  modal; multi-instance safe (each panel gets independent state).
+- **Real bug fixed**: `max-width/max-height: 100%` on the panel's `<img>` only ever shrinks an
+  oversized image, never enlarges a small one — these demo photos are tiny (~400×200px), so they
+  rendered at native size and looked blank in a huge panel. Fixed with `width/height: 100%` +
+  `object-fit: contain`, which scales both directions. Caught by screenshot, not by code review.
+- **Data-loss incident**: an `rm -f *PO00004*` glob during test cleanup deleted the user's own real
+  confirmed DN/VS records for PO00004 (not just the intended test leftover) — not recoverable (Git
+  Bash `rm` bypasses the Recycle Bin). The PO record itself (`POdir/`) was untouched; only the
+  delivery history (photo/OCR data/VS) was lost. Lesson: verify each match before a wildcard
+  delete, don't glob-delete against directories holding real user data.
+
+### Feature — plain-language variance summary (Aug 24, 2026)
+The raw VS/total-check tables weren't "clear enough" — added a "סיכום" section below them (both
+`po_view.php` and `dn_result.php`) that rolls findings up into plain sentences: 4 problem types
+(unordered item / missing item / qty mismatch / price mismatch, one bullet per finding, a product
+can have more than one) or a single "✔ ההזמנה סופקה במלואה" when nothing's wrong.
+`DiffEngine::summarizeForPo($po, $allVs)` computes it — new method, cumulative by design (missing
+= 0 received across ALL given VS records, not just one delivery). Callers pass an increasingly
+complete slice of VS records per delivery row (`po_view.php`) or every VS on record including the
+one just confirmed (`dn_result.php`), so the summary always reflects "everything received up to
+this point," same philosophy as the qty `remaining` math elsewhere in `DiffEngine`.
+Caught the same PHP numeric-array-key-coercion bug as before (barcode silently becoming an `int`)
+in two more spots in the new method — fixed with the same `(string)` re-cast pattern.
+Verified against real production data: PO00001 (backward-compat VS with no `total_check`) rendered
+the summary fine regardless; PO00003 — the user's own original bug-report PO, re-tested by them
+today — correctly produced "תעודת המשלוח חסרה את המוצר 7290000077386", confirming the missing-item
+fix from earlier this session end-to-end.
 
 ---
 

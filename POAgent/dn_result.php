@@ -5,11 +5,13 @@
 // transition, SIDE BY SIDE: data on the left, a large in-page zoomable
 // photo panel on the right (explicit request — no lightbox/separate
 // screen, so the two can be compared directly). Data rendering is shared
-// with dn_view.php/vs_view.php via poagent_render_dn_detail()/
-// poagent_render_vs_detail() in ui_common.php; the photo panel via
-// poagent_render_zoom_panel() there too.
+// with po_view.php (the unified PO+DN+VS view reached from po_list.php)
+// via poagent_render_dn_detail()/poagent_render_vs_detail() in
+// ui_common.php; the photo panel via poagent_render_zoom_panel() there too.
 session_start();
 require_once __DIR__ . '/lib/ui_common.php';
+require_once __DIR__ . '/lib/VSStore.php';
+require_once __DIR__ . '/lib/DiffEngine.php';
 $generatorId = poagent_require_generator();
 
 $flash = $_SESSION['poagent_last_dn'] ?? null;
@@ -56,6 +58,14 @@ poagent_render_head('POAgent – תוצאת עיבוד תעודת המשלוח',
 
         <h3 style="margin-top:32px;color:#555">📊 דוח שונות (VS) — משלוח #<?= (int) $vs['delivery_index'] ?></h3>
         <?php poagent_render_vs_detail($vs); ?>
+        <?php
+            // Cumulative across every delivery on record for this PO,
+            // including the one just confirmed (dn_confirm.php already
+            // wrote it before redirecting here) — same philosophy as
+            // po_view.php's running per-delivery summary.
+            $allVsForPo = VSStore::listForPo($po['core_name'] ?? '');
+            poagent_render_variance_summary(DiffEngine::summarizeForPo($po, $allVsForPo));
+        ?>
 
         <div class="row-gap"></div>
         <a class="btn" href="dn_select_po.php">📷 ייבוא תעודה נוספת</a>

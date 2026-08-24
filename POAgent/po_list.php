@@ -24,7 +24,7 @@ poagent_render_head('POAgent – היסטוריית הזמנות', 1050);
 <table>
     <tr>
         <th>מס' הזמנה</th><th>ספק</th><th>משתמש</th><th>נוצר ב</th><th>סטטוס</th><th>פריטים</th><th>סה"כ</th>
-        <th>תעודת משלוח (DN)</th><th>דוח שונות (VS)</th><th></th>
+        <th>תעודות ודוחות</th>
     </tr>
     <?php foreach ($records as $po): ?>
     <?php
@@ -43,22 +43,14 @@ poagent_render_head('POAgent – היסטוריית הזמנות', 1050);
         <td><?= count($po['items'] ?? []) ?></td>
         <td><?= number_format(POStore::totalAgorot($po) / 100, 2) ?> ₪</td>
         <td>
-            <?php if ($dnCount > 0): ?>
-                <a href="dn_view.php?core_name=<?= urlencode($coreName) ?>">📷 <?= $dnCount ?></a>
-            <?php else: ?>
-                <span class="muted">—</span>
-            <?php endif; ?>
+            <a href="po_view.php?core_name=<?= urlencode($coreName) ?>">
+                🔍 צפייה
+                <?php if ($dnCount > 0): ?>
+                    &nbsp;|&nbsp;📷 <?= $dnCount ?>
+                    &nbsp;<?= $vsHasVariance ? '⚠' : '✔' ?> <?= $vsCount ?>
+                <?php endif; ?>
+            </a>
         </td>
-        <td>
-            <?php if ($vsCount > 0): ?>
-                <a href="vs_view.php?core_name=<?= urlencode($coreName) ?>">
-                    <?= $vsHasVariance ? '⚠' : '✔' ?> <?= $vsCount ?>
-                </a>
-            <?php else: ?>
-                <span class="muted">—</span>
-            <?php endif; ?>
-        </td>
-        <td><a href="po_view.php?core_name=<?= urlencode($coreName) ?>">🔍 צפייה</a></td>
     </tr>
     <?php endforeach; ?>
 </table>

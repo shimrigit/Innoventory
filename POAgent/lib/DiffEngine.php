@@ -163,4 +163,91 @@ class DiffEngine
             'total_check'        => $totalCheck,
         ];
     }
+
+    /**
+     * Plain-language variance summary, rolled up across ALL of a PO's VS
+     * records passed in (not just one delivery) — explicit request: the raw
+     * diff tables alone weren't "clear enough." Cumulative by design: the
+     * caller (po_view.php) calls this once per delivery row with an
+     * increasingly complete slice of VS records, so each delivery's summary
+     * reflects everything received up to and including that point — same
+     * "remaining" philosophy as compare() itself, just rolled up to
+     * per-barcode findings instead of per-delivery line items.
+     *
+     * Five finding types: an item delivered but never ordered
+     * ("unordered_item"), an ordered item never delivered at all across any
+     * of the given VS records ("missing_item"), an ordered item delivered
+     * in the wrong quantity ("qty_mismatch" — mutually exclusive with
+     * missing_item: zero received is "missing", not "0 of N"), and a price
+     * mismatch ("price_mismatch", one row per distinct wrong price actually
+     * seen — independent of the qty findings, since a product can have
+     * either, both, or neither). Returns
+     * ['fully_matched' => bool, 'findings' => [ [...], ... ]].
+     */
+    public static function summarizeForPo(array $po, array $allVs): array
+    {
+        $poItems = [];
+        foreach ($po['items'] ?? [] as $item) {
+            $poItems[(string) $item['barcode']] = $item;
+        }
+
+        $receivedQty = [];
+        $priceMismatches = []; // barcode => [dn_price_agorot => true, ...], dedup by distinct wrong price
+        $unmatchedBarcodes = [];
+
+        foreach ($allVs as $vs) {
+            foreach ($vs['line_items'] ?? [] as $line) {
+                $barcode = (string) ($line['barcode'] ?? '');
+                if (empty($line['not_delivered'])) {
+                    $receivedQty[$barcode] = ($receivedQty[$barcode] ?? 0) + (int) ($line['dn_qty'] ?? 0);
+                }
+                if (!empty($line['price_flagged'])) {
+                    $priceMismatches[$barcode][(int) $line['dn_price_agorot']] = true;
+                }
+            }
+            foreach ($vs['unmatched_dn_items'] ?? [] as $u) {
+                $unmatchedBarcodes[(string) ($u['barcode'] ?? '')] = true;
+            }
+        }
+
+        $findings = [];
+
+        foreach ($poItems as $barcode => $poItem) {
+            // Same PHP numeric-array-key coercion as compare() hits — see
+            // the comment there. Re-cast so 'barcode' in the findings below
+            // always comes out a string, not silently an int.
+            $barcode = (string) $barcode;
+            $received = $receivedQty[$barcode] ?? 0;
+            $poQty = (int) ($poItem['qty'] ?? 0);
+
+            if ($received === 0) {
+                $findings[] = ['type' => 'missing_item', 'barcode' => $barcode];
+            } elseif ($received !== $poQty) {
+                $findings[] = [
+                    'type'         => 'qty_mismatch',
+                    'barcode'      => $barcode,
+                    'po_qty'       => $poQty,
+                    'received_qty' => $received,
+                ];
+            }
+
+            foreach (array_keys($priceMismatches[$barcode] ?? []) as $dnPriceAgorot) {
+                $findings[] = [
+                    'type'              => 'price_mismatch',
+                    'barcode'           => $barcode,
+                    'po_price_agorot'   => (int) ($poItem['unit_price_agorot'] ?? 0),
+                    'dn_price_agorot'   => $dnPriceAgorot,
+                ];
+            }
+        }
+
+        foreach (array_keys($unmatchedBarcodes) as $barcode) {
+            $findings[] = ['type' => 'unordered_item', 'barcode' => (string) $barcode];
+        }
+
+        return [
+            'fully_matched' => empty($findings),
+            'findings'      => $findings,
+        ];
+    }
 }
