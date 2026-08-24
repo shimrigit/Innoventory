@@ -1,7 +1,6 @@
 <?php
-// Screen 2 — main menu (spec §4.1). "Upload DN" is out of scope for this
-// phase (Digital Note ingestion is built in a later phase) so it's shown
-// disabled rather than omitted, so the eventual flow is visible in the UI.
+// Screen 2 — main menu (spec §4.1). "Upload DN" enabled as of the DN
+// ingestion build (spec §9 steps 3+) — see dn_select_po.php onward.
 session_start();
 require_once __DIR__ . '/lib/ui_common.php';
 $generatorId = poagent_require_generator();
@@ -12,7 +11,7 @@ poagent_render_head('POAgent – תפריט ראשי');
 
 <a class="btn" href="po_supplier.php">➕ צור הזמנת רכש (PO)</a>
 <div class="row-gap"></div>
-<span class="btn disabled" title="ייבנה בשלב הבא">📷 העלה תעודת משלוח (בקרוב)</span>
+<a class="btn" href="dn_select_po.php">📷 העלה תעודת משלוח</a>
 <div class="row-gap"></div>
 <a class="btn secondary" href="po_list.php">📋 היסטוריית הזמנות</a>
 <div class="row-gap"></div>

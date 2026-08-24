@@ -2,8 +2,11 @@
 
 **Project Location:** `C:\xampp\htdocs\website\POAgent`
 **Spec:** `pre-demo` build, based on *Purchase Order & Delivery Note Matching System — Pre-Demo Development Spec (v3)* (Priority DB → 3 local directories, WhatsApp bot → web interface).
-**Last Updated:** August 18, 2026
-**Status:** Phase 1 complete — PO creation flow (user → supplier → items/qty → confirm → create), tested end-to-end. DN/OCR/Diff Engine phases not yet started.
+**Last Updated:** August 23, 2026
+**Status:** Phase 1 complete (PO creation flow). DN ingestion pipeline complete end-to-end,
+including the human-in-the-loop Review screen and DN/VS visibility from the history list — photo
+import, OCR, manual correction, Diff Engine/VS generation, status transitions, and now DN/VS
+lookup from `po_list.php` are all wired and verified (see §2, §6).
 
 ---
 
@@ -26,13 +29,13 @@ All business logic lives in `lib/` (the "brain"); UI screens only call into it a
 |---|---|---|
 | 1 | `SuppliersDB` reader + `SupplierStore` adapter | ✅ Done |
 | 2 | `POStore` adapter + atomic PO counter + PO creation flow (Screens 1–2 + PO flow) | ✅ Done |
-| 3 | DN upload + storage (no OCR yet) | ⬜ Not started |
-| 4 | Wire in Retailomatics OCR + OCRsanity gate | ⬜ Not started |
-| 5 | Barcode matching + Review screen | ⬜ Not started |
-| 6 | Diff Engine (fused) — VS generation | ⬜ Not started |
-| 7 | Status lifecycle transitions (`open`→`prcv`/`closed`) | ⬜ Not started (adapter method exists, unused) |
-| 8 | UI: status/history view, VS display | 🟡 Partial — PO history + per-PO detail view exist, no VS yet |
-| 9 | End-to-end test incl. multi-delivery + unknown-barcode + exact-match cases | ⬜ Not started (needs DN/VS) |
+| 3 | DN upload + storage (no OCR yet) | ✅ Done |
+| 4 | Wire in Retailomatics OCR + OCRsanity gate | ✅ Done — simplified single-shot vision call, not the full harmonizedFlow pipeline (see §6) |
+| 5 | Barcode matching + Review screen | 🟡 Mostly done — editable Review screen built (`dn_review.php`/`dn_confirm.php`), correcting any field or deleting/adding a row all work; the one piece not built is "add to supplier catalog" for a genuinely-new item (spec §4.3's other half) — see §6 |
+| 6 | Diff Engine (fused) — VS generation | ✅ Done |
+| 7 | Status lifecycle transitions (`open`→`prcv`/`closed`) | ✅ Done |
+| 8 | UI: status/history view, VS display | ✅ Done — `po_list.php` has DN/VS indicator columns linking to `dn_view.php`/`vs_view.php` |
+| 9 | End-to-end test incl. multi-delivery + unknown-barcode + exact-match cases | 🟡 Partial — exact-match case verified for real (see §6); multi-delivery and unknown-barcode cases await the user's own variance-testing pass |
 
 ---
 
@@ -42,27 +45,77 @@ All business logic lives in `lib/` (the "brain"); UI screens only call into it a
 POAgent/
 ├── index.php            Screen 1 — user select (user1/user2/user3 → generator_id)
 ├── select_user.php       Handles Screen 1 submit, stores generator_id in session
-├── main_menu.php         Screen 2 — Create PO / Upload DN (DN disabled, "coming soon")
+├── main_menu.php         Screen 2 — Create PO / Upload DN
 ├── po_supplier.php       PO flow step 1 — supplier list
 ├── po_items.php          PO flow step 2 — item list w/ prices + qty inputs
 ├── po_confirm.php        PO flow step 3 — confirm screen, re-derives prices server-side
 ├── po_create.php         PO flow step 4 — writes the PO via POStore, flash-redirects
 ├── po_success.php        PO flow step 5 — confirmation screen (one-time session flash)
 ├── po_view.php           PO detail view (from po_list.php) — same rendering as po_success.php
-├── po_list.php           Status/history view — filename-glob backed, totals per PO, links to po_view.php
+├── po_list.php           Status/history view — filename-glob backed, totals per PO, DN/VS
+│                         indicator columns (📷 count / ✔|⚠ count) linking to dn_view.php/
+│                         vs_view.php, links to po_view.php. Defaults to ALL users' POs — pass
+│                         ?mine=1 to narrow to the current session's user (demo-debugging default,
+│                         revisit after the demo)
+├── dn_view.php           All DN photos + OCR/reviewed data for one PO (oldest first) — reached
+│                         from po_list.php's DN column
+├── vs_view.php           All VS records for one PO, in delivery order — reached from po_list.php's
+│                         VS column
+├── dn_select_po.php      DN flow step 1 — pick the open/prcv PO this delivery is against
+│                         (shows ALL users' eligible POs, not just the current session's — by
+│                         explicit request, for demo purposes)
+├── dn_browse.php         DN flow step 2 — server-side folder browser (defaults to Desktop\DN
+│                         pictures; no OS file-picker can be defaulted from a webpage)
+├── dn_import.php         DN flow step 3 — copies the photo into DNdir/, OCRs it (one vision call),
+│                         sanity-checks it, stashes the draft in session, redirects to dn_review.php
+│                         (GET-only from here on — refreshing never re-runs OCR)
+├── dn_review.php         DN flow step 4 — human-in-the-loop Review screen: editable table over the
+│                         OCR draft (invalid cells highlighted red), correct/delete any row, 3 blank
+│                         spare rows for anything OCR missed entirely — shown side by side with the
+│                         actual DN photo (sticky, stays in view while the form column scrolls) so
+│                         corrections can be made by eye against the source, not from memory
+├── dn_confirm.php        DN flow step 5 — re-validates the (possibly hand-corrected) posted rows
+│                         server-side, finalizes the DN JSON, runs DNPipeline::finalizeDelivery()
+│                         (Diff Engine + VS + status), flash-redirects to dn_result.php
+│                         (POST/redirect/GET, same pattern as po_create.php)
+├── dn_result.php         DN flow step 6 — shows the OCR extraction + VS + status transition from
+│                         the one-time flash
 ├── lib/
 │   ├── ui_common.php      Shared HTML shell (RTL/Hebrew card layout) + session helper +
-│   │                      poagent_render_po_detail() (shared by po_success.php/po_view.php)
+│   │                      poagent_render_po_detail() (shared by po_success.php/po_view.php) +
+│   │                      poagent_render_dn_detail()/poagent_render_vs_detail() (shared by
+│   │                      dn_result.php/dn_view.php/vs_view.php) + poagent_agorot_to_ils()
 │   ├── filename_utils.php Sanitize-for-filename + write-to-temp-then-rename helpers
 │   ├── SupplierStore.php  DataStore adapter — reads SuppliersDB/*.xlsx catalogs
-│   └── POStore.php        DataStore adapter — atomic counter, PO JSON read/write/status
+│   ├── POStore.php        DataStore adapter — atomic counter, PO JSON read/write/status
+│   ├── DNStore.php        DataStore adapter — DN image import (importImage) + finalized DN JSON
+│   │                      write (finalize) + per-PO DN listing (listForPo) in DNdir/
+│   ├── DNOcr.php          Single-shot OpenAI vision call (gpt-4.1-mini) on a whole DN photo,
+│   │                      including the document's own printed grand total (dn_total, nullable) —
+│   │                      reuses AIocr/config.json's key; NOT the harmonizedFlow pipeline (see §6)
+│   ├── DNSanity.php       Lightweight validation gate (numeric qty/price, barcode digits/length) —
+│   │                      OCRsanity's validation *concept*, reimplemented against JSON not xlsx;
+│   │                      dn_confirm.php re-applies the same rules to hand-corrected values
+│   ├── VSStore.php        DataStore adapter — per-PO delivery-index counter (in POcounter/,
+│   │                      prefixed vs_...), VS JSON write/list into DNdir/
+│   ├── DiffEngine.php     Fused qty+price comparison, cumulative across a PO's VS history, plus
+│   │                      total_check (declared-vs-expected, declared-vs-computed) — ALWAYS
+│   │                      produces a VS, matched or not (spec §4.4)
+│   └── DNPipeline.php     Shared tail — finalize the (reviewed) DN record, run the Diff Engine,
+│                          write the VS, apply the PO status transition. One implementation, called
+│                          only from dn_confirm.php today, but factored out so a future caller
+│                          (e.g. a "skip review" fast path) wouldn't have to duplicate it
 ├── tools/
 │   └── seed_demo_suppliers.php   Dev-only: (re)writes 3 placeholder supplier catalogs
 ├── SuppliersDB/          supplier_<SupplierID>.xlsx catalogs (Barcode | ItemName | Price)
 ├── POdir/                PO JSON records — gitignored (generated data, not source; see §4)
-├── POcounter/             Atomic counter file (.po_counter) — deliberately its own dir, also
-│                          gitignored, so it can never be wiped as a side effect of clearing POdir/
-└── DNdir/                Reserved for DN/VS files — empty until phase 3+, gitignored
+├── POcounter/             Atomic counter files — PO##### counter (.po_counter) AND, per explicit
+│                          request, every other POAgent counter lives here too (VSStore's per-PO
+│                          delivery-index counters, prefixed vs_<po_core_name>.count) — deliberately
+│                          its own dir, gitignored, so it can never be wiped as a side effect of
+│                          clearing POdir/ or DNdir/
+└── DNdir/                DN photos (dn_import.php) + finalized DN JSON + VS JSON (dn_confirm.php,
+                         after the Review screen), gitignored
 ```
 
 ---
@@ -218,6 +271,328 @@ deleted that one test PO record afterward (counter intentionally left at 6, not 
 rolling counters backward is exactly the collision risk being guarded against, so `PO00006` is
 now a harmless gap, not reused).
 
+### Feature — DN ingestion Stage 1: photo import, no OCR yet (Aug 18, 2026)
+**What:** first stage of the DN/OCR/Diff Engine build (spec §9 steps 3–9), staged per explicit
+request so each stage is testable before the next lands. This stage: `main_menu.php`'s "Upload DN"
+button enabled (was disabled/"coming soon"); `dn_select_po.php` lists open/prcv POs to attach the
+delivery to (originally scoped to the current session's user only, later widened to all users —
+see the dated entry below); `dn_browse.php` is a **server-side folder browser** (not
+a plain `<input type=file>` — browsers deliberately don't let a page preset the OS file-picker's
+starting folder, so a real default wasn't achievable that way) defaulting to
+`DNStore::defaultBrowseDir()`, which resolves the real Desktop's "DN pictures" folder — on this
+machine that's `C:\Users\shimr\OneDrive\Desktop\DN pictures` (OneDrive-redirected, **not**
+`C:\Users\shimr\Desktop`; the resolver tries OneDrive-redirected → plain Desktop → Desktop root →
+home dir, so a machine without the folder yet still opens somewhere sane); a "שנה תיקייה" field
+lets the user jump anywhere else on the local machine (no chroot/allowlist — free local browsing
+is the point, matching spec §8.9's "no security hardening needed" for this single-user demo).
+`dn_import.php` copies the chosen photo into `DNdir/` as `<PO_core_name>_DN_<ddmmyy-hhmmss>.<ext>`
+(spec §6.3) via new adapter `lib/DNStore.php::importImage()` — original extension kept (`.jpeg`
+for real WhatsApp-sourced photos, matching the convention already used in
+`NPharmonized/process.php`). Stage 1 stops there: no OCR, no DN JSON, no PO status change — those
+are Stages 2–5 of a plan agreed with the user (not currently saved as a repo file — see the
+Claude Code plan-mode history for the full staged breakdown if it's needed again).
+**Verified:** `php -l` on all 5 touched/added files; curl smoke test with a cookie jar — logged in
+as `user1`, confirmed the enabled DN link on `main_menu.php`, confirmed `PO00001` (open) listed on
+`dn_select_po.php`, loaded `dn_browse.php` for it and confirmed the folder browser opened on the
+real Desktop\DN pictures path and listed all 5 real `.jpeg` files there, POSTed one
+(`Osem 18-08-26 A.jpeg`) to `dn_import.php` and confirmed it landed in `DNdir/` as
+`user1_Osem_130826-113128_PO00001_DN_180826-122946.jpeg` with the confirmation screen showing the
+correct PO linkage and DN core name; deleted the test-imported file afterward so `DNdir/` stays
+empty for the user's own first real test pass.
+
+### Feature — DN picker shows all users' POs (Aug 18, 2026)
+**What:** `dn_select_po.php` was scoped to `POStore::listPOs($generatorId)` — only the logged-in
+session's own POs. Changed to `POStore::listPOs(null)` (list all) still filtered to open/prcv,
+with a "משתמש" column added (mirroring `po_list.php`'s own all-users toggle) so it's clear whose
+PO each row belongs to. **Why:** explicit request — for demo purposes a delivery should be
+loggeable against any user's PO, not just whichever user happens to be "logged in" in this browser
+session. `dn_import.php` needed no change — it already looks up the PO by core name regardless of
+owner.
+**Verified:** curl smoke test — logged in as `user2`, confirmed all 5 POs (spanning user1/2/3)
+listed on `dn_select_po.php`, not just user2's own.
+
+### Feature — OCR + Diff Engine + VS + status transitions, end-to-end (Aug 18, 2026)
+**What:** Stages 2, 4, and 5 landed together in one pass, per explicit request ("continue to OCR,
+and also the stage after where you compare DN to PO and create VS"). Stage 3 (the manual-review UI
+for correcting a bad OCR read or adding an unmatched item to the catalog) is deliberately NOT
+built yet — barcode matching happens, but everything auto-proceeds with no human-in-the-loop
+screen, since these demo DN photos are literal screenshots of their own PO and are expected to
+match exactly for now ("for now all will be zero but later i will change the DN to test the
+variations").
+- **`lib/DNOcr.php`** — one OpenAI vision call (`gpt-4.1-mini`, same call shape as
+  `harmonizedFlow/step3_process_ocr.php`, reusing `AIocr/config.json`'s existing key) on the whole
+  DN photo, no crop marking, no `suppliers.json` dependency. Prompted for
+  `{supplier_name, dn_number, dn_date, items:[{barcode,name,qty,unit_price}]}`.
+- **`lib/DNSanity.php`** — the OCRsanity validation *concept* (numeric qty/price, barcode all-digits
+  ≤13 chars), reimplemented directly against the JSON instead of an xlsx; coerces invalid
+  numeric fields to 0 so downstream code never re-checks `is_numeric()`.
+- **`lib/DNStore.php::finalize()`** — writes the finalized DN JSON to `DNdir/`.
+- **`lib/VSStore.php`** (new) — atomic per-PO delivery-index counter (in `POcounter/`, prefixed
+  `vs_<po_core_name>.count` — consolidated into the existing counter directory per explicit
+  request rather than a new `VScounter/` sibling), VS JSON write (spec §6.3 filename convention,
+  never overwritten) and `listForPo()` (ordered by `delivery_index`, not filename timestamp, per
+  spec §5).
+- **`lib/DiffEngine.php`** (new) — `compare()` matches each DN item to the PO's own item list by
+  barcode (not the supplier catalog directly — the PO already carries the catalog price it was
+  created with); computes cumulative `po_qty_remaining_before` from every prior VS's `line_items`
+  (spec §5's cumulative-quantity rule); integer-agorot price diff; items not on the PO land in
+  `unmatched_dn_items`, never dropped. **Always** returns a VS body, `"matched"` or `"variance"` —
+  no skip-if-matched branch (spec §4.4).
+- **`dn_import.php`** rewritten to run the whole pipeline in one POST (import → OCR → sanity →
+  finalize → diff → VS write → status transition), then flash-redirect to new **`dn_result.php`**
+  (POST/redirect/GET, same pattern as `po_create.php`/`po_success.php` — refreshing the result page
+  can't re-run the pipeline or duplicate a VS). Status transition: sums `dn_qty` received per
+  barcode across ALL of a PO's VS records (including the one just written); `closed` if every PO
+  item's cumulative received ≥ its ordered qty, `prcv` if some but not all received, unchanged if
+  the PO's own items received nothing at all (e.g. a DN that came back entirely unmatched — a real
+  VS still gets generated per spec §4.4, but no PO progress happened, so status stays whatever it
+  already was).
+**Verified with a real OpenAI call** (not mocked): PO00001 (Osem, open, 2×פסטה פנה @6.90 +
+3××אסם קוסקוס @7.50) against the real `Osem 18-08-26 A.jpeg` (a screenshot of that same PO,
+standing in for a photographed DN per this project's whole premise). OCR correctly read both
+barcodes/qty/prices exactly (item *names* came back slightly off — "אסם" prefix dropped on one,
+second item read as "זוקיני" instead of "קוסקוס" — harmless since matching is barcode-only, names
+are display-only). VS generated with `delivery_index: 0`, `status: "matched"`, both line items at
+`qty_diff: 0`/`price_diff_agorot: 0`, `unmatched_dn_items: []` — confirmed on disk byte-for-byte
+matching spec §6.3's JSON shape. PO status flipped `open` → `closed` (file renamed
+`..._PO00001_closed.json`), confirmed on disk. `dn_result.php` rendered the full breakdown
+correctly (OCR fields, item table, VS table, status transition arrow). `php -l` clean on all 8
+touched/added files.
+**Known gap surfaced by this run:** once PO00001 is `closed`, it drops out of `dn_select_po.php`'s
+open/prcv list — so testing a second delivery (multi-delivery/variance case) against the *same* PO
+needs a fresh open PO, since there's no "reopen" path built. The other 4 seeded POs (PO00002–5,
+Dansell/Tnuva) are still open for that.
+
+### Feature — human-in-the-loop Review screen (Aug 18, 2026)
+**Why:** without a review step, an OCR misread (wrong barcode digit, misread qty/price) and a
+genuine supplier variance land in the VS looking identical — no way to tell them apart after the
+fact. Explicit request to build spec §9 step 5's Review screen now rather than defer it further,
+specifically as "an excel-like table... with the option to manually correct what the OCR missed."
+**What:** split the previously-single-shot `dn_import.php` pipeline into three steps —
+`dn_import.php` (copy + OCR + sanity → session draft), **`dn_review.php`** (new — editable table,
+invalid cells highlighted red per `DNSanity`'s flags, any field correctable, per-row delete
+checkbox, 3 blank spare rows for an item OCR missed entirely), **`dn_confirm.php`** (new —
+re-validates every posted row with the *same* rules `DNSanity::check()` uses, never trusts a
+correction blindly, then calls the finalize→diff→VS→status tail). That tail was factored out into
+new **`lib/DNPipeline.php::finalizeDelivery()`** so there's exactly one implementation of it
+(previously inlined in `dn_import.php`). Splitting the flow this way also means refreshing
+`dn_review.php` never re-triggers an OCR API call — free to revisit, not just safe against
+duplicate imports.
+**Not built (scoped out on purpose):** "add to supplier catalog" for a genuinely-new/unordered
+item (spec §4.3's other half of Review) — today an unmatched item just rides through to
+`unmatched_dn_items` in the VS; permanently adding it to `SuppliersDB/supplier_<id>.xlsx` would
+need a `SupplierStore::appendItem()` this pass didn't build. Worth adding once a real unmatched
+item shows up worth keeping.
+**Bug caught during testing, fixed same pass:** `DNPipeline::finalizeDelivery()`'s return value
+was missing the `'po'` key that `dn_result.php` expects (`$flash['po']`) — the refactor moved the
+finalize/diff/status logic out of `dn_import.php` without carrying that key along, so the first
+real test threw `Undefined array key "po"` and rendered a blank PO line. Fixed by having
+`finalizeDelivery()` return the original `$po` record alongside `dn`/`vs`/`old_status`/`new_status`.
+**Verified with two more real OpenAI calls:** (1) PO00002 (Dansell) with a *deliberate* manual
+correction on the Review screen — bumped one item's qty 3→5 and added an unordered item — confirmed
+the edit actually reaches the VS (`qty_diff: +2`, flagged; unordered item in
+`unmatched_dn_items`; badge "⚠ נמצאה שונות"). This is the exact scenario motivating the ask: a
+human adjusting a value before it hits the Diff Engine. (2) PO00003 (Tnuva), submitted unedited
+(pure pass-through) — all 3 items matched exactly, VS `matched`, PO closed; confirmed the
+`'po'` fix held (no warning, correct PO/supplier line rendered). Both runs done via a small PHP
+curl test harness (not manual browser clicking) to keep the human-edit and pass-through cases
+scripted and repeatable; scratch test files deleted after. `php -l` clean on all 5 touched/added
+files.
+**Post-test cleanup:** the 3 real test deliveries above (PO00001/2/3) were reset back to `open` —
+their DN images/JSON, VS JSON, and per-PO `vs_...` delivery-index counters deleted, status flipped
+back via the real `POStore::setStatus()` code path (not a raw file edit) — so all 5 seeded POs are
+open and untouched for the user's own testing, per explicit request rather than leaving 3 of the 5
+already closed out from under them.
+
+### Feature — po_list.php default to all users; DN/VS indicator columns (Aug 23, 2026)
+**What (two related requests, same session):**
+1. `po_list.php` now defaults to showing **all users' POs** (was: current session's user only) —
+   explicit request, "will help with the debug for now... after the demo we might need full
+   separation" (flagged with a `TODO` comment in the code, not just here). `?mine=1` narrows back
+   to the logged-in user; the toggle button/label swapped accordingly. `dn_select_po.php` already
+   did this (see the dated entry above) — `po_list.php` was the one screen still scoped to one user.
+2. Two new columns, "תעודת משלוח (DN)" and "דוח שונות (VS)" — a dash when a PO has neither, else a
+   count (📷 N / ✔ N or ⚠ N — the latter icon flips to a warning if ANY of that PO's VS records
+   have `status: "variance"`) linking to two new read-only pages, **`dn_view.php`** and
+   **`vs_view.php`** (both `?core_name=<po_core_name>`, same whitelist-regex guard as
+   `po_view.php`'s `core_name` param). Both list every DN/VS the PO has, oldest/lowest-delivery-
+   index first — not just the latest — since a PO can have more than one delivery (spec §5).
+**Refactor alongside it:** `dn_result.php`'s DN-fields/item-table and VS-status/diff-table markup
+was duplicated verbatim into what would have become `dn_view.php`/`vs_view.php` — pulled out into
+two new shared renderers, `poagent_render_dn_detail()` and `poagent_render_vs_detail()` in
+`lib/ui_common.php` (plus `poagent_agorot_to_ils()`, previously a local function in
+`dn_result.php`), matching this file's existing `poagent_render_po_detail()` convention exactly.
+`dn_result.php` now calls these too instead of its own inline copy — and picked up showing the
+actual DN photo inline for free, which it didn't do before (`poagent_render_dn_detail()` takes an
+optional `$imageUrl`). Images are served directly from `DNdir/` (confirmed no `.htaccess`
+restriction blocks it — matches spec §8.9, no security hardening needed at this stage).
+**Verified:** `php -l` on all 6 touched/added files; curl smoke test — confirmed `po_list.php`
+defaults to all 5 seeded POs and `?mine=1` narrows correctly; confirmed the DN/VS columns show "—"
+for POs with neither and a working count+link for one that has real data (PO00001, from earlier
+manual testing); followed both links and confirmed `dn_view.php` renders the actual photo + OCR
+table and `vs_view.php` renders the correct delivery index + matched/variance badge.
+
+### Feature — total verification (Aug 23, 2026)
+**What:** explicit request to add a "does the total add up" check on top of the existing per-item
+qty/price diffs — two checks, both anchored on the DN document's own declared (OCR'd) grand total:
+(a) does it match what this delivery was expected to be worth (the PO's remaining value for the
+items it actually contains), (b) does it match the sum of the DN's own rows (catches a document
+math error / OCR misread independently of any PO comparison). Requested to show in both
+`dn_view.php` and `vs_view.php`.
+- **`lib/DNOcr.php`** — the vision prompt didn't ask for a total at all before; added `"dn_total":
+  number or null` to the requested JSON shape, instructed to read the printed grand total (often
+  labeled סה"כ) as-is, never computed by the model itself, `null` if none is visible. Deliberately
+  nullable end-to-end (not defaulted to 0) so "no total on this document" stays distinguishable
+  from "total is genuinely zero" — a missing total must skip the checks, not false-flag them.
+- **`lib/DNSanity.php`** — passes `dn_total` through unchanged (not a per-item field, doesn't
+  affect `sanity_ok`).
+- **`dn_review.php`/`dn_confirm.php`** — `dn_total` is now an editable field on the Review screen
+  (same human-in-the-loop philosophy as everything else there) and re-validated server-side on
+  confirm (empty/non-numeric → `null`, never trusted blindly).
+- **`lib/DiffEngine.php`** — both checks computed once, in agorot (exact match, no tolerance, same
+  convention as the qty/price diffs), added as a new `total_check` object on the VS record:
+  `po_expected_total_agorot` (Σ `po_qty_remaining_before × po_price_agorot` over matched line items
+  only — an unordered item legitimately makes the real total diverge from what was expected, and
+  that's supposed to surface, not get averaged away), `dn_declared_total_agorot` (nullable),
+  `dn_computed_total_agorot` (Σ over ALL DN rows, matched + unmatched — the document's total
+  presumably includes everything printed on it), and the two diff/flagged pairs. A total mismatch
+  now also counts toward the VS's overall `matched`/`variance` status, not just its own display.
+- **`lib/ui_common.php`** — new shared renderer `poagent_render_total_check()` (single source of
+  display, matching this file's existing `poagent_render_*_detail()` convention), called from
+  `poagent_render_vs_detail()` automatically when `$vs['total_check']` is set. `dn_view.php` has no
+  PO-comparison context of its own (a DN record alone can't know what it was compared against), so
+  it matches each DN to its own VS by `dn_reference === dn_core_name` (they're always written
+  together in one `dn_confirm.php` call) and renders that VS's `total_check` — same numbers,
+  same function, single source of truth in `DiffEngine`, not recomputed twice.
+- **Backward compatibility:** VS records written before this change have no `total_check` key —
+  `vs_view.php`/`dn_result.php` simply skip the block (`isset()` guard), `dn_view.php` shows "אין
+  נתוני בדיקת סה"כ עבור תעודה זו" instead of erroring.
+**Bug caught while writing this, fixed before it ran:** `($dn['dn_total'] ?? null) !== null` in
+`poagent_render_dn_detail()`'s new info-line addition — first draft omitted the parens
+(`$dn['dn_total'] ?? null !== null`), and PHP's `??` binds looser than `!==`, so it silently
+parsed as `$dn['dn_total'] ?? (null !== null)` = `$dn['dn_total'] ?? false`. Caught on
+re-reading the diff, not by a test failure — fixed immediately.
+**Verified with a real OpenAI call:** PO00002 (Dansell, full PO value 155.40 ₪) against the real
+`Dansell 18-08-26 A.jpeg` — confirmed the review screen's `dn_total` field came back "155.4" (OCR
+correctly read the screenshot's own "סה"כ להזמנה" row rather than needing anyone to sum it),
+confirmed `dn_result.php`/`dn_view.php`/`vs_view.php` all rendered the same total-check block: all
+three totals (expected/declared/computed) at 155.40 ₪, both checks ✔ at a 0.00 ₪ diff. Also
+confirmed backward compatibility directly: `dn_view.php`/`vs_view.php` on PO00001's real
+pre-existing VS (written before this feature) rendered with no errors and the expected fallback
+text. `php -l` clean on all 8 touched files. Test PO00002 delivery reset back to `open` afterward
+(same cleanup convention as the dated entry above) — PO00001's real data from the user's own
+earlier testing was left untouched.
+
+### Feature — dn_review.php side-by-side with the DN photo (Aug 23, 2026)
+**Why:** explicit request — the Review screen had no image on it at all (the photo only appeared
+later, on `dn_result.php`/`dn_view.php`), so correcting an OCR miss meant working from memory or
+juggling a separate image tab. "Only then the user will be able to actually correct the DN."
+**What:** widened the card (900→1500px, still capped at 92vw so it degrades on narrow viewports)
+and wrapped the existing content in a two-column flex layout: the DN photo on one side
+(`position:sticky; top:20px` — stays in view while the form/table column scrolls past it,
+`object-fit:contain` capped at 85vh so a tall photo doesn't force the whole page to scroll past
+it), the editable form/table on the other (`flex-wrap:wrap` so it drops to a stacked single column
+on narrow screens rather than squeezing). Wrapped the item table itself in `overflow-x:auto` so it
+scrolls independently instead of forcing the whole page wider on small screens. No new files —
+same form/fields/table as before, same POST target (`dn_confirm.php`), purely a layout change.
+**Verified:** `php -l` clean; real import (no re-confirmation needed — a pure layout check) —
+confirmed the photo renders at a real, working `DNdir/...jpeg` URL, the flex/sticky CSS is present
+in the output, and the form still posts to the same place. Left the review unconfirmed on purpose
+(no PO/VS touched by this check) and deleted the one leftover unconfirmed image afterward.
+
+### Feature — live per-row line total on dn_review.php (Aug 23, 2026)
+**Why:** explicit request — the review table showed unit price per row but not qty×price, so
+comparing a row against the photo's own "סה"כ" column (every DN photo has one — see spec §6.3's
+worked table) meant doing the multiplication by hand. Needed to stay live, not just an initial
+snapshot, since the whole point of the table is editing qty/price — a static total would go stale
+the moment a value is corrected.
+**What:** new "סה"כ שורה" column, server-rendered from the OCR draft's initial values (correct even
+before JS runs) and recalculated live via a small vanilla-JS block (event-delegated on the table's
+`input` event — no per-row listeners to wire up, works for the 3 blank spare rows too the moment
+something is typed into them). Added a footer row, "סה"כ לפי שורות", summing all row totals —
+server-rendered initially, kept in sync by the same JS — so the existing "סה"כ בתעודה" field just
+above the table can be eyeballed against it directly during review, without waiting for
+`dn_result.php`'s post-confirm `total_check` block. Purely additive to the table (`<td>` display
+elements, not new form fields) — no change to what gets POSTed to `dn_confirm.php`.
+**Verified:** `php -l` clean; real import against a correctly-matched photo (PO00004/Dansell,
+5×7.90 + 2×8.90) — confirmed both row totals (39.50 ₪, 17.80 ₪) and the footer sum (57.30 ₪)
+render server-side exactly matching the photo's own printed values before any JS executes. Left
+unconfirmed on purpose (pure display check); leftover image deleted afterward, PO00004 confirmed
+still `open`/untouched.
+
+### Fix — PO items missing from a DN entirely were silently invisible in the VS (Aug 24, 2026)
+**Symptom (found by the user's own testing, not by us):** deliberately deleted one row from a
+3-item DN on the Review screen (barcode ending 77386, simulating an item genuinely not delivered)
+against real PO00003. The confirmed VS/`dn_result.php` correctly showed the 2 delivered items and
+correctly flagged the total mismatch, but the 3rd PO item just... wasn't mentioned anywhere. Not
+in `line_items`, not in `unmatched_dn_items` — completely absent, no indication the PO ever had a
+3rd item at all.
+**Root cause:** `DiffEngine::compare()`'s only loop was `foreach ($finalizedDn['items'] as $dnItem)`
+— it can only ever discover PO items that the DN actually mentions. A PO item the DN never
+mentions at all has no code path that touches it, so it silently falls out of the VS entirely.
+Under-delivery (0 received when qty was still owed) is exactly the kind of gap spec §4.4 says must
+never be hidden — same standing rule that made over-delivery/price mismatches get flagged, just
+missed for the "completely absent" case specifically.
+**Fix:** added a second pass over the PO's own item list — any PO barcode NOT covered by the first
+pass (i.e. not present in this DN) AND still owed (`po_qty_remaining_before > 0`, so an item
+already fully settled by a *prior* delivery correctly does NOT get re-flagged every time some
+other item ships) gets an explicit zero-delivery `line_items` entry: `dn_qty: 0`,
+`qty_diff: -remaining`, `qty_flagged: true`, `not_delivered: true`, price fields shown as "—"
+(nothing was delivered, so there's no DN price to meaningfully compare). `poagent_render_vs_detail()`
+highlights these rows (red background + "⚠ לא נכלל בתעודה זו" note) so they read as "missing from
+this delivery," not as a data error. Nice side effect on `total_check`: `po_expected_total_agorot`
+now legitimately includes every owed item whether delivered or not, which makes the two total
+checks mean something sharper — "expected vs declared" now correctly passes when a reviewer leaves
+a document's original total untouched after deleting a row (the total still reflects the *whole*
+order), while "declared vs computed-from-rows" correctly catches exactly that situation (the
+printed total no longer matches what was actually itemized as received).
+**Bug caught while testing the fix (unit test, not the app):** PHP silently casts a purely-numeric
+array key back to `int` — `foreach ($poItems as $barcode => ...)` handed back an `int` barcode
+even though the DN-item loop's `'barcode'` field is always an explicit `(string)` cast, an
+inconsistency a strict `===` assertion in the test caught immediately (rendering itself wouldn't
+have crashed — `htmlspecialchars()` coerces silently — so this would have stayed invisible without
+the test). Fixed with an explicit `(string) $barcode` re-cast in the new loop.
+**Verified with unit tests against `DiffEngine::compare()` directly** (no files touched, no API
+cost — deliberately chosen over a real end-to-end run specifically to avoid adding another
+delivery to the user's real PO00003 test data): (1) the user's exact scenario reproduced
+synthetically — confirmed all 3 items now appear, the missing one flagged correctly
+(`dn_qty=0, remaining_before=7, qty_diff=-7`), overall status `variance`, and `total_check` now
+shows `po_expected_total_agorot` = 70.80 (was 40.70) with "expected vs declared" passing and
+"declared vs computed" correctly catching the +30.10 gap. (2) A separate 2-delivery scenario
+confirming an item fully settled in delivery #0 does NOT get re-flagged as missing in delivery #1.
+(3) Rendered `poagent_render_vs_detail()` directly against a fully-not-delivered item and confirmed
+the red-highlighted row, warning note, and dashed price columns all render correctly. `php -l`
+clean on both touched files.
+**Decision, asked explicitly:** the user's real pre-existing PO00003 VS (the one in the bug report
+itself) predates this fix and still won't show the missing item if reopened — left as-is
+(historical record, matches this app's own "VS is never overwritten" rule) rather than
+regenerated, per the user's explicit choice when asked.
+
+### Feature — zoomable DN photo lightbox (Aug 24, 2026)
+**Why:** explicit request — the DN photo everywhere (`dn_result.php`, `dn_view.php`, `dn_review.php`)
+was capped at a fixed display size, too small to actually read a barcode or a handwritten
+correction against. "The picture is too small to detect."
+**What:** a single shared zoom/pan lightbox, added once to `poagent_render_foot()` (so every page
+that calls it — i.e. every POAgent screen — gets the overlay markup/CSS/JS for free, cost is
+negligible on pages with no images) rather than pulling in an external library — no CDN dependency,
+matches this codebase's existing all-vanilla-JS convention. Click any image tagged
+`class="poagent-zoomable" data-src="..."` to open it full-screen: scroll-wheel zoom (toward
+cursor), ＋/－ toolbar buttons, drag-to-pan once zoomed past fit, "100%" reset, close via button/
+Escape/clicking the backdrop. Event-delegated on `document`, so it works for any number of
+zoomable images on one page without per-image setup — matters for `dn_view.php`, which can render
+several DN photos (one per delivery) on the same page.
+Wired the class onto the two places a DN photo actually renders: `poagent_render_dn_detail()`'s
+`<img>` (covers `dn_result.php` and `dn_view.php` in one edit, per this file's existing shared-
+renderer convention) and `dn_review.php`'s own separate `<img>` (it doesn't go through that shared
+function — it's rendering a still-in-session draft, not a finalized DN record).
+**Verified:** `php -l` clean on all 4 touched files; confirmed via `dn_view.php` (real existing
+PO00001 data, no new API call needed) and a fresh `dn_review.php` import that both pages render the
+`poagent-zoomable` class + `data-src`, and the shared overlay/toolbar/viewport markup and script are
+present and correctly structured. Left the `dn_review.php` test unconfirmed on purpose (pure
+markup check); leftover test image deleted afterward. Noticed real user activity on PO00002 (now
+`closed`, real confirmed DN/VS, plus a couple of unconfirmed leftover review images) from testing
+done in parallel — left entirely untouched, not mine to clean up.
+
 ---
 
 ## 7. Testing Notes
@@ -236,9 +611,19 @@ now a harmless gap, not reused).
 
 ## 8. Known Open Items / Next Steps
 
-- DN upload/storage, OCR wiring (+ OCRsanity gate), barcode-match Review screen, Diff Engine (VS
-  generation), and status-lifecycle transitions are all unbuilt — see §2 table.
-- `po_list.php` currently shows only PO status/totals; VS display per delivery (spec §4.1 "Status/
-  history view") depends on the Diff Engine landing first.
-- No automated tests exist; consider adding a lightweight PHP test script once DN/VS logic lands,
-  since manual curl smoke-tests won't scale well to the barcode-matching/variance paths.
+- DN upload/storage, OCR, the human-in-the-loop Review screen, Diff Engine (VS generation), and
+  status-lifecycle transitions are all done and verified end-to-end with real OpenAI calls (see
+  §6). The one remaining piece from spec §9 step 5's list is **adding an unmatched item to the
+  supplier catalog** from the Review screen (`SupplierStore::appendItem()` doesn't exist yet) —
+  today an unmatched item still surfaces correctly in the VS's `unmatched_dn_items`, it just can't
+  be permanently added to `SuppliersDB/` from that screen. Build it once the user hits a real
+  case worth keeping in the catalog.
+- `po_view.php` (the per-PO detail screen, not the list) still doesn't surface its own DN/VS links
+  the way `po_list.php` now does — only reachable today via `po_list.php`'s columns. Small
+  follow-up if it turns out to matter (`po_view.php` already loads the PO by core name, so it's
+  just adding the same two links `po_list.php` has).
+- No "reopen a closed PO" path exists — see the known gap noted in §6's dated entry, relevant to
+  planning multi-delivery test scenarios against a specific PO.
+- No automated tests exist; consider adding a lightweight PHP test script now that DN/VS logic has
+  landed, since manual curl smoke-tests won't scale well to the barcode-matching/variance paths
+  the user is about to start exercising by hand.

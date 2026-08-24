@@ -15,21 +15,7 @@ if (!$record) {
 poagent_render_head('POAgent – הזמנה נוצרה');
 ?>
 <h2>✅ הזמנת רכש נוצרה</h2>
-<p><strong>מספר הזמנה:</strong> <?= htmlspecialchars($record['unique_id']) ?></p>
-<p><strong>שם קובץ (core name):</strong><br><span class="muted"><?= htmlspecialchars($record['core_name']) ?></span></p>
-<p><strong>ספק:</strong> <?= htmlspecialchars($record['supplier_id']) ?> &nbsp; <strong>נוצר ע"י:</strong> <?= htmlspecialchars($record['generator_id']) ?></p>
-
-<table>
-    <tr><th>ברקוד</th><th>שם פריט</th><th>כמות</th><th>מחיר יח'</th></tr>
-    <?php foreach ($record['items'] as $line): ?>
-    <tr>
-        <td><?= htmlspecialchars($line['barcode']) ?></td>
-        <td><?= htmlspecialchars($line['name']) ?></td>
-        <td><?= (int) $line['qty'] ?></td>
-        <td><?= number_format($line['unit_price_agorot'] / 100, 2) ?> ₪</td>
-    </tr>
-    <?php endforeach; ?>
-</table>
+<?php poagent_render_po_detail($record); ?>
 
 <a class="btn" href="po_supplier.php">➕ הזמנה נוספת</a>
 <div class="row-gap"></div>
