@@ -22,15 +22,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // ── POST: incoming message events ────────────────────────────────────────────
-// webhook.php only records the raw payload here. MessageFetching.php reads
-// this log, assigns each message object a serial number, and downloads any
-// image attachments — see MessageFetching.php for that logic.
+// Two things happen, in this order:
+//   1. The raw payload is appended to whatsapp_images/webhook_log.txt. This is
+//      untouched legacy behavior — NP's MessageFetching.php scrapes that file
+//      on demand and depends on every payload being there.
+//   2. After ack'ing Meta, the body is handed to WaRouter, which matches the
+//      business number the event was sent to against apps.json and calls the
+//      one matching app's handler (POAgent's bot, etc.). See lib/WaRouter.php.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = file_get_contents('php://input');
     file_put_contents($IMAGES_DIR . '/webhook_log.txt', date('Y-m-d H:i:s') . " - " . $body . "\n\n", FILE_APPEND);
 
+    // Ack Meta first, then dispatch — the webhook response must not wait on our
+    // own outbound Graph API calls.
     http_response_code(200);
     echo "OK";
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+
+    try {
+        require_once __DIR__ . '/lib/WaRouter.php';
+        WaRouter::handle($body);
+    } catch (\Throwable $e) {
+        file_put_contents(
+            $IMAGES_DIR . '/webhook_log.txt',
+            date('Y-m-d H:i:s') . " - [router error] " . $e->getMessage() . " @ " . $e->getFile() . ':' . $e->getLine() . "\n\n",
+            FILE_APPEND
+        );
+    }
     exit;
 }
 

@@ -1,0 +1,34 @@
+{
+  "_comment": "WhatsApp app registry. The single Meta webhook (webhook.php) fans every event to WaRouter, which matches each event's business number against the rules below and calls the one matching app's handler. Separation is by phone_number_id / display_phone_number only. Add a phone number in Meta, add an entry here, drop in a handler file - no change to webhook.php or WaRouter.",
+  "_allowlist_comment": "Per-app sender gate, checked after routing, before the handler runs. allowlist_mode: 'open' (default, omit the key entirely for the old behavior) = anyone gets answered. 'enforced' = only wa_ids (digits, no +) in allowed_senders get answered; everyone else is silently dropped and logged as 'unauthorized'.",
+  "apps": [
+    {
+      "id": "poagent",
+      "enabled": true,
+      "description": "PO / Delivery-Note bot (business line 052-2649555)",
+      "match": {
+        "phone_number_id": ["1239615559241608"],
+        "display_phone_number": ["972522649555"]
+      },
+      "allowlist_mode": "open",
+      "allowed_senders": [],
+      "handler": {
+        "file": "../POAgent/whatsapp/bot.php",
+        "function": "poagent_whatsapp_handle_event"
+      }
+    },
+    {
+      "id": "np",
+      "enabled": true,
+      "description": "New-Product image intake (business line +1 555 173 2464). No live handler - MessageFetching.php scrapes webhook_log.txt on demand; the raw-payload append in webhook.php is all NP needs.",
+      "match": {
+        "phone_number_id": [],
+        "display_phone_number": ["15551732464"]
+      },
+      "handler": {
+        "file": null,
+        "function": null
+      }
+    }
+  ]
+}

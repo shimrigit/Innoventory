@@ -1,8 +1,32 @@
 # OCR Subproject Documentation
 
 **Project Location:** `C:\xampp\htdocs\website`
-**Last Updated:** August 10, 2026
+**Last Updated:** September 2, 2026
 **Status:** Phase 1 Complete - Ready for Commercial Layer
+
+---
+
+## Recent Updates (September 2, 2026)
+
+### `whatsapp_app/` — multi-app router in front of the single Meta webhook
+
+Meta allows exactly one webhook callback URL per app/WABA and fans every event for every business
+number to it. `whatsapp_app/webhook.php` is that URL. It still appends every raw payload to
+`whatsapp_images/webhook_log.txt` unchanged (NP's `MessageFetching.php` depends on that), then —
+after ack'ing Meta — hands the body to a new **`WaRouter`** (`whatsapp_app/lib/WaRouter.php`).
+
+`WaRouter` matches each event's **business number** (`phone_number_id`, or `display_phone_number`
+as a fallback) against **`whatsapp_app/apps.json`** and calls the one matching app's handler with a
+normalized event. Registry today: `poagent` (052-2649555 → `POAgent/whatsapp/bot.php`) and `np`
+(+1 555 173 2464 → no live handler; the raw log is all NP uses). Adding a WhatsApp app = a new
+`apps.json` entry + a handler file; no change to `webhook.php` or `WaRouter`.
+
+New shared infra under `whatsapp_app/lib/`: `WaClient` (outbound Graph API send, token still from
+`config.json` → `meta_key`), `WaSessionStore` (`wa_id`→state files under `wa_sessions/`, wired but
+not consumed yet). Router/send logs under `whatsapp_app/logs/`. All new dirs git-ignored.
+
+NP is untouched: its data path is the raw-log append in `webhook.php`, which runs before the router;
+its `apps.json` entry has no handler. See `POAgent/POAgentNotes.md` §9 for the full picture.
 
 ---
 

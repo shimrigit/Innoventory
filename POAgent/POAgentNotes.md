@@ -2,7 +2,7 @@
 
 **Project Location:** `C:\xampp\htdocs\website\POAgent`
 **Spec:** `pre-demo` build, based on *Purchase Order & Delivery Note Matching System — Pre-Demo Development Spec (v3)* (Priority DB → 3 local directories, WhatsApp bot → web interface).
-**Last Updated:** August 23, 2026
+**Last Updated:** September 6, 2026
 **Status:** Phase 1 complete (PO creation flow). DN ingestion pipeline complete end-to-end,
 including the human-in-the-loop Review screen and DN/VS visibility from the history list — photo
 import, OCR, manual correction, Diff Engine/VS generation, status transitions, and now DN/VS
@@ -668,3 +668,99 @@ fix from earlier this session end-to-end.
 - No automated tests exist; consider adding a lightweight PHP test script now that DN/VS logic has
   landed, since manual curl smoke-tests won't scale well to the barcode-matching/variance paths
   the user is about to start exercising by hand.
+
+---
+
+## 9. WhatsApp Bot — Router + Benchmark Handler (Sept 2, 2026)
+
+First slice of the real WhatsApp entry point. The **menu reply itself is still a benchmark**
+(no branching on the user's A/B answer yet), but it now sits behind a real multi-app router so
+adding future WhatsApp apps is a config change, not a webhook edit.
+
+### The Meta constraint this works around
+One App/WABA = exactly **one** webhook callback URL, and Meta fans **every** event for **every**
+business number to it. So there can only ever be one physical endpoint; separating apps has to
+happen inside our code.
+
+### Layering (shared transport in `whatsapp_app/`, app logic in each app's folder)
+| Layer | File(s) | Role |
+|---|---|---|
+| Ingress | `whatsapp_app/webhook.php` | The single Meta-registered URL. GET handshake unchanged. POST: append raw payload to `whatsapp_images/webhook_log.txt` (**unchanged — NP's `MessageFetching.php` still scrapes it**), ack Meta (`fastcgi_finish_request()` when available), then `WaRouter::handle($body)` in a `try/catch` that can't break the 200. Knows nothing about any app. |
+| Router | `whatsapp_app/lib/WaRouter.php` | Parses the envelope once, matches each event's **business number** against `apps.json`, normalizes the message, calls the matched app's handler. Per-handler `try/catch` so one app failing can't stop the others. Logs every decision to `whatsapp_app/logs/router_YYYY-MM-DD.log` (`dispatch` / `unrouted` / `no_handler` / `handler_error` / `ignored_type`). |
+| Registry | `whatsapp_app/apps.json` | Data, not code. One entry per app: `match.phone_number_id[]` + `match.display_phone_number[]`, and `handler.file` / `handler.function`. |
+| Session store | `whatsapp_app/lib/WaSessionStore.php` | `wa_id → {app,state,data,expires_at}`, one JSON file per number under `wa_sessions/`, TTL-on-read (default 1h, sliding). **Wired but nothing consumes it yet** — it's there for the A/B-answer slice. Router does *not* route by session. |
+| Outbound | `whatsapp_app/lib/WaClient.php` | `WaClient::text()` / `::buttons()`. One place that knows the Graph endpoint + token. Token still from `whatsapp_app/config.json` → `meta_key`. Failures logged to `whatsapp_app/logs/send_YYYY-MM-DD.log`. |
+| POAgent handler | `POAgent/whatsapp/bot.php` | `poagent_whatsapp_handle_event(array $event)` — registered in `apps.json`. Gets the **normalized** event (never the raw body, does no number filtering). Replies with the menu, writes `state=awaiting_menu_choice` to the session, logs to `POAgent/whatsapp/logs/bot_YYYY-MM-DD.log`. |
+
+All the new dirs are git-ignored (`*` + `!.gitignore`), same pattern as `POcounter/`.
+
+### Routing = business number only
+`WaRouter::matchApp()` checks `phone_number_id` first (exact), then `display_phone_number`
+(digits-only) as a fallback for a number whose id we haven't recorded. Current registry:
+
+| App | Match | Handler |
+|---|---|---|
+| `poagent` | pnid `1239615559241608` / display `972522649555` (052-2649555) | `poagent_whatsapp_handle_event` |
+| `np` | display `15551732464` (+1 555 173 2464) | **none** — raw log in `webhook.php` is all NP needs; router logs `no_handler` and moves on |
+
+NP's id is unknown until a real NP webhook arrives; grab it from `webhook_log.txt` then and add it
+to `apps.json`. NP number will be replaced later (user's note) — that's just an `apps.json` edit.
+
+### Normalized event (what a handler receives)
+`app_id`, `business_phone_number_id` (reply "from" this), `business_display_number`, `from` / `wa_id`
+(digits), `contact_name`, `message_id`, `timestamp`, `type`, `text` (best-effort: body / button title /
+interactive reply title|id), `reply_id`, `raw_message`, `session` (current `WaSessionStore` record or
+null).
+
+### Behavior (POAgent handler)
+Any `text` / `interactive` / `button` message on the POAgent line → the menu below (content
+ignored; other types logged as `ignored_type`):
+```
+שלום 👋 הגעת ל-POAgent, מערכת ההזמנות ותעודות המשלוח.
+
+מה תרצה לעשות?
+
+A – הקם הזמנה חדשה
+B – סריקת תעודת משלוח
+
+השב/י באות A או B.
+```
+
+### Verified
+- **Sept 2, 2026 — offline**, token blanked so no real send: `WaRouter::handle()` against synthetic
+  payloads — POAgent line → `dispatch` + bot menu-reply + session written; display-only match works;
+  NP line → `no_handler`, never reaches POAgent; unknown number → `unrouted`; reaction on POAgent
+  line → `ignored_type`. `WaClient` cleanly logged `send_skipped` with no network call.
+- **Sept 2, 2026 — live**: real round-trip confirmed from `webhook_log.txt` ("הי" → menu, "A" →
+  menu again). The Meta app is in **Live mode** — user confirmed any phone (not just app
+  admin/dev/tester roles) can text 972522649555 and get the menu. Status callbacks
+  (`sent`/`delivered`/`read`) arrive as `value.statuses[]` and the router correctly skips them
+  (no `value.messages`).
+
+### Feature — sender allowlist, two modes (Sept 6, 2026)
+**Why:** app is Live and open to any number. Not a laptop-security concern (traffic is
+controllable at the source), but two other reasons to have the gate ready now: (1) a Live
+business number carries a Meta quality score — strangers texting it and never replying can drag
+that down; (2) once real PO/DN logic sits behind the handler, an unauthorized message could write
+a real record. Cheap to add now, annoying to retrofit later.
+**What:** per-app field in `apps.json`, checked in `WaRouter::handle()` right after an event is
+normalized (per-message, since the sender is per-message) and before the handler is called:
+- `allowlist_mode: "open"` (default — **also the behavior if the key is omitted entirely**, so
+  existing registry entries need no change) — every sender is handled, current benchmark behavior.
+- `allowlist_mode: "enforced"` — only wa_ids (digits, no `+`) listed in that app's
+  `allowed_senders` get handled; everyone else is **silently dropped** (logged as `unauthorized`,
+  no reply sent — doesn't spend messages on spam, doesn't confirm to a prober that the number is a
+  live bot).
+`WaRouter::isAllowed()` digit-strips both the incoming `from` and every entry in `allowed_senders`
+before comparing, so a number can be entered in the list with or without formatting/`+`.
+Both registry apps (`poagent`, `np`) currently have `allowlist_mode: "open"` — nothing changes
+until someone flips `poagent`'s to `"enforced"` and populates `allowed_senders` with tester
+numbers.
+**Verified:** `php -l` clean; reflection-based unit test directly against `isAllowed()` (6 cases:
+open mode, key omitted entirely, enforced+listed digits-only, enforced+listed
+unformatted/`+`-prefixed, enforced+unlisted, enforced+empty `from`) — all passed.
+**Not done yet (next slices):**
+- Read the user's `A`/`B` reply (the `awaiting_menu_choice` session is already being written) and branch.
+- Interactive buttons (`WaClient::buttons()` exists) instead of the text menu.
+- `X-Hub-Signature-256` verification in `webhook.php` (currently any POST is trusted).
+- Move the outbound send off the webhook request (queue / worker).
