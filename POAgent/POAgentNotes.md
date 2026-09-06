@@ -759,8 +759,80 @@ numbers.
 **Verified:** `php -l` clean; reflection-based unit test directly against `isAllowed()` (6 cases:
 open mode, key omitted entirely, enforced+listed digits-only, enforced+listed
 unformatted/`+`-prefixed, enforced+unlisted, enforced+empty `from`) — all passed.
+### Feature — idle-session reminder + auto-close (Sept 6, 2026)
+**Why:** once real branching lands, a user who goes quiet mid-flow needs a way back to a known
+state rather than being stuck forever in `awaiting_menu_choice` (or whatever state they left off
+in) until the 1h session TTL silently expires with no warning.
+**What:** every inbound message now stamps `data.last_inbound_at` (+ resets
+`data.reminder_sent_at` to null, + stores `data.business_phone_number_id` so a later sweep knows
+which of our numbers to reply "from") in `bot.php`'s `WaSessionStore::set()` call. A new function,
+`poagent_whatsapp_sweep_idle_sessions()`, scans every open POAgent session
+(`WaSessionStore::allForApp()`, new shared method) and: **5 minutes** of silence → sends one Hebrew
+"still there?" reminder ("עדיין שם/ה? אם לא נמשיך את השיחה, היא תיסגר בעוד דקה."), stamps
+`reminder_sent_at`; **1 more minute** of silence after that → sends a Hebrew close message ("השיחה
+הסתיימה. כדי להתחיל שיחה חדשה, פשוט שלח/י לנו הודעה.") and `WaSessionStore::clear()`s the session.
+Any inbound message in between cancels both, since it resets `last_inbound_at`/`reminder_sent_at`.
+**Trigger mechanism — deliberately not OS-specific:** there's no code path that runs without an
+inbound webhook hit, so something external has to call the sweep on a timer. Discussed Windows
+Task Scheduler vs. a manual loop; **explicit choice: a manual loop script**
+(`POAgent/whatsapp/session_sweeper.php`, `while(true){ sweep(); sleep(15); }`, run by hand in a
+terminal, Ctrl+C to stop) — this project may move off Windows to a real server later, and the
+timing *logic* (`poagent_whatsapp_sweep_idle_sessions()`) doesn't know or care what wakes it up, so
+swapping the runner for cron/systemd later is a one-file change. Not meant to survive as the
+production mechanism — fine for the single/low-volume test sessions this is being exercised with
+now, per explicit request.
+**Verified:** `php -l` clean on all 3 touched/added files; functional test against real
+`WaSessionStore` records (not mocked) — (1) a session idle 6 minutes with no reminder yet →
+reminder sent, `reminder_sent_at` stamped, session still open; (2) same session with
+`reminder_sent_at` 2 minutes in the past → close message sent, session file deleted; (3) a
+just-touched ("fresh") session → sweep takes no action. Test used a throwaway wa_id, cleaned up
+after.
+**Side effect caught during that test, cleaned up immediately:** the sweep also scans *every* open
+POAgent session, not just the test one — it picked up a real leftover session from the Sept 2 live
+test (`972546997729.json`), which predates the `last_inbound_at` field and fell back to its stale
+`updated_at`, triggering a (harmless - no `business_phone_number_id` on that old record, so
+`WaClient` logged `send_skipped`, no real message went out) reminder attempt against it. Deleted
+that stale leftover session file afterward so it doesn't linger half-mutated.
+### Feature — A/B branching, stub flows (Sept 6, 2026)
+**What:** closes the "read the A/B reply and branch" item, as an explicit stub — no real PO/DN
+logic yet, per explicit request ("later i will add the actual logic"). `poagent_whatsapp_handle_event()`
+now checks `$event['session']` (already supplied by `WaRouter`, no extra lookup): no open session →
+unchanged greet-with-menu behavior. In `awaiting_menu_choice`, reply normalized (trim + uppercase)
+to `A` → sends "מתחיל תהליך הקמת הזמנה" then immediately "הזמנה הושלמה" and clears the session
+(`poagent_whatsapp_run_stub_flow()`, shared by both branches, `flow` param `'po'`/`'dn'` for
+logging); `B` → same shape with "מתחיל תהליך סריקת תעודה" / "סריקת תעודה הושלמה"; anything else →
+"עליך לשלוח A - להזמנה חדשה או B לסריקת תעודת משלוח", session stays in `awaiting_menu_choice` so
+the user can retry (also keeps the idle-timeout fields — `last_inbound_at` reset,
+`reminder_sent_at` cleared — same as every other inbound touch, so a retry-loop doesn't trip the
+5-minute idle reminder prematurely).
+**Verified:** `php -l` clean; functional test driving `poagent_whatsapp_handle_event()` directly
+with a real `WaSessionStore` behind it (not mocked) — fresh contact → menu + session opens;
+lowercase `a` → both stub messages logged + session cleared; a **fresh** contact sending `b` as
+their very first message correctly gets the greeting menu instead of being treated as an answer
+(no session existed yet); invalid reply → nudge text, session stays `awaiting_menu_choice`;
+uppercase `B` → dn-flow stub + session cleared. Confirmed via the log file, no stray session files
+left behind afterward.
+### Feature — menu as tappable WhatsApp reply buttons (Sept 6, 2026)
+**Why:** explicit request, prompted by a screenshot of a real business (ELAL) using WhatsApp's
+native "reply buttons" for a language picker - asked whether POAgent could offer its menu the same
+way instead of "type A or B".
+**What:** the menu send now calls `WaClient::buttons()` (already existed, unused until now) with
+two buttons - `הזמנה חדשה` (id `po_new`) and `סריקת תעודה` (id `dn_scan`) - instead of
+`WaClient::text()` with the old spelled-out "A – ... / B – ..." instructions. Matching moved to the
+button's **id** (`POAGENT_WA_BTN_PO_NEW`/`POAGENT_WA_BTN_DN_SCAN` constants), not its title text, so
+a later wording/translation change can't silently break the branch. **Typed `A`/`B` is kept as a
+fallback alongside the buttons** - free text always reaches a WhatsApp bot regardless of how the
+menu rendered, and it's what the existing offline/dev test harness exercises without simulating a
+real button tap.
+**Verified:** `php -l` clean; functional test driving `poagent_whatsapp_handle_event()` directly -
+button tap (`type: interactive`, `reply_id: po_new`, title text deliberately different from "A") →
+po-flow stub fires; `reply_id: dn_scan` → dn-flow stub fires; typed `a`/unrecognized text still work
+via the existing fallback/nudge paths. Also surfaced (not caused by this change): your own real
+phone was live-testing the bot in parallel while this was being tested - a real open session
+(`972546997729.json`, `awaiting_menu_choice`, sent as the old plain-text menu since it went out
+before this edit landed) exists on disk; left untouched since it's real conversation state, not
+test data - replying `A`/`B` to it will still work correctly via the typed fallback.
 **Not done yet (next slices):**
-- Read the user's `A`/`B` reply (the `awaiting_menu_choice` session is already being written) and branch.
-- Interactive buttons (`WaClient::buttons()` exists) instead of the text menu.
+- The real PO-creation and DN-scanning logic behind the menu (this session's explicit "later").
 - `X-Hub-Signature-256` verification in `webhook.php` (currently any POST is trusted).
 - Move the outbound send off the webhook request (queue / worker).

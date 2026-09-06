@@ -95,6 +95,28 @@ class WaSessionStore
         );
     }
 
+    /**
+     * All non-expired sessions currently belonging to a given app. For a
+     * background sweeper (e.g. an idle-timeout reminder) that needs to scan
+     * every open conversation instead of reacting to one inbound event.
+     * Expired sessions are cleaned up as a side effect, same as get().
+     */
+    public static function allForApp(string $app): array
+    {
+        if (!is_dir(WA_SESSION_DIR)) {
+            return [];
+        }
+        $result = [];
+        foreach (glob(WA_SESSION_DIR . '/*.json') ?: [] as $path) {
+            $waId    = basename($path, '.json');
+            $session = self::get($waId); // self-cleans if expired/corrupt
+            if ($session !== null && ($session['app'] ?? '') === $app) {
+                $result[] = $session;
+            }
+        }
+        return $result;
+    }
+
     /** End a user's session. Safe to call when there is none. */
     public static function clear(string $waId): void
     {
